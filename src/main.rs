@@ -12,7 +12,7 @@ use std::path::Path;
 #[derive(Clap)]
 struct Params {
     /// Base of directory tree containing templates and pages
-    #[clap(short = "b", long = "base", default_value = ".")]
+    #[clap(short="b", long="base", default_value=".")]
     base: String,
     #[clap(subcommand)]
     command: Command,
@@ -21,10 +21,10 @@ struct Params {
 #[derive(Clap)]
 enum Command {
     /// Render a page file
-    #[clap(name = "render")]
+    #[clap(name="render")]
     Render {
         /// Path to template to use
-        #[clap(short = "t", long = "template", default_value = "templates/default.tmpl")]
+        #[clap(short="t", long="template", default_value="templates/default.tmpl")]
         template: String,
         /// Path to page file to render
         page: String,
