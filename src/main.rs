@@ -4,6 +4,7 @@ extern crate clap;
 use clap::{Arg, App, AppSettings, SubCommand};
 use std::collections::HashMap;
 use std::env;
+use std::fs;
 use std::io;
 use std::path::Path;
 
@@ -23,16 +24,18 @@ fn main() {
             .short("b")
             .long("base")
             .value_name("DIR")
-            .help("Base of directory tree containing templates and pages")
-            .takes_value(true))
+            .help("Base of directory tree containing templates and pages"))
         .subcommand(SubCommand::with_name("render")
             .arg(Arg::with_name("template")
                 .short("t")
                 .long("template")
                 .value_name("FILE")
                 .default_value("templates/default.tmpl")
-                .help("Template to use")
-                .takes_value(true)));
+                .help("Template to use"))
+            .arg(Arg::with_name("page")
+                .value_name("PAGE")
+                .required(true)
+                .help("Page to render")));
     let matches = app.get_matches();
 
     let base = matches.value_of("base");
@@ -45,9 +48,12 @@ fn main() {
         let template_path = render_matches.value_of("template").unwrap();
         let template = mustache::compile_path(template_path).unwrap();
 
+        let page_path = render_matches.value_of("page").unwrap();
+        let page_raw = fs::read_to_string(page_path).unwrap();
+
         let mut data = HashMap::new();
         data.insert("title", "hello <b>world</b>");
-        data.insert("body", "<p>hello <b>world</b></p>");
+        data.insert("body", &page_raw);
 
         template.render(&mut io::stdout(), &data).unwrap();
     }
