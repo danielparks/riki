@@ -15,23 +15,20 @@ struct Params {
     #[clap(short = "b", long = "base", default_value = ".")]
     base: String,
     #[clap(subcommand)]
-    sub_command: SubCommand,
+    command: Command,
 }
 
 #[derive(Clap)]
-enum SubCommand {
+enum Command {
     /// Render a page file
     #[clap(name = "render")]
-    Render(Render),
-}
-
-#[derive(Clap)]
-struct Render {
-    /// Path to template to use
-    #[clap(short = "t", long = "template", default_value = "templates/default.tmpl")]
-    template: String,
-    /// Path to page file to render
-    page: String,
+    Render {
+        /// Path to template to use
+        #[clap(short = "t", long = "template", default_value = "templates/default.tmpl")]
+        template: String,
+        /// Path to page file to render
+        page: String,
+    },
 }
 
 
@@ -45,10 +42,10 @@ fn main() {
         assert!(env::set_current_dir(&base_path).is_ok());
     }
 
-    match params.sub_command {
-        SubCommand::Render(sub) => {
-            let template = mustache::compile_path(&sub.template).unwrap();
-            let page_raw = fs::read_to_string(&sub.page).unwrap();
+    match params.command {
+        Command::Render{template, page} => {
+            let template = mustache::compile_path(&template).unwrap();
+            let page_raw = fs::read_to_string(&page).unwrap();
 
             let mut data = HashMap::new();
             data.insert("title", "hello <b>world</b>");
