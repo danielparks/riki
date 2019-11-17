@@ -12,8 +12,9 @@ fn main() {
     // serve
 
     let mut data = HashMap::new();
-    data.insert("name", "world");
+    data.insert("title", "hello <b>world</b>");
+    data.insert("body", "<p>hello <b>world</b></p>");
 
-    let template = mustache::compile_str("hello {{name}}\n").unwrap();
+    let template = mustache::compile_str("<title>{{title}}</title>\n<body>{{& body}}</body>\n").unwrap();
     template.render(&mut io::stdout(), &data).unwrap();
 }
