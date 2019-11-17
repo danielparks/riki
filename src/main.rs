@@ -9,10 +9,6 @@ use std::io;
 use std::path::Path;
 
 fn main() {
-    // command line arguments
-    // render
-    // Load template file
-    // load page file
     // read page yaml
     // serve
 
