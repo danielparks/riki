@@ -1,7 +1,7 @@
 extern crate mustache;
 extern crate clap;
 
-use clap::{Arg, App, SubCommand};
+use clap::{Arg, App, AppSettings, SubCommand};
 use std::collections::HashMap;
 use std::env;
 use std::io;
@@ -18,18 +18,21 @@ fn main() {
     let app = App::new("rustwiki")
         .version("0.1.0")
         .about("Markdown wiki in Rust")
+        .setting(AppSettings::SubcommandRequired)
         .arg(Arg::with_name("base")
             .short("b")
             .long("base")
             .value_name("DIR")
             .help("Base of directory tree containing templates and pages")
             .takes_value(true))
-        .arg(Arg::with_name("template")
-            .short("t")
-            .long("template")
-            .value_name("FILE")
-            .help("Template to use")
-            .takes_value(true));
+        .subcommand(SubCommand::with_name("render")
+            .arg(Arg::with_name("template")
+                .short("t")
+                .long("template")
+                .value_name("FILE")
+                .default_value("templates/default.tmpl")
+                .help("Template to use")
+                .takes_value(true)));
     let matches = app.get_matches();
 
     let base = matches.value_of("base");
@@ -38,13 +41,14 @@ fn main() {
         assert!(env::set_current_dir(&base_path).is_ok());
     }
 
-    let template_path = matches.value_of("template")
-        .unwrap_or("templates/default.tmpl");
-    let template = mustache::compile_path(template_path).unwrap();
+    if let Some(render_matches) = matches.subcommand_matches("render") {
+        let template_path = render_matches.value_of("template").unwrap();
+        let template = mustache::compile_path(template_path).unwrap();
 
-    let mut data = HashMap::new();
-    data.insert("title", "hello <b>world</b>");
-    data.insert("body", "<p>hello <b>world</b></p>");
+        let mut data = HashMap::new();
+        data.insert("title", "hello <b>world</b>");
+        data.insert("body", "<p>hello <b>world</b></p>");
 
-    template.render(&mut io::stdout(), &data).unwrap();
+        template.render(&mut io::stdout(), &data).unwrap();
+    }
 }
