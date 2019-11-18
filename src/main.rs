@@ -1,7 +1,9 @@
+use regex::Regex;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::io;
+use std::path::Path;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -26,6 +28,44 @@ enum Command {
         #[structopt(parse(from_os_str))]
         page: PathBuf,
     },
+    /// Get metadata from a page file
+    #[structopt(name="info", no_version)]
+    Info {
+        /// Path to page file
+        #[structopt(parse(from_os_str))]
+        page: PathBuf,
+    },
+}
+
+#[derive(Debug)]
+struct Page {
+    file: std::path::PathBuf,
+    metadata: HashMap<String, String>,
+    body: String,
+}
+
+impl Page {
+    fn read_from(path: &Path) -> Result<Page, io::Error> {
+        let raw = fs::read_to_string(path)?;
+        let re = Regex::new(r"(?:^|[\r\n]+)---(?:$|[\r\n]+)").unwrap();
+        let parts: Vec<&str> = re.splitn(&raw, 2).collect();
+
+        let (yaml, body) = match parts[..] {
+            [yaml, body] => (yaml, body),
+            [body] => ("", body),
+            _ => unreachable!(),
+        };
+
+        let mut page = Page {
+            file: PathBuf::from(path),
+            metadata: HashMap::new(),
+            body: String::from(body),
+        };
+
+        page.metadata.insert(String::from("title"), String::from(yaml));
+
+        Ok(page)
+    }
 }
 
 fn main() {
@@ -46,6 +86,9 @@ fn main() {
             data.insert("body", &page_raw);
 
             template.render(&mut io::stdout(), &data).unwrap();
+        }
+        Command::Info{page} => {
+            println!("{:#?}", Page::read_from(&page))
         }
     }
 }
