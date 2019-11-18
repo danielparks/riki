@@ -7,7 +7,7 @@ use std::io;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-#[derive(StructOpt)]
+#[derive(Debug, StructOpt)]
 struct Params {
     /// Directory tree containing templates and pages
     #[structopt(short, long, default_value=".", hide_default_value=true, parse(from_os_str))]
@@ -16,7 +16,7 @@ struct Params {
     command: Command,
 }
 
-#[derive(StructOpt)]
+#[derive(Debug, StructOpt)]
 enum Command {
     /// Render a page file
     #[structopt(name="render", no_version)]
@@ -29,7 +29,6 @@ enum Command {
         page: PathBuf,
     },
 }
-
 
 fn main() {
     // read page yaml
