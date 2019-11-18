@@ -8,5 +8,11 @@ edition = "2018"
 
 [dependencies]
 mustache = "0" # Look at ramhorns instead of mustache?
-regex = "1"
 structopt = "0"
+yaml-rust = "0"
+serde = "1.0"
+serde_yaml = "0.8"
+
+# Bugs: https://github.com/rust-lang/regex/pull/628
+#regex = "1"
+regex = { git = "https://github.com/danielparks/regex.git", branch = "split_627_and_521" }

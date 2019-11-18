@@ -6,6 +6,8 @@ use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use structopt::StructOpt;
+use yaml_rust::Yaml;
+use yaml_rust::YamlLoader;
 
 #[derive(Debug, StructOpt)]
 struct Params {
@@ -45,24 +47,44 @@ struct Page {
 }
 
 impl Page {
-    fn read_from(path: &Path) -> Result<Page, io::Error> {
-        let raw = fs::read_to_string(path)?;
+    fn split_raw_page(raw: &str) -> (&str, &str) {
         let re = Regex::new(r"(?:^|[\r\n]+)---(?:$|[\r\n]+)").unwrap();
         let parts: Vec<&str> = re.splitn(&raw, 2).collect();
-
-        let (yaml, body) = match parts[..] {
+        match parts[..] {
             [yaml, body] => (yaml, body),
             [body] => ("", body),
             _ => unreachable!(),
-        };
+        }
+    }
+
+    fn read_from(path: &Path) -> Result<Page, io::Error> {
+        let raw = fs::read_to_string(path)?;
+        let (header, body) = Page::split_raw_page(&raw);
 
         let mut page = Page {
             file: PathBuf::from(path),
             metadata: HashMap::new(),
-            body: String::from(body),
+            body: body.to_string(),
         };
 
-        page.metadata.insert(String::from("title"), String::from(yaml));
+        let yaml_docs = YamlLoader::load_from_str(header).unwrap();
+        if yaml_docs.len() == 0 {
+            return Ok(page);
+        } else if yaml_docs.len() != 1 {
+            panic!(&"expected exactly one YAML document in metadata; got {metadata.len()}");
+        }
+
+        if let Yaml::Hash(hash) = &yaml_docs[0] {
+            for (key, value) in hash {
+                if let (Yaml::String(k), Yaml::String(v)) = (key, value) {
+                     page.metadata.insert(k.to_string(), v.to_string());
+                } else {
+                    panic!(&"expected hash<string, string> for metadata");
+                }
+            }
+        } else {
+            panic!(&"expected hash for metadata");
+        }
 
         Ok(page)
     }
@@ -88,7 +110,8 @@ fn main() {
             template.render(&mut io::stdout(), &data).unwrap();
         }
         Command::Info{page} => {
-            println!("{:#?}", Page::read_from(&page))
+            let metadata = Page::read_from(&page).unwrap().metadata;
+            println!("{}", serde_yaml::to_string(&metadata).unwrap());
         }
     }
 }
