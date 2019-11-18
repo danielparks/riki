@@ -4,14 +4,14 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::io;
-use std::path::Path;
+use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
 struct Params {
     /// Directory tree containing templates and pages
-    #[structopt(short, long, default_value=".", hide_default_value=true)]
-    base: String,
+    #[structopt(short, long, default_value=".", hide_default_value=true, parse(from_os_str))]
+    base: PathBuf,
     #[structopt(subcommand)]
     command: Command,
 }
@@ -19,11 +19,11 @@ struct Params {
 #[derive(StructOpt)]
 enum Command {
     /// Render a page file
-    #[structopt(name="render")]
+    #[structopt(name="render", no_version)]
     Render {
         /// Path to template to use
-        #[structopt(short, long, default_value="templates/default.tmpl")]
-        template: String,
+        #[structopt(short, long, default_value="templates/default.tmpl", parse(from_os_str))]
+        template: PathBuf,
         /// Path to page file to render
         page: String,
     },
@@ -35,10 +35,8 @@ fn main() {
     // serve
     let params = Params::from_args();
 
-    if params.base != "." {
-        let base_path = Path::new(&params.base);
-        assert!(env::set_current_dir(&base_path).is_ok());
-    }
+    // Switch to base directory. The default of "." results in a no-op.
+    assert!(env::set_current_dir(&params.base).is_ok());
 
     match params.command {
         Command::Render{template, page} => {
