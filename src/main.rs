@@ -6,8 +6,6 @@ use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use yaml_rust::Yaml;
-use yaml_rust::YamlLoader;
 
 #[derive(Debug, StructOpt)]
 struct Params {
@@ -67,23 +65,14 @@ impl Page {
             body: body.to_string(),
         };
 
-        let yaml_docs = YamlLoader::load_from_str(header).unwrap();
-        if yaml_docs.len() == 0 {
-            return Ok(page);
-        } else if yaml_docs.len() != 1 {
-            panic!(&"expected exactly one YAML document in metadata; got {metadata.len()}");
-        }
-
-        if let Yaml::Hash(hash) = &yaml_docs[0] {
-            for (key, value) in hash {
-                if let (Yaml::String(k), Yaml::String(v)) = (key, value) {
-                     page.metadata.insert(k.to_string(), v.to_string());
-                } else {
-                    panic!(&"expected hash<string, string> for metadata");
-                }
+        match serde_yaml::from_str(&header) {
+            Ok(hash) => {
+                page.metadata = hash;
             }
-        } else {
-            panic!(&"expected hash for metadata");
+            Err(e) => {
+                // FIXME! this should ignore EndOfStream and return all other errors.
+                println!("Error while parsing metadata: {}", e);
+            }
         }
 
         Ok(page)
@@ -111,7 +100,15 @@ fn main() {
         }
         Command::Info{page} => {
             let metadata = Page::read_from(&page).unwrap().metadata;
-            println!("{}", serde_yaml::to_string(&metadata).unwrap());
+            let yaml = serde_yaml::to_string(&metadata).unwrap();
+
+            let prefix = "---\n";
+            let start = if yaml.starts_with(prefix) { prefix.len() } else { 0 };
+
+            if &yaml[start..] != "{}" {
+                // Metadata isn’t empty.
+                println!("{}", &yaml[start..]);
+            }
         }
     }
 }
