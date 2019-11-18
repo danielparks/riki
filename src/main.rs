@@ -11,8 +11,8 @@ use std::path::Path;
 
 #[derive(Clap)]
 struct Params {
-    /// Base of directory tree containing templates and pages
-    #[clap(short="b", long="base", default_value=".")]
+    /// Directory tree containing templates and pages
+    #[clap(short="b", long="base", default_value=".", hide_default_value=true)]
     base: String,
     #[clap(subcommand)]
     command: Command,
