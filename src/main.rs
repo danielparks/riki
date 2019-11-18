@@ -10,7 +10,7 @@ use structopt::StructOpt;
 #[derive(StructOpt)]
 struct Params {
     /// Directory tree containing templates and pages
-    #[structopt(short="b", long="base", default_value=".", hide_default_value=true)]
+    #[structopt(short, long, default_value=".", hide_default_value=true)]
     base: String,
     #[structopt(subcommand)]
     command: Command,
@@ -22,7 +22,7 @@ enum Command {
     #[structopt(name="render")]
     Render {
         /// Path to template to use
-        #[structopt(short="t", long="template", default_value="templates/default.tmpl")]
+        #[structopt(short, long, default_value="templates/default.tmpl")]
         template: String,
         /// Path to page file to render
         page: String,
