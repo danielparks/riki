@@ -25,7 +25,8 @@ enum Command {
         #[structopt(short, long, default_value="templates/default.tmpl", parse(from_os_str))]
         template: PathBuf,
         /// Path to page file to render
-        page: String,
+        #[structopt(parse(from_os_str))]
+        page: PathBuf,
     },
 }
 
