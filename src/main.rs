@@ -1,5 +1,3 @@
-extern crate mustache;
-
 use std::collections::HashMap;
 use std::env;
 use std::fs;
