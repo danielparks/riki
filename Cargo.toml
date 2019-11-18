@@ -7,7 +7,5 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { git = "https://github.com/clap-rs/clap" }
-
-# Look at ramhorns instead of mustache?
-mustache = "*"
+mustache = "0" # Look at ramhorns instead of mustache?
+structopt = "0"

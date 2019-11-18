@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate clap;
-
 extern crate mustache;
 
 use std::collections::HashMap;
@@ -8,23 +5,24 @@ use std::env;
 use std::fs;
 use std::io;
 use std::path::Path;
+use structopt::StructOpt;
 
-#[derive(Clap)]
+#[derive(StructOpt)]
 struct Params {
     /// Directory tree containing templates and pages
-    #[clap(short="b", long="base", default_value=".", hide_default_value=true)]
+    #[structopt(short="b", long="base", default_value=".", hide_default_value=true)]
     base: String,
-    #[clap(subcommand)]
+    #[structopt(subcommand)]
     command: Command,
 }
 
-#[derive(Clap)]
+#[derive(StructOpt)]
 enum Command {
     /// Render a page file
-    #[clap(name="render")]
+    #[structopt(name="render")]
     Render {
         /// Path to template to use
-        #[clap(short="t", long="template", default_value="templates/default.tmpl")]
+        #[structopt(short="t", long="template", default_value="templates/default.tmpl")]
         template: String,
         /// Path to page file to render
         page: String,
@@ -35,7 +33,7 @@ enum Command {
 fn main() {
     // read page yaml
     // serve
-    let params: Params = Params::parse();
+    let params = Params::from_args();
 
     if params.base != "." {
         let base_path = Path::new(&params.base);
