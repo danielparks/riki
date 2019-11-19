@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 mustache = "0" # Look at ramhorns instead of mustache?
+pulldown-cmark = { version = "0", default-features = false, features = ["simd"] } # enable simd only on 86_x64?
 structopt = "0"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"

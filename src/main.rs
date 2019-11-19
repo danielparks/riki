@@ -1,3 +1,4 @@
+use pulldown_cmark::{Parser, Options, html};
 use regex::Regex;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -91,7 +92,7 @@ impl Page {
         let mut page = Page {
             file: PathBuf::from(path),
             metadata: HashMap::new(),
-            body: body.to_string(),
+            body: Page::render_markdown(&body),
         };
 
         match serde_yaml::from_str(&header) {
@@ -109,6 +110,14 @@ impl Page {
                 }
             }
         }
+    }
+
+    fn render_markdown(markdown: &str) -> String {
+        let mut buffer = String::new();
+        let parser = Parser::new_ext(&markdown, Options::all());
+        html::push_html(&mut buffer, parser);
+
+        buffer
     }
 }
 
