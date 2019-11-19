@@ -40,10 +40,11 @@ fn init_logging() {
 }
 
 fn render(req: HttpRequest) -> actix_web::Result<HttpResponse> {
+    // FIXME! clean path
     let path = req.match_info().get("path").unwrap_or("");
 
-    let template = PathBuf::from("example/templates/default.tmpl");
-    let page = PathBuf::from("example/pages/foo.md");
+    let template = PathBuf::from("templates/default.tmpl");
+    let page = PathBuf::from(format!("pages/{}.md", path));
 
     let template = mustache::compile_path(&template).unwrap();
     let page = Page::read_from(&page).unwrap();

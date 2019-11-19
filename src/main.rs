@@ -9,9 +9,6 @@ use rustwiki::*;
 
 #[derive(Debug, StructOpt)]
 struct Params {
-    /// Directory tree containing templates and pages
-    #[structopt(short, long, default_value=".", hide_default_value=true, parse(from_os_str))]
-    base: PathBuf,
     #[structopt(subcommand)]
     command: Command,
 }
@@ -37,12 +34,14 @@ enum Command {
     },
     /// Start web server
     #[structopt(name="serve", no_version)]
-    Serve,
+    Serve {
+        /// Directory tree containing templates and pages
+        #[structopt(name="path", default_value=".", parse(from_os_str))]
+        basedir: PathBuf,
+    },
 }
 
 fn cli(params: Params) -> Result<()> {
-    // Switch to base directory. The default of "." results in a no-op.
-    env::set_current_dir(&params.base)?;
 
     match params.command {
         Command::Render{template, page} => {
@@ -57,7 +56,10 @@ fn cli(params: Params) -> Result<()> {
                 println!("{}", metadata);
             }
         }
-        Command::Serve => {
+        Command::Serve{basedir} => {
+            // Switch to base directory. The default is ".".
+            env::set_current_dir(&basedir)?;
+
             rustwiki::http::serve()?;
         }
     }
