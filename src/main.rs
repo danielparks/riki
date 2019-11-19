@@ -1,4 +1,5 @@
 use regex::Regex;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
@@ -60,7 +61,7 @@ enum MyError {
 
 type Result<T, E = MyError> = std::result::Result<T, E>;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct Page {
     file: std::path::PathBuf,
     metadata: HashMap<String, String>,
@@ -118,13 +119,9 @@ fn cli(params: Params) -> Result<()> {
     match params.command {
         Command::Render{template, page} => {
             let template = mustache::compile_path(&template)?;
-            let page_raw = fs::read_to_string(&page)?;
+            let page = Page::read_from(&page)?;
 
-            let mut data = HashMap::new();
-            data.insert("title", "hello <b>world</b>");
-            data.insert("body", &page_raw);
-
-            template.render(&mut io::stdout(), &data)?;
+            template.render(&mut io::stdout(), &page)?;
         }
         Command::Info{page} => {
             let metadata = Page::read_from(&page)?.metadata;

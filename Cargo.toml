@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 mustache = "0" # Look at ramhorns instead of mustache?
 structopt = "0"
-serde = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
 
 # serde_yaml = "0.8"
