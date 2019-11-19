@@ -33,12 +33,13 @@ impl Page {
                 Ok(page)
             }
             Err(e) => {
-                match *(e.0) {
-                    serde_yaml::ErrorImpl::EndOfStream => Ok(page),
-                    _ => Err(MyError::ParsePageMetadata{
-                            source: e,
-                            path: path.to_path_buf(),
-                        }),
+                if let serde_yaml::ErrorImpl::EndOfStream = *(e.0) {
+                    Ok(page)
+                } else {
+                    Err(MyError::ParsePageMetadata{
+                        source: e,
+                        path: path.to_path_buf(),
+                    })
                 }
             }
         }
