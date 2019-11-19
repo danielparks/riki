@@ -1,4 +1,6 @@
 use regex::Regex;
+use snafu::ResultExt;
+use snafu::Snafu;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -37,6 +39,17 @@ enum Command {
     },
 }
 
+#[derive(Debug, Snafu)]
+enum Error {
+    #[snafu(display("Unable to read page from {}: {}", path.display(), source))]
+    ReadPageFile { source: io::Error, path: PathBuf },
+
+    #[snafu(display("Unable to parse page metadata in {}: {}", path.display(), source))]
+    ParsePageMetadata { source: serde_yaml::Error, path: PathBuf },
+}
+
+type Result<T, E = Error> = std::result::Result<T, E>;
+
 #[derive(Debug)]
 struct Page {
     file: std::path::PathBuf,
@@ -55,8 +68,10 @@ impl Page {
         }
     }
 
-    fn read_from(path: &Path) -> Result<Page, io::Error> {
-        let raw = fs::read_to_string(path)?;
+    fn read_from(path: &Path) -> Result<Page> {
+        let raw = fs::read_to_string(path)
+            .context(ReadPageFile { path: path.to_path_buf() })?;
+
         let (header, body) = Page::split_raw_page(&raw);
 
         let mut page = Page {
@@ -68,14 +83,18 @@ impl Page {
         match serde_yaml::from_str(&header) {
             Ok(hash) => {
                 page.metadata = hash;
+                Ok(page)
             }
             Err(e) => {
-                // FIXME! this should ignore EndOfStream and return all other errors.
-                println!("Error while parsing metadata: {}", e);
+                match *(e.0) {
+                    serde_yaml::ErrorImpl::EndOfStream => Ok(page),
+                    _ => Err(Error::ParsePageMetadata{
+                            source: e,
+                            path: path.to_path_buf(),
+                        }),
+                }
             }
         }
-
-        Ok(page)
     }
 }
 
