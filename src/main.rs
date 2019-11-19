@@ -49,15 +49,9 @@ fn cli(params: Params) -> Result<()> {
             template.render(&mut io::stdout(), &page)?;
         }
         Command::Info{page} => {
-            let metadata = Page::read_from(&page)?.metadata;
-            let yaml = serde_yaml::to_string(&metadata)?;
-
-            let prefix = "---\n";
-            let start = if yaml.starts_with(prefix) { prefix.len() } else { 0 };
-
-            if &yaml[start..] != "{}" {
-                // Metadata isn’t empty.
-                println!("{}", &yaml[start..]);
+            let metadata = Page::read_from(&page)?.metadata_as_string()?;
+            if metadata != "" {
+                println!("{}", metadata);
             }
         }
     }

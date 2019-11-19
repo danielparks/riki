@@ -44,6 +44,21 @@ impl Page {
         }
     }
 
+    pub fn metadata_as_string(&self) -> Result<String> {
+        let yaml = serde_yaml::to_string(&self.metadata)?;
+
+        let prefix = "---\n";
+        let start = if yaml.starts_with(prefix) { prefix.len() } else { 0 };
+
+        let mut cleaned = String::new();
+        if &yaml[start..] != "{}" {
+            // Metadata wasn’t empty.
+            cleaned.push_str(&yaml[start..])
+        }
+
+        Ok(cleaned)
+    }
+
     fn split_raw_page(raw: &str) -> (&str, &str) {
         let re = Regex::new(r"(?:^|[\r\n]+)---(?:$|[\r\n]+)").unwrap();
         let parts: Vec<&str> = re.splitn(&raw, 2).collect();
