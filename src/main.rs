@@ -62,8 +62,7 @@ enum MyError {
 
 impl MyError {
     #[allow(non_snake_case)]
-    fn ReadPageFileMap(path: &Path) -> Box<dyn FnOnce(io::Error) -> MyError>
-    {
+    fn ReadPageFileMap(path: &Path) -> Box<dyn FnOnce(io::Error) -> MyError> {
         let path = PathBuf::from(path);
         Box::new(|source: io::Error| MyError::ReadPageFile { source, path })
     }
