@@ -3,9 +3,9 @@ use actix_web::{
     HttpRequest,
     HttpResponse,
     HttpServer,
+    web,
 };
 use actix_web::middleware::Logger;
-use actix_web::web;
 use simplelog::*;
 use std::path::PathBuf;
 
@@ -40,11 +40,10 @@ fn init_logging() {
 }
 
 fn render(req: HttpRequest) -> actix_web::Result<HttpResponse> {
-    // FIXME! clean path
-    let path = req.match_info().get("path").unwrap_or("");
-
     let template = PathBuf::from("templates/default.tmpl");
-    let page = PathBuf::from(format!("pages/{}.md", path));
+
+    // Actix cleans the path for us (FIXME it should redirect)
+    let page = PathBuf::from(format!("pages{}.md", req.path()));
 
     let template = mustache::compile_path(&template).unwrap();
     let page = Page::read_from(&page).unwrap();
