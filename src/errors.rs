@@ -19,6 +19,9 @@ pub enum MyError {
 
     #[error("failed parsing page metadata in {path:?}")]
     ParsePageMetadata { source: serde_yaml::Error, path: PathBuf },
+
+    #[error("failed to bind to socket on {address:?}")]
+    BindError { source: io::Error, address: String },
 }
 
 impl MyError {
@@ -26,6 +29,12 @@ impl MyError {
     pub fn ReadPageFileMap(path: &Path) -> Box<dyn FnOnce(io::Error) -> MyError> {
         let path = PathBuf::from(path);
         Box::new(|source: io::Error| MyError::ReadPageFile { source, path })
+    }
+
+    #[allow(non_snake_case)]
+    pub fn BindErrorMap(address: &str) -> Box<dyn FnOnce(io::Error) -> MyError> {
+        let address = String::from(address);
+        Box::new(|source: io::Error| MyError::BindError { source, address })
     }
 }
 

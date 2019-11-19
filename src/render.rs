@@ -1,4 +1,3 @@
-use crate::errors::*;
 use pulldown_cmark::{Parser, Options, html};
 use regex::Regex;
 use serde::Serialize;
@@ -6,6 +5,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+
+use crate::errors::*;
 
 #[derive(Debug, Serialize)]
 pub struct Page {

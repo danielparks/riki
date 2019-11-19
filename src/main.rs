@@ -35,6 +35,9 @@ enum Command {
         #[structopt(parse(from_os_str))]
         page: PathBuf,
     },
+    /// Start web server
+    #[structopt(name="serve", no_version)]
+    Serve,
 }
 
 fn cli(params: Params) -> Result<()> {
@@ -53,6 +56,9 @@ fn cli(params: Params) -> Result<()> {
             if metadata != "" {
                 println!("{}", metadata);
             }
+        }
+        Command::Serve => {
+            rustwiki::http::serve()?;
         }
     }
 

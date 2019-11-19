@@ -7,10 +7,12 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+actix-web = "1.0"
 mustache = "0" # Look at ramhorns instead of mustache?
 pulldown-cmark = { version = "0", default-features = false, features = ["simd"] } # enable simd only on 86_x64?
 structopt = "0"
 serde = { version = "1.0", features = ["derive"] }
+simplelog = "0.7"
 thiserror = "1.0"
 
 # serde_yaml = "0.8"
