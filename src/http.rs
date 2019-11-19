@@ -1,4 +1,5 @@
 use actix_web::{
+    self,
     App,
     HttpRequest,
     HttpResponse,
@@ -39,16 +40,33 @@ fn init_logging() {
     ]).unwrap();
 }
 
+fn find_page_file(req_path: &str) -> actix_web::Result<PathBuf> {
+    // Actix mostly cleans the path for us (FIXME it should redirect).
+
+    // req_path always starts with a /
+    let base = format!("pages{}", req_path.trim_end_matches('/'));
+
+    let test = PathBuf::from(format!("{}.md", base));
+    if test.is_file() {
+        return Ok(test);
+    }
+
+    let test = PathBuf::from(base).join("index.md");
+    if test.is_file() {
+        return Ok(test);
+    }
+
+    Err(actix_web::error::ErrorNotFound("page not found"))
+}
+
 fn render(req: HttpRequest) -> actix_web::Result<HttpResponse> {
     let template = PathBuf::from("templates/default.tmpl");
 
-    // Actix cleans the path for us (FIXME it should redirect)
-    let page = PathBuf::from(format!("pages{}.md", req.path()));
-
-    let template = mustache::compile_path(&template).unwrap();
-    let page = Page::read_from(&page).unwrap();
+    let path = find_page_file(req.path())?;
+    let page = Page::read_from(&path).unwrap();
 
     let mut buffer = vec![];
+    let template = mustache::compile_path(&template).unwrap();
     template.render(&mut buffer, &page).unwrap();
 
     Ok(HttpResponse::Ok()
