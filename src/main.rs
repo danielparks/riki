@@ -60,6 +60,15 @@ enum MyError {
     ParsePageMetadata { source: serde_yaml::Error, path: PathBuf },
 }
 
+impl MyError {
+    #[allow(non_snake_case)]
+    fn ReadPageFileMap(path: &Path) -> Box<dyn FnOnce(io::Error) -> MyError>
+    {
+        let path = PathBuf::from(path);
+        Box::new(|source: io::Error| MyError::ReadPageFile { source, path })
+    }
+}
+
 type Result<T, E = MyError> = std::result::Result<T, E>;
 
 #[derive(Debug, Serialize)]
@@ -82,10 +91,7 @@ impl Page {
 
     fn read_from(path: &Path) -> Result<Page> {
         let raw = fs::read_to_string(path)
-            .map_err(|e| MyError::ReadPageFile{
-                source: e,
-                path: path.to_path_buf(),
-            })?;
+            .map_err(MyError::ReadPageFileMap(path))?;
 
         let (header, body) = Page::split_raw_page(&raw);
 
