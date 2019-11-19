@@ -1,13 +1,14 @@
 use regex::Regex;
-use snafu::ResultExt;
-use snafu::Snafu;
 use std::collections::HashMap;
 use std::env;
+use std::error::Error;
 use std::fs;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::exit;
 use structopt::StructOpt;
+use thiserror::Error;
 
 #[derive(Debug, StructOpt)]
 struct Params {
@@ -39,16 +40,25 @@ enum Command {
     },
 }
 
-#[derive(Debug, Snafu)]
-enum Error {
-    #[snafu(display("Unable to read page from {}: {}", path.display(), source))]
+#[derive(Debug, Error)]
+enum MyError {
+    #[error("IO error")]
+    Io(#[from] io::Error),
+
+    #[error("failed rendering page body")]
+    PageRender(#[from] mustache::Error),
+
+    #[error("failed rendering page metadata")]
+    MetadataRender(#[from] serde_yaml::Error),
+
+    #[error("failed reading page {path:?}")]
     ReadPageFile { source: io::Error, path: PathBuf },
 
-    #[snafu(display("Unable to parse page metadata in {}: {}", path.display(), source))]
+    #[error("failed parsing page metadata in {path:?}")]
     ParsePageMetadata { source: serde_yaml::Error, path: PathBuf },
 }
 
-type Result<T, E = Error> = std::result::Result<T, E>;
+type Result<T, E = MyError> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 struct Page {
@@ -70,7 +80,10 @@ impl Page {
 
     fn read_from(path: &Path) -> Result<Page> {
         let raw = fs::read_to_string(path)
-            .context(ReadPageFile { path: path.to_path_buf() })?;
+            .map_err(|e| MyError::ReadPageFile{
+                source: e,
+                path: path.to_path_buf(),
+            })?;
 
         let (header, body) = Page::split_raw_page(&raw);
 
@@ -88,7 +101,7 @@ impl Page {
             Err(e) => {
                 match *(e.0) {
                     serde_yaml::ErrorImpl::EndOfStream => Ok(page),
-                    _ => Err(Error::ParsePageMetadata{
+                    _ => Err(MyError::ParsePageMetadata{
                             source: e,
                             path: path.to_path_buf(),
                         }),
@@ -98,28 +111,25 @@ impl Page {
     }
 }
 
-fn main() {
-    // read page yaml
-    // serve
-    let params = Params::from_args();
-
+fn cli(params: Params) -> Result<()> {
     // Switch to base directory. The default of "." results in a no-op.
-    assert!(env::set_current_dir(&params.base).is_ok());
+    env::set_current_dir(&params.base)?;
 
     match params.command {
         Command::Render{template, page} => {
-            let template = mustache::compile_path(&template).unwrap();
-            let page_raw = fs::read_to_string(&page).unwrap();
+            let template = mustache::compile_path(&template)?;
+            let page_raw = fs::read_to_string(&page)?;
 
             let mut data = HashMap::new();
             data.insert("title", "hello <b>world</b>");
             data.insert("body", &page_raw);
 
-            template.render(&mut io::stdout(), &data).unwrap();
+            template.render(&mut io::stdout(), &data)?;
         }
         Command::Info{page} => {
-            let metadata = Page::read_from(&page).unwrap().metadata;
-            let yaml = serde_yaml::to_string(&metadata).unwrap();
+            let metadata = Page::read_from(&page)?.metadata;
+            let yaml = serde_yaml::to_string(&metadata)
+                .map_err(MyError::MetadataRender)?;
 
             let prefix = "---\n";
             let start = if yaml.starts_with(prefix) { prefix.len() } else { 0 };
@@ -129,5 +139,18 @@ fn main() {
                 println!("{}", &yaml[start..]);
             }
         }
+    }
+
+    Ok(())
+}
+
+fn main() {
+    if let Err(error) = cli(Params::from_args()) {
+        eprintln!("{}:", error);
+        if let Some(source) = error.source() {
+            eprintln!("    {}", source);
+        }
+
+        exit(1);
     }
 }

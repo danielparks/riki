@@ -10,7 +10,7 @@ edition = "2018"
 mustache = "0" # Look at ramhorns instead of mustache?
 structopt = "0"
 serde = "1.0"
-snafu = "0"
+thiserror = "1.0"
 
 # serde_yaml = "0.8"
 serde_yaml = { git = "file:///Users/daniel/projects/third-party/serde-yaml", branch = "crate_pub_errorimpl" }
