@@ -63,11 +63,14 @@ fn render(req: HttpRequest) -> actix_web::Result<HttpResponse> {
     let template = PathBuf::from("templates/default.tmpl");
 
     let path = find_page_file(req.path())?;
-    let page = Page::read_from(&path).unwrap();
+    let page = Page::read_from(&path)
+        .map_err(actix_web::error::ErrorInternalServerError)?;
 
     let mut buffer = vec![];
-    let template = mustache::compile_path(&template).unwrap();
-    template.render(&mut buffer, &page).unwrap();
+    let template = mustache::compile_path(&template)
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+    template.render(&mut buffer, &page)
+        .map_err(actix_web::error::ErrorInternalServerError)?;
 
     Ok(HttpResponse::Ok()
         .content_type("text/html; charset=UTF-8")
