@@ -1,16 +1,11 @@
-use pulldown_cmark::{Parser, Options, html};
-use regex::Regex;
-use serde::Serialize;
-use std::collections::HashMap;
 use std::env;
 use std::error::Error;
-use std::fs;
 use std::io;
-use std::path::Path;
 use std::path::PathBuf;
 use std::process::exit;
 use structopt::StructOpt;
-use thiserror::Error;
+
+use rustwiki::*;
 
 #[derive(Debug, StructOpt)]
 struct Params {
@@ -40,90 +35,6 @@ enum Command {
         #[structopt(parse(from_os_str))]
         page: PathBuf,
     },
-}
-
-#[derive(Debug, Error)]
-enum MyError {
-    #[error("IO error")]
-    Io(#[from] io::Error),
-
-    #[error("failed rendering page body")]
-    PageRender(#[from] mustache::Error),
-
-    #[error("failed rendering page metadata")]
-    MetadataRender(#[from] serde_yaml::Error),
-
-    #[error("failed reading page {path:?}")]
-    ReadPageFile { source: io::Error, path: PathBuf },
-
-    #[error("failed parsing page metadata in {path:?}")]
-    ParsePageMetadata { source: serde_yaml::Error, path: PathBuf },
-}
-
-impl MyError {
-    #[allow(non_snake_case)]
-    fn ReadPageFileMap(path: &Path) -> Box<dyn FnOnce(io::Error) -> MyError> {
-        let path = PathBuf::from(path);
-        Box::new(|source: io::Error| MyError::ReadPageFile { source, path })
-    }
-}
-
-type Result<T, E = MyError> = std::result::Result<T, E>;
-
-#[derive(Debug, Serialize)]
-struct Page {
-    file: std::path::PathBuf,
-    metadata: HashMap<String, String>,
-    body: String,
-}
-
-impl Page {
-    fn split_raw_page(raw: &str) -> (&str, &str) {
-        let re = Regex::new(r"(?:^|[\r\n]+)---(?:$|[\r\n]+)").unwrap();
-        let parts: Vec<&str> = re.splitn(&raw, 2).collect();
-        match parts[..] {
-            [yaml, body] => (yaml, body),
-            [body] => ("", body),
-            _ => unreachable!(),
-        }
-    }
-
-    fn read_from(path: &Path) -> Result<Page> {
-        let raw = fs::read_to_string(path)
-            .map_err(MyError::ReadPageFileMap(path))?;
-
-        let (header, body) = Page::split_raw_page(&raw);
-
-        let mut page = Page {
-            file: PathBuf::from(path),
-            metadata: HashMap::new(),
-            body: Page::render_markdown(&body),
-        };
-
-        match serde_yaml::from_str(&header) {
-            Ok(hash) => {
-                page.metadata = hash;
-                Ok(page)
-            }
-            Err(e) => {
-                match *(e.0) {
-                    serde_yaml::ErrorImpl::EndOfStream => Ok(page),
-                    _ => Err(MyError::ParsePageMetadata{
-                            source: e,
-                            path: path.to_path_buf(),
-                        }),
-                }
-            }
-        }
-    }
-
-    fn render_markdown(markdown: &str) -> String {
-        let mut buffer = String::new();
-        let parser = Parser::new_ext(&markdown, Options::all());
-        html::push_html(&mut buffer, parser);
-
-        buffer
-    }
 }
 
 fn cli(params: Params) -> Result<()> {

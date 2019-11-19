@@ -1,0 +1,64 @@
+use crate::errors::*;
+use pulldown_cmark::{Parser, Options, html};
+use regex::Regex;
+use serde::Serialize;
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
+use std::path::PathBuf;
+
+#[derive(Debug, Serialize)]
+pub struct Page {
+    pub file: std::path::PathBuf,
+    pub metadata: HashMap<String, String>,
+    pub body: String,
+}
+
+impl Page {
+    pub fn read_from(path: &Path) -> Result<Page> {
+        let raw = fs::read_to_string(path)
+            .map_err(MyError::ReadPageFileMap(path))?;
+
+        let (header, body) = Page::split_raw_page(&raw);
+
+        let mut page = Page {
+            file: PathBuf::from(path),
+            metadata: HashMap::new(),
+            body: Page::render_markdown(&body),
+        };
+
+        match serde_yaml::from_str(&header) {
+            Ok(hash) => {
+                page.metadata = hash;
+                Ok(page)
+            }
+            Err(e) => {
+                match *(e.0) {
+                    serde_yaml::ErrorImpl::EndOfStream => Ok(page),
+                    _ => Err(MyError::ParsePageMetadata{
+                            source: e,
+                            path: path.to_path_buf(),
+                        }),
+                }
+            }
+        }
+    }
+
+    fn split_raw_page(raw: &str) -> (&str, &str) {
+        let re = Regex::new(r"(?:^|[\r\n]+)---(?:$|[\r\n]+)").unwrap();
+        let parts: Vec<&str> = re.splitn(&raw, 2).collect();
+        match parts[..] {
+            [yaml, body] => (yaml, body),
+            [body] => ("", body),
+            _ => unreachable!(),
+        }
+    }
+
+    fn render_markdown(markdown: &str) -> String {
+        let mut buffer = String::new();
+        let parser = Parser::new_ext(&markdown, Options::all());
+        html::push_html(&mut buffer, parser);
+
+        buffer
+    }
+}
