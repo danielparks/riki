@@ -140,8 +140,7 @@ fn cli(params: Params) -> Result<()> {
         }
         Command::Info{page} => {
             let metadata = Page::read_from(&page)?.metadata;
-            let yaml = serde_yaml::to_string(&metadata)
-                .map_err(MyError::MetadataRender)?;
+            let yaml = serde_yaml::to_string(&metadata)?;
 
             let prefix = "---\n";
             let start = if yaml.starts_with(prefix) { prefix.len() } else { 0 };
