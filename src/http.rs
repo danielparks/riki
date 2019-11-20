@@ -14,6 +14,11 @@ use crate::errors::MyError;
 use crate::errors::Result;
 use crate::render::Page;
 
+// TODO testing
+// TODO error pages
+// TODO better error handline
+// TODO selectable layout
+
 pub fn serve() -> Result<()> {
     let address = "127.0.0.1:8000";
 
