@@ -16,14 +16,11 @@ pub struct Page {
 }
 
 impl Page {
-    pub fn read_from(path: &Path) -> Result<Page> {
-        let raw = fs::read_to_string(path)
-            .map_err(MyError::ReadPageFileMap(path))?;
-
+    pub fn from_string(raw: &str) -> Result<Page> {
         let (header, body) = Page::split_raw_page(&raw);
 
         let mut page = Page {
-            file: PathBuf::from(path),
+            file: PathBuf::from("-"), // i.e. STDIN
             metadata: HashMap::new(),
             body: Page::render_markdown(&body),
         };
@@ -39,11 +36,20 @@ impl Page {
                 } else {
                     Err(MyError::ParsePageMetadata{
                         source: e,
-                        path: path.to_path_buf(),
+                        path: page.file,
                     })
                 }
             }
         }
+    }
+
+    pub fn read_from(path: &Path) -> Result<Page> {
+        let raw = fs::read_to_string(path)
+            .map_err(MyError::ReadPageFileMap(path))?;
+
+        let mut page = Page::from_string(&raw)?;
+        page.file = PathBuf::from(path);
+        Ok(page)
     }
 
     pub fn metadata_as_string(&self) -> Result<String> {
