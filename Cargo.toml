@@ -11,6 +11,7 @@ actix-web = "1.0"
 mustache = "0" # Look at ramhorns instead of mustache?
 pulldown-cmark = { version = "0", default-features = false, features = ["simd"] } # enable simd only on 86_x64?
 serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.8"
 simplelog = "0.7"
 structopt = "0"
 thiserror = "1.0"
@@ -18,7 +19,3 @@ thiserror = "1.0"
 # Bugs: https://github.com/rust-lang/regex/pull/628
 #regex = "1"
 regex = { git = "https://github.com/danielparks/regex.git", branch = "split_627_and_521" }
-
-# Improvement: https://github.com/dtolnay/serde-yaml/pull/144
-# serde_yaml = "0.8"
-serde_yaml = { git = "file:///Users/daniel/projects/third-party/serde-yaml", branch = "crate_pub_errorimpl" }

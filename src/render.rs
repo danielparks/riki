@@ -5,47 +5,41 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use std::result;
 
 use crate::errors::*;
 
+type Metadata = HashMap<String, String>;
+
 #[derive(Debug, Serialize)]
 pub struct Page {
-    pub file: std::path::PathBuf,
+    pub file: PathBuf,
     pub metadata: HashMap<String, String>,
     pub body: String,
 }
 
 impl Page {
+    fn metadata_from_string(raw: &str) -> result::Result<Metadata, serde_yaml::Error> {
+        if raw.trim().len() == 0 {
+            Ok(HashMap::new())
+        } else {
+            serde_yaml::from_str(&raw)
+        }
+    }
+
     pub fn from_string(raw: &str) -> Result<Page> {
         let (header, body) = Page::split_raw_page(&raw);
 
-        let mut page = Page {
+        Ok(Page {
             file: PathBuf::from("-"), // i.e. STDIN
-            metadata: HashMap::new(),
+            metadata: Page::metadata_from_string(&header)?,
             body: Page::render_markdown(&body),
-        };
-
-        match serde_yaml::from_str(&header) {
-            Ok(hash) => {
-                page.metadata = hash;
-                Ok(page)
-            }
-            Err(e) => {
-                if let serde_yaml::ErrorImpl::EndOfStream = *(e.0) {
-                    Ok(page)
-                } else {
-                    Err(MyError::ParsePageMetadata{
-                        source: e,
-                        path: page.file,
-                    })
-                }
-            }
-        }
+        })
     }
 
     pub fn read_from(path: &Path) -> Result<Page> {
         let raw = fs::read_to_string(path)
-            .map_err(MyError::ReadPageFileMap(path))?;
+            .map_err(|source| MyError::ReadPageFile { source })?;
 
         let mut page = Page::from_string(&raw)?;
         page.file = PathBuf::from(path);
@@ -53,7 +47,8 @@ impl Page {
     }
 
     pub fn metadata_as_string(&self) -> Result<String> {
-        let yaml = serde_yaml::to_string(&self.metadata)?;
+        let yaml = serde_yaml::to_string(&self.metadata)
+            .map_err(|source| MyError::MetadataRender { source })?;
 
         let prefix = "---\n";
         let start = if yaml.starts_with(prefix) { prefix.len() } else { 0 };
@@ -68,7 +63,7 @@ impl Page {
     }
 
     fn split_raw_page(raw: &str) -> (&str, &str) {
-        let re = Regex::new(r"(?:^|[\r\n]+)---(?:$|[\r\n]+)").unwrap();
+        let re = Regex::new(r"(?:^|\s*[\r\n])---(?:$|[\r\n]\s*)").unwrap();
         let parts: Vec<&str> = re.splitn(&raw, 2).collect();
         match parts[..] {
             [yaml, body] => (yaml, body),

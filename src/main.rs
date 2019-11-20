@@ -68,7 +68,7 @@ fn cli(params: Params) -> Result<()> {
 
 fn main() {
     if let Err(error) = cli(Params::from_args()) {
-        eprintln!("{}:", error);
+        eprintln!("{:#}:", error);
         if let Some(source) = error.source() {
             eprintln!("    {}", source);
         }
