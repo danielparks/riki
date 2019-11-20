@@ -20,14 +20,6 @@ pub struct Page {
 }
 
 impl Page {
-    fn metadata_from_string(raw: &str) -> result::Result<Metadata, YamlError> {
-        if raw.trim().len() == 0 {
-            Ok(HashMap::new())
-        } else {
-            serde_yaml::from_str(&raw)
-        }
-    }
-
     pub fn from_string(raw: &str) -> Result<Page> {
         let (header, body) = Page::split_raw_page(&raw);
 
@@ -70,6 +62,14 @@ impl Page {
             [yaml, body] => (yaml, body),
             [body] => ("", body),
             _ => unreachable!(),
+        }
+    }
+
+    fn metadata_from_string(raw: &str) -> result::Result<Metadata, YamlError> {
+        if raw.trim().len() == 0 {
+            Ok(HashMap::new())
+        } else {
+            serde_yaml::from_str(&raw)
         }
     }
 
