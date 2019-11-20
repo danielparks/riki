@@ -1,6 +1,7 @@
 use pulldown_cmark::{Parser, Options, html};
 use regex::Regex;
 use serde::Serialize;
+use serde_yaml::Error as YamlError;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -14,12 +15,12 @@ type Metadata = HashMap<String, String>;
 #[derive(Debug, Serialize)]
 pub struct Page {
     pub file: PathBuf,
-    pub metadata: HashMap<String, String>,
+    pub metadata: Metadata,
     pub body: String,
 }
 
 impl Page {
-    fn metadata_from_string(raw: &str) -> result::Result<Metadata, serde_yaml::Error> {
+    fn metadata_from_string(raw: &str) -> result::Result<Metadata, YamlError> {
         if raw.trim().len() == 0 {
             Ok(HashMap::new())
         } else {
