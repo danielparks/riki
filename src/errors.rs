@@ -1,6 +1,7 @@
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
+use std::result;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -38,4 +39,4 @@ impl MyError {
     }
 }
 
-pub type Result<T, E = MyError> = std::result::Result<T, E>;
+pub type Result<T, E = MyError> = result::Result<T, E>;

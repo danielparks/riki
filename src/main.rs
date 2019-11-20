@@ -42,7 +42,6 @@ enum Command {
 }
 
 fn cli(params: Params) -> Result<()> {
-
     match params.command {
         Command::Render{template, page} => {
             let template = mustache::compile_path(&template)?;
