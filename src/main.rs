@@ -1,5 +1,5 @@
+use anyhow::Result as AnyResult;
 use std::env;
-use std::error::Error;
 use std::io;
 use std::path::PathBuf;
 use std::process::exit;
@@ -41,7 +41,7 @@ enum Command {
     },
 }
 
-fn cli(params: Params) -> Result<()> {
+fn cli(params: Params) -> AnyResult<()> {
     match params.command {
         Command::Render{template, page} => {
             let template = mustache::compile_path(&template)?;
@@ -68,11 +68,7 @@ fn cli(params: Params) -> Result<()> {
 
 fn main() {
     if let Err(error) = cli(Params::from_args()) {
-        eprintln!("{:#}:", error);
-        if let Some(source) = error.source() {
-            eprintln!("    {}", source);
-        }
-
+        eprintln!("Error: {:#}", error);
         exit(1);
     }
 }

@@ -7,19 +7,19 @@ pub enum MyError {
     #[error("IO error")]
     Io(#[from] io::Error),
 
-    #[error("failed rendering page body")]
-    PageRender(#[from] mustache::Error),
-
-    #[error("failed rendering page metadata")]
-    MetadataRender { source: serde_yaml::Error },
-
-    #[error("failed parsing page metadata")]
-    ParsePageMetadata(#[from] serde_yaml::Error),
-
-    #[error("failed reading page file")]
+    #[error("Failed to read page file")]
     ReadPageFile { source: io::Error },
 
-    #[error("failed to bind to socket on {address:?}")]
+    #[error("Failed to render page body")]
+    PageRender(#[from] mustache::Error),
+
+    #[error("Failed to render page metadata")]
+    MetadataRender { source: serde_yaml::Error },
+
+    #[error("Failed to parse page metadata")]
+    ParsePageMetadata(#[from] serde_yaml::Error),
+
+    #[error("Failed to bind to socket on {address:?}")]
     BindError { source: io::Error, address: String },
 }
 
