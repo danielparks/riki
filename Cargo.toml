@@ -20,3 +20,6 @@ thiserror = "1.0"
 # Bugs: https://github.com/rust-lang/regex/pull/628
 #regex = "1"
 regex = { git = "https://github.com/danielparks/regex.git", branch = "split_627_and_521" }
+
+[dev-dependencies]
+temp_testdir = "0.2"
