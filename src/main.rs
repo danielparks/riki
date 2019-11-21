@@ -59,7 +59,7 @@ fn cli(params: Params) -> Result<()> {
             // Switch to base directory. The default is ".".
             env::set_current_dir(&basedir)?;
 
-            rustwiki::http::serve()?;
+            rustwiki::http::serve("127.0.0.1:8000")?;
         }
     }
 

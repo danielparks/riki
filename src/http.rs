@@ -1,31 +1,63 @@
 use actix_web::{
     self,
+    error,
+    http,
+    web,
     App,
     HttpRequest,
     HttpResponse,
     HttpServer,
-    web,
 };
 use actix_web::middleware::Logger;
 use simplelog::*;
+use thiserror::Error;
 use std::path::PathBuf;
+use std::result;
+use std::sync::Mutex;
 
 use crate::errors::MyError;
 use crate::errors::Result;
 use crate::render::Page;
+use crate::templates::TemplateManager;
 
 // TODO testing
 // TODO error pages
 // TODO better error handline
 // TODO selectable layout
 
-pub fn serve() -> Result<()> {
-    let address = "127.0.0.1:8000";
+#[derive(Debug, Error)]
+pub enum WebError {
+    #[error("internal server error")]
+    Internal(#[from] MyError),
 
+    #[error("page not found")]
+    NotFound,
+}
+
+impl error::ResponseError for WebError {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(
+            match self {
+                WebError::Internal(_) => http::StatusCode::INTERNAL_SERVER_ERROR,
+                WebError::NotFound => http::StatusCode::NOT_FOUND,
+            })
+    }
+}
+
+pub type WebResult<T, E = WebError> = result::Result<T, E>;
+
+pub fn serve<S: AsRef<str>>(address: S) -> Result<()> {
+    let address = address.as_ref();
     init_logging();
 
-    HttpServer::new(|| {
+    // We clone this into the app data, which makes this entirely thread safe.
+    // Unfortunately, actix uses a data structure that forces us to use Mutex
+    // in order to get a mutable ref.
+    let tpls = TemplateManager::new("templates")?;
+
+    HttpServer::new(move || {
             App::new()
+                .data(Mutex::new(tpls.clone()))
                 .wrap(Logger::new("%a %t \"%r\" %s %b %Ts"))
                 .route("/{path:.*}", web::get().to(render))
         })
@@ -45,7 +77,7 @@ fn init_logging() {
     ]).unwrap();
 }
 
-fn find_page_file(req_path: &str) -> actix_web::Result<PathBuf> {
+fn find_page_file(req_path: &str) -> WebResult<PathBuf> {
     // Actix mostly cleans the path for us (FIXME it should redirect).
 
     // req_path always starts with a /
@@ -61,23 +93,24 @@ fn find_page_file(req_path: &str) -> actix_web::Result<PathBuf> {
         return Ok(test);
     }
 
-    Err(actix_web::error::ErrorNotFound("page not found"))
+    Err(WebError::NotFound)
 }
 
-fn render(req: HttpRequest) -> actix_web::Result<HttpResponse> {
-    let template = PathBuf::from("templates/default.tmpl");
-
+fn render(req: HttpRequest, tpls: web::Data<Mutex<TemplateManager>>) -> WebResult<HttpResponse> {
+    let mut tpls = tpls.lock().unwrap();
     let path = find_page_file(req.path())?;
-    let page = Page::read_from(&path)
-        .map_err(actix_web::error::ErrorInternalServerError)?;
-
-    let mut buffer = vec![];
-    let template = mustache::compile_path(&template)
-        .map_err(actix_web::error::ErrorInternalServerError)?;
-    template.render(&mut buffer, &page)
-        .map_err(actix_web::error::ErrorInternalServerError)?;
+    let buffer = render_path(&path, &mut tpls)?;
 
     Ok(HttpResponse::Ok()
         .content_type("text/html; charset=UTF-8")
         .body(buffer))
+}
+
+fn render_path(path: &PathBuf, tpls: &mut TemplateManager) -> Result<Vec<u8>> {
+    let page = Page::read_from(&path)?;
+
+    let mut buffer = vec![];
+    tpls.default()?.render(&mut buffer, &page)?;
+
+    Ok(buffer)
 }

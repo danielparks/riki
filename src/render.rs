@@ -20,6 +20,15 @@ pub struct Page {
 }
 
 impl Page {
+    pub fn read_from(path: &Path) -> Result<Page> {
+        let raw = fs::read_to_string(path)
+            .map_err(|source| MyError::ReadPageFile { source })?;
+
+        let mut page = Page::from_string(&raw)?;
+        page.file = PathBuf::from(path);
+        Ok(page)
+    }
+
     pub fn from_string(raw: &str) -> Result<Page> {
         let (header, body) = Page::split_raw_page(&raw);
 
@@ -28,15 +37,6 @@ impl Page {
             metadata: Page::metadata_from_string(&header)?,
             body: Page::render_markdown(&body),
         })
-    }
-
-    pub fn read_from(path: &Path) -> Result<Page> {
-        let raw = fs::read_to_string(path)
-            .map_err(|source| MyError::ReadPageFile { source })?;
-
-        let mut page = Page::from_string(&raw)?;
-        page.file = PathBuf::from(path);
-        Ok(page)
     }
 
     pub fn metadata_as_string(&self) -> Result<String> {
