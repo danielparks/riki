@@ -106,11 +106,8 @@ fn render(req: HttpRequest, tpls: web::Data<Mutex<TemplateManager>>) -> WebResul
         .body(buffer))
 }
 
-fn render_path(path: &PathBuf, tpls: &mut TemplateManager) -> Result<Vec<u8>> {
+fn render_path(path: &PathBuf, tpls: &mut TemplateManager) -> Result<String> {
     let page = Page::read_from(&path)?;
 
-    let mut buffer = vec![];
-    tpls.default()?.render(&mut buffer, &page)?;
-
-    Ok(buffer)
+    Ok(tpls.default()?.render_to_string(&page)?)
 }
