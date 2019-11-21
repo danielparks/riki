@@ -54,8 +54,6 @@ impl TemplateManager {
         // FIXME? just trust that name doesn’t contain '/'
         let mut path = self.directory.join(&name);
         path.set_extension("tmpl");
-
-        println!("self.directory = {:?}", self.directory);
         self.templates.insert(name.to_string(), mustache::compile_path(&path)?);
 
         Ok(&self.templates[name])
