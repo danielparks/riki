@@ -48,8 +48,8 @@ fn empty_page_with_just_separator_and_whitespace() {
 #[test]
 fn empty_page_with_bad_metadata() {
     match Page::from_string("bad_yaml\n---") {
-        Err(MyError::ParsePageMetadata(_)) => {},
-        other => panic!("expected MyError::ParsePageMetadata; got {:?}", other),
+        Err(Error::ParsePageMetadata(_)) => {},
+        other => panic!("expected Error::ParsePageMetadata; got {:?}", other),
     }
 }
 

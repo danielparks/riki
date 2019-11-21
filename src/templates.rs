@@ -22,7 +22,7 @@ impl TemplateManager {
         };
 
         if !manager.directory.is_dir() {
-            Err(MyError::from(
+            Err(Error::from(
                 io::Error::new(
                     io::ErrorKind::Other,
                     format!("Loading templates: {:?} is not a directory",

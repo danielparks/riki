@@ -22,7 +22,7 @@ pub struct Page {
 impl Page {
     pub fn read_from(path: &Path) -> Result<Page> {
         let raw = fs::read_to_string(path)
-            .map_err(|source| MyError::ReadPageFile { source })?;
+            .map_err(|source| Error::ReadPageFile { source })?;
 
         let mut page = Page::from_string(&raw)?;
         page.file = PathBuf::from(path);
@@ -41,7 +41,7 @@ impl Page {
 
     pub fn metadata_as_string(&self) -> Result<String> {
         let yaml = serde_yaml::to_string(&self.metadata)
-            .map_err(|source| MyError::MetadataRender { source })?;
+            .map_err(|source| Error::MetadataRender { source })?;
 
         let prefix = "---\n";
         let start = if yaml.starts_with(prefix) { prefix.len() } else { 0 };

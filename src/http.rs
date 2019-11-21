@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::result;
 use std::sync::Mutex;
 
-use crate::errors::MyError;
+use crate::errors::Error;
 use crate::errors::Result;
 use crate::render::Page;
 use crate::templates::TemplateManager;
@@ -28,7 +28,7 @@ use crate::templates::TemplateManager;
 #[derive(Debug, Error)]
 pub enum WebError {
     #[error("internal server error")]
-    Internal(#[from] MyError),
+    Internal(#[from] Error),
 
     #[error("page not found")]
     NotFound,
@@ -61,7 +61,7 @@ pub fn serve<S: AsRef<str>>(address: S) -> Result<()> {
                 .wrap(Logger::new("%a %t \"%r\" %s %b %Ts"))
                 .route("/{path:.*}", web::get().to(render))
         })
-        .bind(address).map_err(MyError::BindErrorMap(address))?
+        .bind(address).map_err(Error::BindErrorMap(address))?
         .run()?;
 
     Ok(())

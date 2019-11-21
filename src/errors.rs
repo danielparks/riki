@@ -1,9 +1,9 @@
 use std::io;
 use std::result;
-use thiserror::Error;
+use thiserror::Error; // doesn’t conflict with the enum.
 
 #[derive(Debug, Error)]
-pub enum MyError {
+pub enum Error {
     #[error("IO error")]
     Io(#[from] io::Error),
 
@@ -23,12 +23,12 @@ pub enum MyError {
     BindError { source: io::Error, address: String },
 }
 
-impl MyError {
+impl Error {
     #[allow(non_snake_case)]
-    pub fn BindErrorMap(address: &str) -> Box<dyn FnOnce(io::Error) -> MyError> {
+    pub fn BindErrorMap(address: &str) -> Box<dyn FnOnce(io::Error) -> Error> {
         let address = String::from(address);
-        Box::new(|source: io::Error| MyError::BindError { source, address })
+        Box::new(|source: io::Error| Error::BindError { source, address })
     }
 }
 
-pub type Result<T, E = MyError> = result::Result<T, E>;
+pub type Result<T, E = Error> = result::Result<T, E>;
