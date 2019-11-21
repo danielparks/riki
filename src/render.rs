@@ -8,7 +8,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::result;
 
-use crate::errors::*;
+use crate::errors::Error;
+use crate::errors::Result;
 
 type Metadata = HashMap<String, String>;
 
