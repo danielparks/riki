@@ -22,8 +22,10 @@ use crate::templates::TemplateManager;
 
 // TODO testing
 // TODO error pages
-// TODO better error handline
+// TODO better error handling
 // TODO selectable layout
+// TODO automatic title
+// TODO static
 
 #[derive(Debug, Error)]
 pub enum WebError {
