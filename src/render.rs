@@ -40,6 +40,19 @@ impl Page {
         })
     }
 
+    pub fn from_error<E>(error: &E) -> Page
+        where E: std::fmt::Debug
+    {
+        let mut meta = HashMap::new();
+        meta.insert("title".to_string(), "ERROR".to_string());
+
+        Page {
+            file: PathBuf::from(""),
+            metadata: meta,
+            body: format!("error {:?}", error),
+        }
+    }
+
     pub fn metadata_as_string(&self) -> Result<String> {
         let yaml = serde_yaml::to_string(&self.metadata)
             .map_err(|source| Error::MetadataRender { source })?;
