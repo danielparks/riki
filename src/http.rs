@@ -79,6 +79,16 @@ fn init_logging() {
     ]).unwrap();
 }
 
+fn render(req: HttpRequest, tpls: web::Data<Mutex<TemplateManager>>) -> WebResult<HttpResponse> {
+    let mut tpls = tpls.lock().unwrap();
+    let path = find_page_file(req.path())?;
+    let buffer = render_path(&path, &mut tpls)?;
+
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=UTF-8")
+        .body(buffer))
+}
+
 fn find_page_file(req_path: &str) -> WebResult<PathBuf> {
     // Actix mostly cleans the path for us (FIXME it should redirect).
 
@@ -96,16 +106,6 @@ fn find_page_file(req_path: &str) -> WebResult<PathBuf> {
     }
 
     Err(WebError::NotFound)
-}
-
-fn render(req: HttpRequest, tpls: web::Data<Mutex<TemplateManager>>) -> WebResult<HttpResponse> {
-    let mut tpls = tpls.lock().unwrap();
-    let path = find_page_file(req.path())?;
-    let buffer = render_path(&path, &mut tpls)?;
-
-    Ok(HttpResponse::Ok()
-        .content_type("text/html; charset=UTF-8")
-        .body(buffer))
 }
 
 fn render_path(path: &PathBuf, tpls: &mut TemplateManager) -> Result<String> {
