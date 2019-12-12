@@ -1,5 +1,7 @@
 mod errors;
-pub use errors::*;
+mod render;
+pub use crate::http::errors::*;
+pub use crate::http::render::*;
 
 use actix_web::{
     self,
@@ -11,19 +13,17 @@ use actix_web::{
     HttpResponse,
     HttpServer,
 };
-use simplelog::*;
-use std::path::PathBuf;
-use std::sync::Mutex;
-
 use crate::errors::Error;
 use crate::errors::Result;
-use crate::render::Page;
 use crate::templates::TemplateManager;
+use simplelog::*;
+use std::sync::Mutex;
 
 // TODO testing
-// TODO error pages
 // TODO better error handling
-// TODO selectable layout
+//      - Bad page metadata errors should be shown to admin, but not user
+//      - dev mode
+//      - log errors
 // TODO automatic title
 // TODO static
 
@@ -66,38 +66,4 @@ fn path_handler(req: HttpRequest, tpls: web::Data<Mutex<TemplateManager>>) -> Ht
         Ok(response) => response,
         Err(error) => render_error(&req, &mut tpls, error),
     }
-}
-
-fn render(req: &HttpRequest, tpls: &mut TemplateManager) -> WebResult<HttpResponse> {
-    let path = find_page_file(req.path())?;
-    let buffer = render_path(&path, tpls)?;
-
-    Ok(HttpResponse::Ok()
-        .content_type("text/html; charset=UTF-8")
-        .body(buffer))
-}
-
-fn find_page_file(req_path: &str) -> WebResult<PathBuf> {
-    // Actix mostly cleans the path for us (FIXME it should redirect).
-
-    // req_path always starts with a /
-    let base = format!("pages{}", req_path.trim_end_matches('/'));
-
-    let test = PathBuf::from(format!("{}.md", base));
-    if test.is_file() {
-        return Ok(test);
-    }
-
-    let test = PathBuf::from(base).join("index.md");
-    if test.is_file() {
-        return Ok(test);
-    }
-
-    Err(WebError::NotFound)
-}
-
-fn render_path(path: &PathBuf, tpls: &mut TemplateManager) -> Result<String> {
-    let page = Page::read_from(&path)?;
-
-    Ok(tpls.default()?.render_to_string(&page)?)
 }

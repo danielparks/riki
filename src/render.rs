@@ -10,6 +10,7 @@ use std::result;
 
 use crate::errors::Error;
 use crate::errors::Result;
+use crate::templates::TemplateManager;
 
 type Metadata = HashMap<String, String>;
 
@@ -67,6 +68,14 @@ impl Page {
         }
 
         Ok(cleaned)
+    }
+
+    pub fn render_to_string(&self, tpls: &mut TemplateManager) -> Result<String> {
+        if let Some(tpl_name) = self.metadata.get("template") {
+            Ok(tpls.get(tpl_name)?.render_to_string(&self)?)
+        } else {
+            Ok(tpls.default()?.render_to_string(&self)?)
+        }
     }
 
     fn split_raw_page(raw: &str) -> (&str, &str) {
