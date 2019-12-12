@@ -24,7 +24,6 @@ use std::sync::Mutex;
 //      - Bad page metadata errors should be shown to admin, but not user
 //      - dev mode
 //      - log errors
-// TODO automatic title
 // TODO static
 
 

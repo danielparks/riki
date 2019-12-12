@@ -34,10 +34,26 @@ impl Page {
     pub fn from_string(raw: &str) -> Result<Page> {
         let (header, body) = Page::split_raw_page(&raw);
 
+        let mut metadata = Page::metadata_from_string(&header)?;
+        let body = Page::render_markdown(&body);
+
+        if ! metadata.contains_key("title") {
+            // Parsing HTML with a regular expression? What could go wrong.
+            lazy_static! {
+                static ref H1: Regex = Regex::new("<h1(?:\\s[^>]*)?>.*?</h1>").unwrap();
+                static ref TAGS: Regex = Regex::new("</?\\w.*?>").unwrap();
+            }
+
+            if let Some(mat) = H1.find(&body) {
+                let title = mat.as_str();
+                metadata.insert("title".into(), TAGS.replace_all(title, "").into());
+            }
+        }
+
         Ok(Page {
             file: PathBuf::from("-"), // i.e. STDIN
-            metadata: Page::metadata_from_string(&header)?,
-            body: Page::render_markdown(&body),
+            metadata: metadata,
+            body: body,
         })
     }
 
