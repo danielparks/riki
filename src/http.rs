@@ -19,7 +19,9 @@ use crate::errors::Error;
 use crate::errors::Result;
 use crate::templates::TemplateManager;
 use simplelog::*;
+use std::ffi::OsStr;
 use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 // TODO testing
@@ -62,7 +64,7 @@ fn init_logging() {
 }
 
 fn static_render(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
-    match NamedFile::open(&path) {
+    match NamedFile::open(path) {
         Ok(file) => {
             match file.into_response(&req) {
                 Ok(response) => {
@@ -71,14 +73,49 @@ fn static_render(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
                 Err(error) => {
                     // actix_web::Error doesn’t have Send, so we can’t convert
                     // to a crate::Error type.
-                    println!("ERROR static file into_response {:}\n{:}", &path.display(), &error);
+                    eprintln!("ERROR static file into_response {:}\n{:}", path.display(), &error);
                     Err(Error::StaticFile{}.into())
                 },
             }
         },
         Err(error) => {
-            println!("ERROR static file open {:}: {:}", &path.display(), &error);
+            eprintln!("ERROR static file open {:}: {:}", path.display(), &error);
             Err(Error::from(error).into())
+        },
+    }
+}
+
+fn clean_file_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
+    // TODO? Actix seems to do deal with .. and maybe // for us. Simplify?
+    match path.as_ref().strip_prefix("/") {
+        Ok(path) => {
+            let mut path_buf = PathBuf::from("static");
+            path_buf.push(path);
+
+            if path_buf.is_absolute() || path_buf.has_root() {
+                eprintln!("ERROR calculated path \"{}\" is not relative",
+                    path_buf.display());
+                return None;
+            }
+
+            let dotdot = OsStr::new("..");
+            if path_buf.iter().find(|&v| v == dotdot).is_some() {
+                eprintln!("ERROR calculated path \"{}\" contains ..",
+                    path_buf.display());
+                return None;
+            }
+
+            if path_buf.is_file() {
+                Some(path_buf)
+            } else {
+                None
+            }
+        },
+        Err(error) => {
+            // WTF. It should always start with "/".
+            eprintln!("ERROR path.strip_prefix(\"/\") for \"{}\": {}",
+                path.as_ref().display(), &error);
+            None
         },
     }
 }
@@ -86,11 +123,8 @@ fn static_render(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
 async fn path_handler(req: HttpRequest, tpls: web::Data<Mutex<TemplateManager>>) -> impl Responder {
     let mut tpls = tpls.lock().unwrap();
 
-    // FIXME SAFETY Check for .. and other ways to escape data directory. Note that
-    // this may be different on windows (C:temp is not absolute). Actix seems
-    // to normalize paths for us, so this isn’t strictly necessary.
-    let result = match Path::new(req.path()).strip_prefix("/") {
-        Ok(path) if path.is_file() => static_render(&req, path),
+    let result = match clean_file_path(req.path()) {
+        Some(path) => static_render(&req, &path),
         _ => render(&req, &mut tpls),
     };
 
