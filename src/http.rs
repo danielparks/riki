@@ -10,8 +10,8 @@ use actix_web::{
 
     App,
     HttpRequest,
-    HttpResponse,
     HttpServer,
+    Responder,
 };
 use crate::errors::Error;
 use crate::errors::Result;
@@ -26,8 +26,8 @@ use std::sync::Mutex;
 //      - log errors
 // TODO static
 
-
-pub fn serve<S: AsRef<str>>(address: S) -> Result<()> {
+#[actix_web::main]
+pub async fn serve<S: 'static + AsRef<str>>(address: S) -> Result<()> {
     let address = address.as_ref();
     init_logging();
 
@@ -43,9 +43,9 @@ pub fn serve<S: AsRef<str>>(address: S) -> Result<()> {
                 .route("/{path:.*}", web::get().to(path_handler))
         })
         .bind(address).map_err(Error::BindErrorMap(address))?
-        .run()?;
-
-    Ok(())
+        .run()
+        .await
+        .map_err(Error::Io)
 }
 
 fn init_logging() {
@@ -58,7 +58,7 @@ fn init_logging() {
     ]).unwrap();
 }
 
-fn path_handler(req: HttpRequest, tpls: web::Data<Mutex<TemplateManager>>) -> HttpResponse {
+async fn path_handler(req: HttpRequest, tpls: web::Data<Mutex<TemplateManager>>) -> impl Responder {
     let mut tpls = tpls.lock().unwrap();
 
     match render(&req, &mut tpls) {
