@@ -13,6 +13,9 @@ pub enum Error {
     #[error("Failed to render page body")]
     PageRender(#[from] mustache::Error),
 
+    #[error("Failed load static file")]
+    StaticFile, // actix_web::Error doesn’t have Send, which breaks anyhow.
+
     #[error("Failed to render page metadata")]
     MetadataRender { source: serde_yaml::Error },
 

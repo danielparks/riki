@@ -3,6 +3,7 @@ mod render;
 pub use crate::http::errors::*;
 pub use crate::http::render::*;
 
+use actix_files::NamedFile;
 use actix_web::{
     self,
     middleware::Logger,
@@ -10,6 +11,7 @@ use actix_web::{
 
     App,
     HttpRequest,
+    HttpResponse,
     HttpServer,
     Responder,
 };
@@ -17,6 +19,7 @@ use crate::errors::Error;
 use crate::errors::Result;
 use crate::templates::TemplateManager;
 use simplelog::*;
+use std::path::Path;
 use std::sync::Mutex;
 
 // TODO testing
@@ -58,10 +61,40 @@ fn init_logging() {
     ]).unwrap();
 }
 
+fn static_render(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
+    match NamedFile::open(&path) {
+        Ok(file) => {
+            match file.into_response(&req) {
+                Ok(response) => {
+                    Ok(response)
+                },
+                Err(error) => {
+                    // actix_web::Error doesn’t have Send, so we can’t convert
+                    // to a crate::Error type.
+                    println!("ERROR static file into_response {:}\n{:}", &path.display(), &error);
+                    Err(Error::StaticFile{}.into())
+                },
+            }
+        },
+        Err(error) => {
+            println!("ERROR static file open {:}: {:}", &path.display(), &error);
+            Err(Error::from(error).into())
+        },
+    }
+}
+
 async fn path_handler(req: HttpRequest, tpls: web::Data<Mutex<TemplateManager>>) -> impl Responder {
     let mut tpls = tpls.lock().unwrap();
 
-    match render(&req, &mut tpls) {
+    // FIXME SAFETY Check for .. and other ways to escape data directory. Note that
+    // this may be different on windows (C:temp is not absolute). Actix seems
+    // to normalize paths for us, so this isn’t strictly necessary.
+    let result = match Path::new(req.path()).strip_prefix("/") {
+        Ok(path) if path.is_file() => static_render(&req, path),
+        _ => render(&req, &mut tpls),
+    };
+
+    match result {
         Ok(response) => response,
         Err(error) => render_error(&req, &mut tpls, error),
     }
