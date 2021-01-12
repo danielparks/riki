@@ -29,7 +29,6 @@ use std::sync::Mutex;
 //      - Bad page metadata errors should be shown to admin, but not user
 //      - dev mode
 //      - log errors
-// TODO static
 
 #[actix_web::main]
 pub async fn serve<S: 'static + AsRef<str>>(address: S) -> Result<()> {
