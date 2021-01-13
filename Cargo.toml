@@ -11,15 +11,15 @@ actix-files = "0.5"
 actix-web = "3"
 anyhow = "1"
 htmlize = "0"
-lazy_static = "1.4"
+lazy_static = "1"
 mustache = "0" # Look at ramhorns instead of mustache?
 pulldown-cmark = { version = "0", default-features = false, features = ["simd"] } # enable simd only on 86_x64?
 regex = "1"
-serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.8"
-simplelog = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0"
+simplelog = "0"
 structopt = "0"
-thiserror = "1.0"
+thiserror = "1"
 
 [dev-dependencies]
-temp_testdir = "0.2"
+temp_testdir = "0"

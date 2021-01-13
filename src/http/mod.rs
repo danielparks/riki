@@ -58,7 +58,7 @@ fn init_logging() {
             LevelFilter::Info,
             Config::default(),
             TerminalMode::Mixed
-        ).unwrap(),
+        ),
     ]).unwrap();
 }
 
