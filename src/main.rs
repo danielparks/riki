@@ -16,7 +16,7 @@ struct Params {
 #[derive(Debug, StructOpt)]
 enum Command {
     /// Render a page file
-    #[structopt(name="render", no_version)]
+    #[structopt(no_version)]
     Render {
         /// Path to template to use
         #[structopt(short, long, default_value="templates/default.tmpl", parse(from_os_str))]
@@ -26,14 +26,14 @@ enum Command {
         page: PathBuf,
     },
     /// Get metadata from a page file
-    #[structopt(name="info", no_version)]
+    #[structopt(no_version)]
     Info {
         /// Path to page file
         #[structopt(parse(from_os_str))]
         page: PathBuf,
     },
     /// Start web server
-    #[structopt(name="serve", no_version)]
+    #[structopt(no_version)]
     Serve {
         /// Directory tree containing templates and pages
         #[structopt(name="path", default_value=".", parse(from_os_str))]
