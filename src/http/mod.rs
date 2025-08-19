@@ -41,17 +41,19 @@ pub async fn serve<S: AsRef<str>>(address: S) -> Result<()> {
     .map_err(Error::Io)
 }
 
-fn static_render(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
-    match NamedFile::open(path) {
-        Ok(file) => Ok(file.into_response(req)),
-        Err(error) => {
-            eprintln!(
-                "ERROR static file open {:}: {:}",
-                path.display(),
-                &error
-            );
-            Err(Error::from(error).into())
-        }
+#[get("/{path:.*}")]
+async fn path_handler(
+    req: HttpRequest,
+    tpls: Data<Mutex<TemplateManager>>,
+) -> impl Responder {
+    let result = match clean_file_path(req.path()) {
+        Some(path) => static_render(&req, &path),
+        _ => render(&req, &mut tpls.lock().unwrap()),
+    };
+
+    match result {
+        Ok(response) => response,
+        Err(error) => render_error(&req, &mut tpls.lock().unwrap(), error),
     }
 }
 
@@ -97,18 +99,16 @@ fn clean_file_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
     }
 }
 
-#[get("/{path:.*}")]
-async fn path_handler(
-    req: HttpRequest,
-    tpls: Data<Mutex<TemplateManager>>,
-) -> impl Responder {
-    let result = match clean_file_path(req.path()) {
-        Some(path) => static_render(&req, &path),
-        _ => render(&req, &mut tpls.lock().unwrap()),
-    };
-
-    match result {
-        Ok(response) => response,
-        Err(error) => render_error(&req, &mut tpls.lock().unwrap(), error),
+fn static_render(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
+    match NamedFile::open(path) {
+        Ok(file) => Ok(file.into_response(req)),
+        Err(error) => {
+            eprintln!(
+                "ERROR static file open {:}: {:}",
+                path.display(),
+                &error
+            );
+            Err(Error::from(error).into())
+        }
     }
 }
