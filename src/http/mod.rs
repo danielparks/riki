@@ -9,7 +9,8 @@ use crate::templates::TemplateManager;
 use actix_files::NamedFile;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder,
-    middleware::Logger, web,
+    middleware::Logger,
+    web::{self, Data},
 };
 use std::ffi::OsStr;
 use std::path::Path;
@@ -26,14 +27,11 @@ use std::sync::Mutex;
 pub async fn serve<S: 'static + AsRef<str>>(address: S) -> Result<()> {
     let address = address.as_ref();
 
-    // We clone this into the app data, which makes this entirely thread safe.
-    // Unfortunately, actix uses a data structure that forces us to use Mutex
-    // in order to get a mutable ref.
-    let tpls = TemplateManager::new("templates")?;
+    let data = Data::new(Mutex::new(TemplateManager::new("templates")?));
 
     HttpServer::new(move || {
         App::new()
-            .data(Mutex::new(tpls.clone()))
+            .app_data(Data::clone(&data))
             .wrap(Logger::new("%a %t \"%r\" %s %b %Ts"))
             .route("/{path:.*}", web::get().to(path_handler))
     })
@@ -102,7 +100,7 @@ fn clean_file_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
 
 async fn path_handler(
     req: HttpRequest,
-    tpls: web::Data<Mutex<TemplateManager>>,
+    tpls: Data<Mutex<TemplateManager>>,
 ) -> impl Responder {
     let result = match clean_file_path(req.path()) {
         Some(path) => static_render(&req, &path),
