@@ -25,8 +25,8 @@ impl TemplateManager {
             Ok(manager)
         } else {
             Err(Error::from(io::Error::other(format!(
-                "Loading templates: {:?} is not a directory",
-                &manager.directory
+                "Loading templates: \"{}\" is not a directory",
+                &manager.directory.display()
             ))))
         }
     }
