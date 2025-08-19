@@ -46,7 +46,7 @@ pub async fn serve<S: 'static + AsRef<str>>(address: S) -> Result<()> {
 
 fn static_render(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
     match NamedFile::open(path) {
-        Ok(file) => Ok(file.into_response(&req)),
+        Ok(file) => Ok(file.into_response(req)),
         Err(error) => {
             eprintln!(
                 "ERROR static file open {:}: {:}",
@@ -74,7 +74,7 @@ fn clean_file_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
             }
 
             let dotdot = OsStr::new("..");
-            if path_buf.iter().find(|&v| v == dotdot).is_some() {
+            if path_buf.iter().any(|v| v == dotdot) {
                 eprintln!(
                     "ERROR calculated path \"{}\" contains ..",
                     path_buf.display()
@@ -104,15 +104,13 @@ async fn path_handler(
     req: HttpRequest,
     tpls: web::Data<Mutex<TemplateManager>>,
 ) -> impl Responder {
-    let mut tpls = tpls.lock().unwrap();
-
     let result = match clean_file_path(req.path()) {
         Some(path) => static_render(&req, &path),
-        _ => render(&req, &mut tpls),
+        _ => render(&req, &mut tpls.lock().unwrap()),
     };
 
     match result {
         Ok(response) => response,
-        Err(error) => render_error(&req, &mut tpls, error),
+        Err(error) => render_error(&req, &mut tpls.lock().unwrap(), error),
     }
 }

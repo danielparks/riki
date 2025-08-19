@@ -1,11 +1,14 @@
-use actix_web::{HttpRequest, HttpResponse};
 use crate::errors::Result;
-use crate::http::errors::*;
+use crate::http::errors::{WebError, WebResult};
 use crate::render::Page;
 use crate::templates::TemplateManager;
-use std::path::PathBuf;
+use actix_web::{HttpRequest, HttpResponse};
+use std::path::{Path, PathBuf};
 
-pub fn render(req: &HttpRequest, tpls: &mut TemplateManager) -> WebResult<HttpResponse> {
+pub fn render(
+    req: &HttpRequest,
+    tpls: &mut TemplateManager,
+) -> WebResult<HttpResponse> {
     let path = find_page_file(req.path())?;
     let buffer = render_path(&path, tpls)?;
 
@@ -20,7 +23,7 @@ fn find_page_file(req_path: &str) -> WebResult<PathBuf> {
     // req_path always starts with a /
     let base = format!("pages{}", req_path.trim_end_matches('/'));
 
-    let test = PathBuf::from(format!("{}.md", base));
+    let test = PathBuf::from(format!("{base}.md"));
     if test.is_file() {
         return Ok(test);
     }
@@ -33,6 +36,6 @@ fn find_page_file(req_path: &str) -> WebResult<PathBuf> {
     Err(WebError::NotFound)
 }
 
-fn render_path(path: &PathBuf, tpls: &mut TemplateManager) -> Result<String> {
-    Ok(Page::read_from(&path)?.render_to_string(tpls)?)
+fn render_path(path: &Path, tpls: &mut TemplateManager) -> Result<String> {
+    Page::read_from(path)?.render_to_string(tpls)
 }

@@ -36,11 +36,11 @@ pub fn render_error(
         Ok(tpl) => match tpl.render_to_string(&error) {
             Ok(buffer) => buffer,
             Err(error2) => {
-                fallback_render_error(&req, &error, &ErrorOutput::from(error2))
+                fallback_render_error(req, &error, &ErrorOutput::from(error2))
             }
         },
         Err(error2) => {
-            fallback_render_error(&req, &error, &ErrorOutput::from(error2))
+            fallback_render_error(req, &error, &ErrorOutput::from(error2))
         }
     };
 
@@ -56,14 +56,14 @@ struct ErrorOutput {
 }
 
 impl ErrorOutput {
-    fn from<E>(error: E) -> ErrorOutput
+    fn from<E>(error: E) -> Self
     where
         E: StdError + Send + Sync + 'static,
     {
         let error = AnyError::from(error);
-        ErrorOutput {
-            short: format!("{}", error),
-            long: format!("{:?}", error),
+        Self {
+            short: format!("{error}"),
+            long: format!("{error:?}"),
         }
     }
 }

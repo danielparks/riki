@@ -4,7 +4,7 @@ use std::env;
 use std::io;
 use std::process::ExitCode;
 
-use rustwiki::*;
+use rustwiki::Page;
 
 mod logging;
 mod params;
@@ -35,20 +35,20 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
 
     match &params.command {
         Command::Render { template, page } => {
-            let template = mustache::compile_path(&template)?;
-            let page = Page::read_from(&page)?;
+            let template = mustache::compile_path(template)?;
+            let page = Page::read_from(page)?;
 
             template.render(&mut io::stdout(), &page)?;
         }
         Command::Info { page } => {
-            let metadata = Page::read_from(&page)?.metadata_as_string()?;
-            if metadata != "" {
-                println!("{}", metadata);
+            let metadata = Page::read_from(page)?.metadata_as_string()?;
+            if !metadata.is_empty() {
+                println!("{metadata}");
             }
         }
         Command::Serve { basedir } => {
             // Switch to base directory. The default is ".".
-            env::set_current_dir(&basedir)?;
+            env::set_current_dir(basedir)?;
 
             rustwiki::http::serve("127.0.0.1:8000")?;
         }

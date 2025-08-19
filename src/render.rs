@@ -22,20 +22,20 @@ pub struct Page {
 }
 
 impl Page {
-    pub fn read_from(path: &Path) -> Result<Page> {
+    pub fn read_from(path: &Path) -> Result<Self> {
         let raw = fs::read_to_string(path)
             .map_err(|source| Error::ReadPageFile { source })?;
 
-        let mut page = Page::from_string(&raw)?;
+        let mut page = Self::from_string(&raw)?;
         page.file = PathBuf::from(path);
         Ok(page)
     }
 
-    pub fn from_string(raw: &str) -> Result<Page> {
-        let (header, body) = Page::split_raw_page(&raw);
+    pub fn from_string(raw: &str) -> Result<Self> {
+        let (header, body) = Self::split_raw_page(raw);
 
-        let mut metadata = Page::metadata_from_string(&header)?;
-        let body = Page::render_markdown(&body);
+        let mut metadata = Self::metadata_from_string(header)?;
+        let body = Self::render_markdown(body);
 
         if ! metadata.contains_key("title") {
             // Parsing HTML with a regular expression? What could go wrong.
@@ -50,23 +50,23 @@ impl Page {
             }
         }
 
-        Ok(Page {
+        Ok(Self {
             file: PathBuf::from("-"), // i.e. STDIN
-            metadata: metadata,
-            body: body,
+            metadata,
+            body,
         })
     }
 
-    pub fn from_error<E>(error: &E) -> Page
+    pub fn from_error<E>(error: &E) -> Self
         where E: std::fmt::Debug
     {
         let mut meta = HashMap::new();
-        meta.insert("title".to_string(), "ERROR".to_string());
+        meta.insert("title".to_owned(), "ERROR".to_owned());
 
-        Page {
+        Self {
             file: PathBuf::from(""),
             metadata: meta,
-            body: format!("error {:?}", error),
+            body: format!("error {error:?}"),
         }
     }
 
@@ -80,7 +80,7 @@ impl Page {
         let mut cleaned = String::new();
         if &yaml[start..] != "{}" {
             // Metadata wasn’t empty.
-            cleaned.push_str(&yaml[start..])
+            cleaned.push_str(&yaml[start..]);
         }
 
         Ok(cleaned)
@@ -96,7 +96,7 @@ impl Page {
 
     fn split_raw_page(raw: &str) -> (&str, &str) {
         let re = Regex::new(r"(?:^|\s*[\r\n])---(?:$|[\r\n]\s*)").unwrap();
-        let parts: Vec<&str> = re.splitn(&raw, 2).collect();
+        let parts: Vec<&str> = re.splitn(raw, 2).collect();
         match parts[..] {
             [yaml, body] => (yaml, body),
             [body] => ("", body),
@@ -105,16 +105,16 @@ impl Page {
     }
 
     fn metadata_from_string(raw: &str) -> result::Result<Metadata, YamlError> {
-        if raw.trim().len() == 0 {
+        if raw.trim().is_empty() {
             Ok(HashMap::new())
         } else {
-            serde_yaml::from_str(&raw)
+            serde_yaml::from_str(raw)
         }
     }
 
     fn render_markdown(markdown: &str) -> String {
         let mut buffer = String::new();
-        let parser = Parser::new_ext(&markdown, Options::all());
+        let parser = Parser::new_ext(markdown, Options::all());
         html::push_html(&mut buffer, parser);
 
         buffer
