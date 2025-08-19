@@ -4,7 +4,7 @@ use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::errors::{Result, Error};
+use crate::errors::{Error, Result};
 
 /// Load, compile, and cache templates
 #[derive(Clone, Debug)]
@@ -24,10 +24,10 @@ impl TemplateManager {
         if manager.directory.is_dir() {
             Ok(manager)
         } else {
-            Err(Error::from(
-                io::Error::other(
-                    format!("Loading templates: {:?} is not a directory",
-                        &manager.directory))))
+            Err(Error::from(io::Error::other(format!(
+                "Loading templates: {:?} is not a directory",
+                &manager.directory
+            ))))
         }
     }
 
@@ -53,7 +53,8 @@ impl TemplateManager {
         // FIXME? just trust that name doesn’t contain '/'
         let mut path = self.directory.join(name);
         path.set_extension("tmpl");
-        self.templates.insert(name.to_owned(), mustache::compile_path(&path)?);
+        self.templates
+            .insert(name.to_owned(), mustache::compile_path(&path)?);
 
         Ok(&self.templates[name])
     }

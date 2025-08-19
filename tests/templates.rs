@@ -1,7 +1,7 @@
-use std::fs::File;
 use rustwiki::{Page, TemplateManager};
-use std::path::Path;
+use std::fs::File;
 use std::io::Write;
+use std::path::Path;
 use temp_testdir::TempDir;
 
 fn create_file<P, S, C>(dir: P, name: S, contents: C)

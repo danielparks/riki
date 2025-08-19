@@ -28,7 +28,8 @@ pub enum Error {
 
 impl Error {
     #[allow(non_snake_case)]
-    #[must_use] pub fn BindErrorMap(address: &str) -> Box<dyn FnOnce(io::Error) -> Self> {
+    #[must_use]
+    pub fn BindErrorMap(address: &str) -> Box<dyn FnOnce(io::Error) -> Self> {
         let address = String::from(address);
         Box::new(|source: io::Error| Self::BindError { source, address })
     }

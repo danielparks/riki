@@ -1,4 +1,4 @@
-use pulldown_cmark::{Parser, Options, html};
+use pulldown_cmark::{Options, Parser, html};
 use regex::Regex;
 use serde::Serialize;
 use serde_yaml::Error as YamlError;
@@ -38,7 +38,7 @@ impl Page {
         let mut metadata = Self::metadata_from_string(header)?;
         let body = Self::render_markdown(body);
 
-        if ! metadata.contains_key("title") {
+        if !metadata.contains_key("title") {
             // Parsing HTML with a regular expression? What could go wrong.
             static H1: LazyLock<Regex> = LazyLock::new(|| {
                 Regex::new("<h1(?:\\s[^>]*)?>.*?</h1>").unwrap()
@@ -48,7 +48,8 @@ impl Page {
 
             if let Some(mat) = H1.find(&body) {
                 let title = mat.as_str();
-                metadata.insert("title".into(), TAGS.replace_all(title, "").into());
+                metadata
+                    .insert("title".into(), TAGS.replace_all(title, "").into());
             }
         }
 
@@ -60,7 +61,8 @@ impl Page {
     }
 
     pub fn from_error<E>(error: &E) -> Self
-        where E: std::fmt::Debug
+    where
+        E: std::fmt::Debug,
     {
         let mut meta = HashMap::new();
         meta.insert("title".to_owned(), "ERROR".to_owned());
@@ -77,7 +79,11 @@ impl Page {
             .map_err(|source| Error::MetadataRender { source })?;
 
         let prefix = "---\n";
-        let start = if yaml.starts_with(prefix) { prefix.len() } else { 0 };
+        let start = if yaml.starts_with(prefix) {
+            prefix.len()
+        } else {
+            0
+        };
 
         let mut cleaned = String::new();
         if &yaml[start..] != "{}" {
@@ -88,7 +94,10 @@ impl Page {
         Ok(cleaned)
     }
 
-    pub fn render_to_string(&self, tpls: &mut TemplateManager) -> Result<String> {
+    pub fn render_to_string(
+        &self,
+        tpls: &mut TemplateManager,
+    ) -> Result<String> {
         if let Some(tpl_name) = self.metadata.get("template") {
             Ok(tpls.get(tpl_name)?.render_to_string(&self)?)
         } else {

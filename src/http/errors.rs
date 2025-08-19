@@ -61,10 +61,7 @@ impl ErrorOutput {
         E: StdError + Send + Sync + 'static,
     {
         let error = AnyError::from(error);
-        Self {
-            short: format!("{error}"),
-            long: format!("{error:?}"),
-        }
+        Self { short: format!("{error}"), long: format!("{error:?}") }
     }
 }
 
