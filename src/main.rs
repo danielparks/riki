@@ -1,7 +1,8 @@
-use anyhow::Result as AnyResult;
+//! rustwiki executable.
+
 use std::env;
 use std::io;
-use std::process::exit;
+use std::process::ExitCode;
 
 use rustwiki::*;
 
@@ -10,10 +11,29 @@ mod params;
 
 use params::{Command, Params, Parser};
 
-fn cli(params: Params) -> AnyResult<()> {
+/// Wrapper to handle errors.
+///
+/// See [`cli()`].
+fn main() -> ExitCode {
+    let params = Params::parse();
+    cli(&params).unwrap_or_else(|error| {
+        params.warn(format!("Error: {error:#}\n")).unwrap();
+        ExitCode::FAILURE
+    })
+}
+
+/// Do the actual work.
+///
+/// Returns the exit code to use.
+///
+/// # Errors
+///
+/// This returns any errors encountered during the run so that they can be
+/// outputted nicely in [`main()`].
+fn cli(params: &Params) -> anyhow::Result<ExitCode> {
     logging::init(params.verbose)?;
 
-    match params.command {
+    match &params.command {
         Command::Render { template, page } => {
             let template = mustache::compile_path(&template)?;
             let page = Page::read_from(&page)?;
@@ -34,12 +54,5 @@ fn cli(params: Params) -> AnyResult<()> {
         }
     }
 
-    Ok(())
-}
-
-fn main() {
-    if let Err(error) = cli(Params::parse()) {
-        eprintln!("Error: {:#}", error);
-        exit(1);
-    }
+    Ok(ExitCode::SUCCESS)
 }
