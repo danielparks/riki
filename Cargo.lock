@@ -1358,7 +1358,6 @@ dependencies = [
  "anyhow",
  "clap",
  "htmlize",
- "lazy_static",
  "mustache",
  "pulldown-cmark",
  "regex",
