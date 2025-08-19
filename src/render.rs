@@ -7,6 +7,7 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::result;
+use std::sync::LazyLock;
 
 use crate::errors::Error;
 use crate::errors::Result;
@@ -39,10 +40,11 @@ impl Page {
 
         if ! metadata.contains_key("title") {
             // Parsing HTML with a regular expression? What could go wrong.
-            lazy_static! {
-                static ref H1: Regex = Regex::new("<h1(?:\\s[^>]*)?>.*?</h1>").unwrap();
-                static ref TAGS: Regex = Regex::new("</?\\w.*?>").unwrap();
-            }
+            static H1: LazyLock<Regex> = LazyLock::new(|| {
+                Regex::new("<h1(?:\\s[^>]*)?>.*?</h1>").unwrap()
+            });
+            static TAGS: LazyLock<Regex> =
+                LazyLock::new(|| Regex::new("</?\\w.*?>").unwrap());
 
             if let Some(mat) = H1.find(&body) {
                 let title = mat.as_str();

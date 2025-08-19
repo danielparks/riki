@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate lazy_static;
-
 mod errors;
 mod render;
 mod templates;
