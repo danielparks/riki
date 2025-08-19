@@ -42,6 +42,10 @@ pub enum Command {
         /// Directory tree containing templates and pages
         #[arg(name = "path", default_value = ".")]
         basedir: PathBuf,
+
+        /// Address to bind to
+        #[arg(long, default_value = "localhost:8000")]
+        bind: String,
     },
 }
 

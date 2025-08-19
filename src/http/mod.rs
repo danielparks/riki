@@ -24,7 +24,7 @@ use std::sync::Mutex;
 //      - log errors
 
 #[actix_web::main]
-pub async fn serve<S: 'static + AsRef<str>>(address: S) -> Result<()> {
+pub async fn serve<S: AsRef<str>>(address: S) -> Result<()> {
     let address = address.as_ref();
 
     let data = Data::new(Mutex::new(TemplateManager::new("templates")?));

@@ -46,11 +46,11 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
                 println!("{metadata}");
             }
         }
-        Command::Serve { basedir } => {
+        Command::Serve { basedir, bind } => {
             // Switch to base directory. The default is ".".
             env::set_current_dir(basedir)?;
 
-            rustwiki::http::serve("127.0.0.1:8000")?;
+            rustwiki::http::serve(bind)?;
         }
     }
 
