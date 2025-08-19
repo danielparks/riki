@@ -8,13 +8,13 @@ use crate::errors::Result;
 use crate::templates::TemplateManager;
 use actix_files::NamedFile;
 use actix_web::{
-    self, App, HttpRequest, HttpResponse, HttpServer, Responder, get,
-    middleware::Logger, web::Data,
+    self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
 use std::ffi::OsStr;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use tracing_actix_web::TracingLogger;
 
 // TODO testing
 // TODO better error handling
@@ -31,7 +31,7 @@ pub async fn serve<S: AsRef<str>>(address: S) -> Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(Data::clone(&data))
-            .wrap(Logger::new("%a %t \"%r\" %s %b %Ts"))
+            .wrap(TracingLogger::default())
             .service(path_handler)
     })
     .bind(address)

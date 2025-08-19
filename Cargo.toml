@@ -32,6 +32,7 @@ serde_yaml = "0.9.34"
 termcolor = "1.4.1"
 thiserror = "2.0.15"
 tracing = "0.1.41"
+tracing-actix-web = "0.7.19"
 tracing-subscriber = { version = "0.3.19", features = ["chrono"] }
 
 [dev-dependencies]

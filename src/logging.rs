@@ -2,6 +2,7 @@
 
 use anyhow::bail;
 use tracing_subscriber::filter::LevelFilter;
+use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::prelude::*;
 
 /// Initialize logging for the executable.
@@ -15,6 +16,7 @@ pub fn init(verbose: u8) -> anyhow::Result<()> {
     };
 
     let formatter = tracing_subscriber::fmt::layer()
+        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
         .with_timer(tracing_subscriber::fmt::time::ChronoLocal::rfc_3339());
     tracing::subscriber::set_global_default(
         tracing_subscriber::registry().with(filter).with(formatter),
