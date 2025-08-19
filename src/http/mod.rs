@@ -8,9 +8,8 @@ use crate::errors::Result;
 use crate::templates::TemplateManager;
 use actix_files::NamedFile;
 use actix_web::{
-    self, App, HttpRequest, HttpResponse, HttpServer, Responder,
-    middleware::Logger,
-    web::{self, Data},
+    self, App, HttpRequest, HttpResponse, HttpServer, Responder, get,
+    middleware::Logger, web::Data,
 };
 use std::ffi::OsStr;
 use std::path::Path;
@@ -33,7 +32,7 @@ pub async fn serve<S: AsRef<str>>(address: S) -> Result<()> {
         App::new()
             .app_data(Data::clone(&data))
             .wrap(Logger::new("%a %t \"%r\" %s %b %Ts"))
-            .route("/{path:.*}", web::get().to(path_handler))
+            .service(path_handler)
     })
     .bind(address)
     .map_err(Error::BindErrorMap(address))?
@@ -98,6 +97,7 @@ fn clean_file_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
     }
 }
 
+#[get("/{path:.*}")]
 async fn path_handler(
     req: HttpRequest,
     tpls: Data<Mutex<TemplateManager>>,
