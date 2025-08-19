@@ -1,25 +1,91 @@
 [package]
 name = "rustwiki"
 version = "0.1.0"
-authors = ["Daniel Parks <dp+git@oxidized.org>"]
-edition = "2018"
+authors = ["Daniel Parks <oss-rustwiki@demonhorse.org>"]
+description = ""
+homepage = "https://github.com/danielparks/rustwiki"
+repository = "https://github.com/danielparks/rustwiki"
+documentation = "https://github.com/danielparks/rustwiki"
+readme = "README.md"
+exclude = [".*", "/release.sh"]
+keywords = []
+categories = []                                           # https://crates.io/category_slugs
+license = "MIT OR Apache-2.0"
+edition = "2024"
+rust-version = "1.85"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-actix-files = "0.5"
-actix-web = "3"
-anyhow = "1"
-htmlize = "0"
-lazy_static = "1"
-mustache = "0" # Look at ramhorns instead of mustache?
-pulldown-cmark = { version = "0", default-features = false, features = ["simd"] } # enable simd only on 86_x64?
-regex = "1"
-serde = { version = "1", features = ["derive"] }
-serde_yaml = "0"
-simplelog = "0"
-structopt = "0"
-thiserror = "1"
+actix-files = "0.6.6"
+actix-web = "4.11.0"
+anyhow = "1.0.95"
+clap = { version = "4.5.27", features = ["derive"] }
+htmlize = "1.0.6"
+lazy_static = "1.5.0"
+mustache = "0.9.0"
+pulldown-cmark = "0.13.0"
+regex = "1.11.1"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_yaml = "0.9.34"
+termcolor = "1.4.1"
+thiserror = "2.0.15"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["chrono"] }
 
 [dev-dependencies]
-temp_testdir = "0"
+temp_testdir = "0.2.3"
+
+[lints]
+workspace = true
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "allow" # FIXME
+
+[workspace.lints.clippy]
+nursery = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+missing_docs_in_private_items = "allow"      # FIXME"
+
+# Other restriction lints
+arithmetic_side_effects = "warn"
+as_underscore = "warn"
+assertions_on_result_states = "warn"
+dbg_macro = "warn"
+default_union_representation = "warn"
+empty_structs_with_brackets = "warn"
+filetype_is_file = "warn"               # maybe?
+fn_to_numeric_cast_any = "warn"
+format_push_string = "warn"             # maybe? alternative is fallible.
+get_unwrap = "warn"
+impl_trait_in_params = "warn"
+integer_division = "warn"
+lossy_float_literal = "warn"
+mem_forget = "warn"
+mixed_read_write_in_expression = "warn"
+multiple_inherent_impl = "warn"
+multiple_unsafe_ops_per_block = "warn"
+mutex_atomic = "warn"
+rc_buffer = "warn"
+rc_mutex = "warn"
+same_name_method = "warn"
+semicolon_inside_block = "warn"
+str_to_string = "warn"
+string_to_string = "warn"
+undocumented_unsafe_blocks = "warn"
+unnecessary_safety_doc = "warn"
+unnecessary_self_imports = "warn"
+unneeded_field_pattern = "warn"
+verbose_file_reads = "warn"
+
+# Pedantic exceptions
+let_underscore_untyped = "allow"
+manual_string_new = "allow"
+map_unwrap_or = "allow"
+module_name_repetitions = "allow"
+
+# Nursery exceptions
+option_if_let_else = "allow"

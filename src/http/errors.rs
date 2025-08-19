@@ -1,9 +1,4 @@
-use actix_web::{
-    dev::HttpResponseBuilder,
-    http,
-    HttpRequest,
-    HttpResponse,
-};
+use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, http};
 use anyhow::Error as AnyError;
 use htmlize::escape_text;
 use serde::Serialize;
@@ -25,7 +20,11 @@ pub enum WebError {
 
 pub type WebResult<T, E = WebError> = StdResult<T, E>;
 
-pub fn render_error(req: &HttpRequest, tpls: &mut TemplateManager, error: WebError) -> HttpResponse {
+pub fn render_error(
+    req: &HttpRequest,
+    tpls: &mut TemplateManager,
+    error: WebError,
+) -> HttpResponse {
     let code = match error {
         WebError::Internal(_) => http::StatusCode::INTERNAL_SERVER_ERROR,
         WebError::NotFound => http::StatusCode::NOT_FOUND,
@@ -34,13 +33,15 @@ pub fn render_error(req: &HttpRequest, tpls: &mut TemplateManager, error: WebErr
     let error = ErrorOutput::from(error);
 
     let buffer = match tpls.get(&"error") {
-        Ok(tpl) => {
-            match tpl.render_to_string(&error) {
-                Ok(buffer) => buffer,
-                Err(error2) => fallback_render_error(&req, &error, &ErrorOutput::from(error2)),
+        Ok(tpl) => match tpl.render_to_string(&error) {
+            Ok(buffer) => buffer,
+            Err(error2) => {
+                fallback_render_error(&req, &error, &ErrorOutput::from(error2))
             }
         },
-        Err(error2) => fallback_render_error(&req, &error, &ErrorOutput::from(error2)),
+        Err(error2) => {
+            fallback_render_error(&req, &error, &ErrorOutput::from(error2))
+        }
     };
 
     HttpResponseBuilder::new(code)
@@ -56,7 +57,8 @@ struct ErrorOutput {
 
 impl ErrorOutput {
     fn from<E>(error: E) -> ErrorOutput
-        where E: StdError + Send + Sync + 'static
+    where
+        E: StdError + Send + Sync + 'static,
     {
         let error = AnyError::from(error);
         ErrorOutput {
@@ -68,12 +70,17 @@ impl ErrorOutput {
 
 impl std::fmt::Display for ErrorOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-       write!(f, "{}", self.short)
+        write!(f, "{}", self.short)
     }
 }
 
-fn fallback_render_error(_req: &HttpRequest, error: &ErrorOutput, error2: &ErrorOutput) -> String {
-    format!(r#"<!DOCTYPE html>
+fn fallback_render_error(
+    _req: &HttpRequest,
+    error: &ErrorOutput,
+    error2: &ErrorOutput,
+) -> String {
+    format!(
+        r#"<!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="UTF-8">
@@ -86,6 +93,9 @@ fn fallback_render_error(_req: &HttpRequest, error: &ErrorOutput, error2: &Error
         <pre>{}</pre>
     </body>
 </html>"#,
-        escape_text(&error.short), escape_text(&error.short),
-        escape_text(&error.long), escape_text(&error2.long))
+        escape_text(&error.short),
+        escape_text(&error.short),
+        escape_text(&error.long),
+        escape_text(&error2.long)
+    )
 }
