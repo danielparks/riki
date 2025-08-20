@@ -1,3 +1,5 @@
+//! Manage templates
+
 use mustache::Template;
 use std::collections::HashMap;
 use std::io;
@@ -9,12 +11,19 @@ use crate::errors::{Error, Result};
 /// Load, compile, and cache templates
 #[derive(Clone, Debug)]
 pub struct TemplateManager {
+    /// The directory containing the templates
     directory: PathBuf,
+    /// Cache of templates by name
     templates: HashMap<String, Template>,
 }
 
 impl TemplateManager {
     /// Create a new `TemplateManager` with the passed
+    ///
+    /// # Errors
+    ///
+    /// This will return [`Error::Io`] if `directory` does not contain the path
+    /// to a directory.
     pub fn new<P: AsRef<Path>>(directory: P) -> Result<Self> {
         let manager = Self {
             directory: directory.as_ref().to_path_buf(),
@@ -24,17 +33,29 @@ impl TemplateManager {
         if manager.directory.is_dir() {
             Ok(manager)
         } else {
-            Err(Error::from(io::Error::other(format!(
+            Err(Error::Io(io::Error::other(format!(
                 "Loading templates: \"{}\" is not a directory",
                 &manager.directory.display()
             ))))
         }
     }
 
+    /// Get the default template.
+    ///
+    /// # Errors
+    ///
+    /// This will return [`Error::PageRender`] if [`mustache`] cannot compile the
+    /// template. See [`mustache::compile_path()`].
     pub fn default(&mut self) -> Result<&Template> {
         self.get(&"default")
     }
 
+    /// Get a template by name.
+    ///
+    /// # Errors
+    ///
+    /// This will return [`Error::PageRender`] if [`mustache`] cannot compile the
+    /// template. See [`mustache::compile_path()`].
     pub fn get<S: AsRef<str>>(&mut self, name: &S) -> Result<&Template> {
         let name = name.as_ref();
         if self.templates.contains_key(name) {
@@ -47,6 +68,11 @@ impl TemplateManager {
     /// Load and compile a template
     ///
     /// If the template has already been loaded then it will be reloaded.
+    ///
+    /// # Errors
+    ///
+    /// This will return [`Error::PageRender`] if [`mustache`] cannot compile the
+    /// template. See [`mustache::compile_path()`].
     pub fn load<S: AsRef<str>>(&mut self, name: &S) -> Result<&Template> {
         let name = name.as_ref();
 

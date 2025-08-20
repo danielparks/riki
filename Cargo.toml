@@ -43,12 +43,12 @@ workspace = true
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
-missing_docs = "allow" # FIXME
+missing_docs = "warn"
 
 [workspace.lints.clippy]
 nursery = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
-missing_docs_in_private_items = "allow"      # FIXME"
+missing_docs_in_private_items = "warn"
 
 # Other restriction lints
 arithmetic_side_effects = "warn"

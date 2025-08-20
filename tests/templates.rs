@@ -1,3 +1,5 @@
+#![allow(clippy::missing_docs_in_private_items, missing_docs)]
+
 use riki::{Page, TemplateManager};
 use std::fs::File;
 use std::io::Write;

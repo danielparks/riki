@@ -18,10 +18,12 @@ pub struct Params {
     #[arg(short, long, action = clap::ArgAction::Count)]
     pub verbose: u8,
 
+    /// The command to run
     #[clap(subcommand)]
     pub command: Command,
 }
 
+/// The command to run.
 #[derive(Debug, clap::Subcommand)]
 pub enum Command {
     /// Render a page file

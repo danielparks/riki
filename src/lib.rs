@@ -1,3 +1,5 @@
+//! Render and serve files.
+
 mod errors;
 mod render;
 mod templates;

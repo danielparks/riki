@@ -1,28 +1,41 @@
+//! Handle rendering a page.
+
 use pulldown_cmark::{Options, Parser, html};
 use regex::Regex;
 use serde::Serialize;
 use serde_yaml::Error as YamlError;
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::LazyLock;
 
-use crate::errors::Error;
-use crate::errors::Result;
+use crate::errors::{Error, Result};
 use crate::templates::TemplateManager;
 
+/// Page metadata
 type Metadata = HashMap<String, String>;
 
+/// A rendered page
 #[derive(Debug, Serialize)]
 pub struct Page {
+    /// The path to the file on disk, or "-" for stdin (FIXME)
     pub file: PathBuf,
+
+    /// Metadata about the page
     pub metadata: Metadata,
+
+    /// The HTML body of the page
     pub body: String,
 }
 
 impl Page {
+    /// Load a `Page` from `path`.
+    ///
+    /// # Errors
+    ///
+    /// This will return [`Error`] if there is a problem loading `path`.
+    /// and
     pub fn read_from(path: &Path) -> Result<Self> {
         let raw = fs::read_to_string(path)
             .map_err(|source| Error::ReadPageFile { source })?;
@@ -32,6 +45,11 @@ impl Page {
         Ok(page)
     }
 
+    /// Load a `Page` from a string.
+    ///
+    /// # Errors
+    ///
+    /// This will return [`Error`] if there is a problem parsing `raw`.
     pub fn from_string(raw: &str) -> Result<Self> {
         let (header, body) = Self::split_raw_page(raw);
 
@@ -60,20 +78,12 @@ impl Page {
         })
     }
 
-    pub fn from_error<E>(error: &E) -> Self
-    where
-        E: std::fmt::Debug,
-    {
-        let mut meta = HashMap::new();
-        meta.insert("title".to_owned(), "ERROR".to_owned());
-
-        Self {
-            file: PathBuf::from(""),
-            metadata: meta,
-            body: format!("error {error:?}"),
-        }
-    }
-
+    /// Serialize the page metadata to a string.
+    ///
+    /// # Errors
+    ///
+    /// This will return [`Error::MetadataRender`] if there is a problem
+    /// serializing the metadata as YAML.
     pub fn metadata_as_string(&self) -> Result<String> {
         let yaml = serde_yaml::to_string(&self.metadata)
             .map_err(|source| Error::MetadataRender { source })?;
@@ -94,6 +104,12 @@ impl Page {
         Ok(cleaned)
     }
 
+    /// Render the page to a string.
+    ///
+    /// # Errors
+    ///
+    /// This will return [`Error`] if there is a problem loading the template or
+    /// rendering the page.
     pub fn render_to_string(
         &self,
         tpls: &mut TemplateManager,
@@ -105,6 +121,7 @@ impl Page {
         }
     }
 
+    /// Split the raw page string into metadata and body.
     fn split_raw_page(raw: &str) -> (&str, &str) {
         let re = Regex::new(r"(?:^|\s*[\r\n])---(?:$|[\r\n]\s*)").unwrap();
         let parts: Vec<&str> = re.splitn(raw, 2).collect();
@@ -115,6 +132,11 @@ impl Page {
         }
     }
 
+    /// Load metadata from string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`YamlError`] if the YAML is invalid.
     fn metadata_from_string(raw: &str) -> result::Result<Metadata, YamlError> {
         if raw.trim().is_empty() {
             Ok(HashMap::new())
@@ -123,6 +145,7 @@ impl Page {
         }
     }
 
+    /// Render `markdown` as HTML.
     fn render_markdown(markdown: &str) -> String {
         let mut buffer = String::new();
         let parser = Parser::new_ext(markdown, Options::all());

@@ -1,3 +1,5 @@
+//! Serve pages over HTTP
+
 mod errors;
 mod render;
 pub use crate::http::errors::*;
@@ -22,6 +24,11 @@ use tracing_actix_web::TracingLogger;
 //      - dev mode
 //      - log errors
 
+/// Main entry point for serving over HTTP
+///
+/// # Errors
+///
+/// May return an error if the server could not start correctly.
 #[actix_web::main]
 pub async fn serve<S: AsRef<str>>(address: S) -> Result<()> {
     let address = address.as_ref();
@@ -41,6 +48,8 @@ pub async fn serve<S: AsRef<str>>(address: S) -> Result<()> {
     .map_err(Error::Io)
 }
 
+/// Handle all GET requests
+#[expect(clippy::future_not_send)] // Actix doesn’t require Send.
 #[get("/{path:.*}")]
 async fn path_handler(
     req: HttpRequest,
@@ -57,6 +66,15 @@ async fn path_handler(
     }
 }
 
+/// Check if a request path corresponds to a static file
+///
+/// Returns `None` if there is no matching static file.
+///
+/// # Errors
+///
+/// This should never encounter an error since Actix should clean up the path
+/// for us. If this does encounter an error, e.g. a path containing “..”, it
+/// will log the error to stderr (FIXME) and return `None`.
 fn clean_file_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
     // TODO? Actix seems to do deal with .. and maybe // for us. Simplify?
     match path.as_ref().strip_prefix("/") {
@@ -99,6 +117,11 @@ fn clean_file_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
     }
 }
 
+/// Return a static page as an [`HttpResponse`].
+///
+/// # Errors
+///
+/// This will return [`Error:Io`] if there is a problem reading the static file.
 fn static_render(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
     match NamedFile::open(path) {
         Ok(file) => Ok(file.into_response(req)),
@@ -108,7 +131,7 @@ fn static_render(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
                 path.display(),
                 &error
             );
-            Err(Error::from(error).into())
+            Err(WebError::Internal(Error::Io(error)))
         }
     }
 }

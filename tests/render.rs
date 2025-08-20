@@ -1,3 +1,5 @@
+#![allow(clippy::missing_docs_in_private_items, missing_docs)]
+
 use riki::Error;
 use riki::Page;
 
