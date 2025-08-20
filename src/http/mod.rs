@@ -121,7 +121,7 @@ fn clean_file_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
 ///
 /// # Errors
 ///
-/// This will return [`Error:Io`] if there is a problem reading the static file.
+/// This returns [`Error::Io`] when there is a problem reading the static file.
 fn static_render(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
     match NamedFile::open(path) {
         Ok(file) => Ok(file.into_response(req)),
