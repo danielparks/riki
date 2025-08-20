@@ -1,4 +1,4 @@
-#![allow(clippy::missing_docs_in_private_items, missing_docs)]
+//! Test template manager.
 
 use riki::{Page, TemplateManager};
 use std::fs::File;
