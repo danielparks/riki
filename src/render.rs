@@ -123,8 +123,10 @@ impl Page {
 
     /// Split the raw page string into metadata and body.
     fn split_raw_page(raw: &str) -> (&str, &str) {
-        let re = Regex::new(r"(?:^|\s*[\r\n])---(?:$|[\r\n]\s*)").unwrap();
-        let parts: Vec<&str> = re.splitn(raw, 2).collect();
+        static SPLIT_RE: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(r"(?:^|\s*[\r\n])---(?:$|[\r\n]\s*)").unwrap()
+        });
+        let parts: Vec<&str> = SPLIT_RE.splitn(raw, 2).collect();
         match parts[..] {
             [yaml, body] => (yaml, body),
             [body] => ("", body),
