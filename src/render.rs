@@ -1,5 +1,6 @@
 //! Handle rendering a page.
 
+use dom_query::Document;
 use pulldown_cmark::{Options, Parser, html};
 use regex::Regex;
 use serde::Serialize;
@@ -54,27 +55,19 @@ impl Page {
         let (header, body) = Self::split_raw_page(raw);
 
         let mut metadata = Self::metadata_from_string(header)?;
-        let body = Self::render_markdown(body);
+        let fragment = Document::fragment(Self::render_markdown(body));
 
         if !metadata.contains_key("title") {
-            // Parsing HTML with a regular expression? What could go wrong.
-            static H1: LazyLock<Regex> = LazyLock::new(|| {
-                Regex::new("<h1(?:\\s[^>]*)?>.*?</h1>").unwrap()
-            });
-            static TAGS: LazyLock<Regex> =
-                LazyLock::new(|| Regex::new("</?\\w.*?>").unwrap());
-
-            if let Some(mat) = H1.find(&body) {
-                let title = mat.as_str();
-                metadata
-                    .insert("title".into(), TAGS.replace_all(title, "").into());
+            let h1 = fragment.select_single("h1");
+            if h1.length() > 0 {
+                metadata.insert("title".into(), h1.text().into());
             }
         }
 
         Ok(Self {
             file: PathBuf::from("-"), // i.e. STDIN
             metadata,
-            body,
+            body: fragment.html_root().inner_html().to_string(),
         })
     }
 

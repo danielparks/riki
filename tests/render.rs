@@ -91,3 +91,17 @@ fn trivial_page() {
     assert_page_metadata_eq(&page, "title", "TITLE");
     assert_page_body_eq(&page, "<h1>header</h1>\n");
 }
+
+#[test]
+fn no_title_one_h1() {
+    let page = Page::from_string("# header\n").unwrap();
+    assert_page_metadata_eq(&page, "title", "header");
+    assert_page_body_eq(&page, "<h1>header</h1>\n");
+}
+
+#[test]
+fn no_title_two_h1() {
+    let page = Page::from_string("# one\n\n# two\n").unwrap();
+    assert_page_metadata_eq(&page, "title", "one");
+    assert_page_body_eq(&page, "<h1>one</h1>\n<h1>two</h1>\n");
+}
