@@ -1,5 +1,5 @@
-use rustwiki::Error;
-use rustwiki::Page;
+use riki::Error;
+use riki::Page;
 
 fn assert_page_no_metadata_key(page: &Page, key: &str) {
     assert!(

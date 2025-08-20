@@ -1,10 +1,10 @@
-//! rustwiki executable.
+//! riki executable.
 
 use std::env;
 use std::io;
 use std::process::ExitCode;
 
-use rustwiki::Page;
+use riki::Page;
 
 mod logging;
 mod params;
@@ -50,7 +50,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             // Switch to base directory. The default is ".".
             env::set_current_dir(basedir)?;
 
-            rustwiki::http::serve(bind)?;
+            riki::http::serve(bind)?;
         }
     }
 

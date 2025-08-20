@@ -1,4 +1,4 @@
-use rustwiki::{Page, TemplateManager};
+use riki::{Page, TemplateManager};
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;

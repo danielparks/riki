@@ -1,15 +1,15 @@
 [package]
-name = "rustwiki"
+name = "riki"
 version = "0.1.0"
-authors = ["Daniel Parks <oss-rustwiki@demonhorse.org>"]
-description = ""
-homepage = "https://github.com/danielparks/rustwiki"
-repository = "https://github.com/danielparks/rustwiki"
-documentation = "https://github.com/danielparks/rustwiki"
+authors = ["Daniel Parks <oss-riki@demonhorse.org>"]
+description = "Render and serve static files"
+homepage = "https://github.com/danielparks/riki"
+repository = "https://github.com/danielparks/riki"
+documentation = "https://github.com/danielparks/riki"
 readme = "README.md"
 exclude = [".*", "/release.sh"]
 keywords = []
-categories = []                                           # https://crates.io/category_slugs
+categories = []                                       # https://crates.io/category_slugs
 license = "MIT OR Apache-2.0"
 edition = "2024"
 rust-version = "1.85"

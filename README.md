@@ -1,4 +1,4 @@
-# rustwiki
+# riki
 
 Generated from template https://github.com/danielparks/danielparks-template.rs
 with [cargo-generate](https://github.com/ashleygwilliams/cargo-generate).
@@ -6,31 +6,31 @@ with [cargo-generate](https://github.com/ashleygwilliams/cargo-generate).
 ## Installation
 
 ```sh
-cargo install rustwiki
+cargo install riki
 ```
 
 If you have [`cargo binstall`][binstall], you can use it to download and install
 a binary:
 
 ```sh
-cargo binstall rustwiki
+cargo binstall riki
 ```
 
 Finally, you can download binaries directly from the [GitHub releases
 page][releases]. Just extract the archive and copy the file inside into your
 `$PATH`, e.g. `/usr/local/bin`. The most common ones are:
 
-  * Linux: [x86-64](https://github.com/danielparks/rustwiki/releases/latest/download/rustwiki-x86_64-unknown-linux-gnu.tar.gz),
-    [ARM](https://github.com/danielparks/rustwiki/releases/latest/download/rustwiki-aarch64-unknown-linux-musl.tar.gz)
-  * macOS: [Intel](https://github.com/danielparks/rustwiki/releases/latest/download/rustwiki-x86_64-apple-darwin.tar.gz),
-    [Apple silicon](https://github.com/danielparks/rustwiki/releases/latest/download/rustwiki-aarch64-apple-darwin.tar.gz)
-  * [Windows on x86-64](https://github.com/danielparks/rustwiki/releases/latest/download/rustwiki-x86_64-pc-windows-msvc.zip)
+  * Linux: [x86-64](https://github.com/danielparks/riki/releases/latest/download/riki-x86_64-unknown-linux-gnu.tar.gz),
+    [ARM](https://github.com/danielparks/riki/releases/latest/download/riki-aarch64-unknown-linux-musl.tar.gz)
+  * macOS: [Intel](https://github.com/danielparks/riki/releases/latest/download/riki-x86_64-apple-darwin.tar.gz),
+    [Apple silicon](https://github.com/danielparks/riki/releases/latest/download/riki-aarch64-apple-darwin.tar.gz)
+  * [Windows on x86-64](https://github.com/danielparks/riki/releases/latest/download/riki-x86_64-pc-windows-msvc.zip)
 
 
 ## Rust Crate
 
-[![docs.rs](https://img.shields.io/docsrs/rustwiki)][docs.rs]
-[![Crates.io](https://img.shields.io/crates/v/rustwiki)][crates.io]
+[![docs.rs](https://img.shields.io/docsrs/riki)][docs.rs]
+[![Crates.io](https://img.shields.io/crates/v/riki)][crates.io]
 ![Rust version 1.85+](https://img.shields.io/badge/Rust%20version-1.85%2B-success)
 
 ## Development status
@@ -51,8 +51,8 @@ Unless you explicitly state otherwise, any contribution you submit as defined
 in the Apache 2.0 license shall be dual licensed as above, without any
 additional terms or conditions.
 
-[docs.rs]: https://docs.rs/rustwiki/latest/rustwiki/
-[crates.io]: https://crates.io/crates/rustwiki
+[docs.rs]: https://docs.rs/riki/latest/riki/
+[crates.io]: https://crates.io/crates/riki
 [binstall]: https://github.com/cargo-bins/cargo-binstall
-[releases]: https://github.com/danielparks/rustwiki/releases
-[issues]: https://github.com/danielparks/rustwiki/issues
+[releases]: https://github.com/danielparks/riki/releases
+[issues]: https://github.com/danielparks/riki/issues
