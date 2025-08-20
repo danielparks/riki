@@ -1,98 +1,89 @@
+//! Render error pages.
+
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, http};
-use anyhow::Error as AnyError;
 use htmlize::escape_text;
-use serde::Serialize;
-use std::error::Error as StdError;
-use std::result::Result as StdResult;
+use std::result::Result;
 use thiserror::Error;
 
-use crate::errors::Error as CrateError;
 use crate::templates::TemplateManager;
 
+/// An error that will be reported to the user as a web page.
 #[derive(Debug, Error)]
 pub enum WebError {
-    #[error("internal server error")]
-    Internal(#[from] CrateError),
+    /// Internal server error.
+    #[error("internal server error: {0}")]
+    Internal(#[from] crate::errors::Error),
 
-    #[error("page not <b>foo</b> found")]
-    NotFound,
+    /// Page not found error.
+    #[error("page {req_path} not found")]
+    NotFound {
+        /// The request path.
+        req_path: String,
+    },
 }
 
-pub type WebResult<T, E = WebError> = StdResult<T, E>;
+/// `Result` type for `WebError`.
+pub type WebResult<T, E = WebError> = Result<T, E>;
 
-pub fn render_error(
-    req: &HttpRequest,
-    tpls: &mut TemplateManager,
-    error: WebError,
-) -> HttpResponse {
-    let code = match error {
-        WebError::Internal(_) => http::StatusCode::INTERNAL_SERVER_ERROR,
-        WebError::NotFound => http::StatusCode::NOT_FOUND,
-    };
+impl WebError {
+    /// Render the error into an `HttpResponse`.
+    pub fn render(
+        &self,
+        req: &HttpRequest,
+        tpls: &mut TemplateManager,
+    ) -> HttpResponse {
+        let (code, template_path, data) = match self {
+            Self::Internal(error) => (
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                "error500.tmpl",
+                mustache::MapBuilder::new()
+                    .insert_str("error", error.to_string())
+                    .build(),
+            ),
+            Self::NotFound { req_path } => (
+                http::StatusCode::NOT_FOUND,
+                "error404.tmpl",
+                mustache::MapBuilder::new()
+                    .insert_str("req_path", req_path)
+                    .build(),
+            ),
+        };
 
-    let error = ErrorOutput::from(error);
+        let buffer = match tpls.get(&template_path) {
+            Ok(tpl) => match tpl.render_data_to_string(&data) {
+                Ok(buffer) => buffer,
+                Err(error2) => self.fallback_render(req, &error2.into()),
+            },
+            Err(error2) => self.fallback_render(req, &error2.into()),
+        };
 
-    let buffer = match tpls.get(&"error") {
-        Ok(tpl) => match tpl.render_to_string(&error) {
-            Ok(buffer) => buffer,
-            Err(error2) => {
-                fallback_render_error(req, &error, &ErrorOutput::from(error2))
-            }
-        },
-        Err(error2) => {
-            fallback_render_error(req, &error, &ErrorOutput::from(error2))
-        }
-    };
-
-    HttpResponseBuilder::new(code)
-        .content_type("text/html; charset=UTF-8")
-        .body(buffer)
-}
-
-#[derive(Debug, Serialize)]
-struct ErrorOutput {
-    pub short: String,
-    pub long: String,
-}
-
-impl ErrorOutput {
-    fn from<E>(error: E) -> Self
-    where
-        E: StdError + Send + Sync + 'static,
-    {
-        let error = AnyError::from(error);
-        Self { short: format!("{error}"), long: format!("{error:?}") }
+        HttpResponseBuilder::new(code)
+            .content_type("text/html; charset=UTF-8")
+            .body(buffer)
     }
-}
 
-impl std::fmt::Display for ErrorOutput {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.short)
-    }
-}
+    /// Render an error if there was a problem with the template.
+    fn fallback_render(
+        &self,
+        _req: &HttpRequest,
+        error2: &anyhow::Error,
+    ) -> String {
+        let self_html = escape_text(self.to_string());
+        let error2_html = escape_text(error2.to_string());
 
-fn fallback_render_error(
-    _req: &HttpRequest,
-    error: &ErrorOutput,
-    error2: &ErrorOutput,
-) -> String {
-    format!(
-        r#"<!DOCTYPE html>
+        format!(
+            r#"<!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <title>Error: {}</title>
+        <title>Error: {self_html}</title>
     </head>
     <body>
-        <h1>Error: {}</h1>
-        <pre>{}</pre>
+        <h1>Error: {self_html}</h1>
         <h3>While trying to render the error page, another error occurred:</h3>
-        <pre>{}</pre>
+        <pre>{error2_html}</pre>
     </body>
-</html>"#,
-        escape_text(&error.short),
-        escape_text(&error.short),
-        escape_text(&error.long),
-        escape_text(&error2.long)
-    )
+</html>"#
+        )
+    }
 }

@@ -53,7 +53,7 @@ async fn path_handler(
 
     match result {
         Ok(response) => response,
-        Err(error) => render_error(&req, &mut tpls.lock().unwrap(), error),
+        Err(error) => error.render(&req, &mut tpls.lock().unwrap()),
     }
 }
 

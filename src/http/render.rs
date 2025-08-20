@@ -33,7 +33,7 @@ fn find_page_file(req_path: &str) -> WebResult<PathBuf> {
         return Ok(test);
     }
 
-    Err(WebError::NotFound)
+    Err(WebError::NotFound { req_path: req_path.to_owned() })
 }
 
 fn render_path(path: &Path, tpls: &mut TemplateManager) -> Result<String> {
