@@ -1,12 +1,11 @@
 //! Manage templates
 
+use crate::errors::{Error, Result};
 use mustache::Template;
 use std::collections::HashMap;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
-
-use crate::errors::{Error, Result};
 
 /// Load, compile, and cache templates
 #[derive(Clone, Debug)]

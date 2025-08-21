@@ -1,11 +1,10 @@
 //! Render error pages.
 
+use crate::templates::TemplateManager;
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, http};
 use htmlize::escape_text;
 use std::result::Result;
 use thiserror::Error;
-
-use crate::templates::TemplateManager;
 
 /// An error that will be reported to the user as a web page.
 #[derive(Debug, Error)]

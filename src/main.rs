@@ -1,15 +1,13 @@
 //! riki executable.
 
-use std::env;
-use std::io;
-use std::process::ExitCode;
-
-use riki::Page;
-
 mod logging;
 mod params;
 
 use params::{Command, Params, Parser};
+use riki::Page;
+use std::env;
+use std::io;
+use std::process::ExitCode;
 
 /// Wrapper to handle errors.
 ///

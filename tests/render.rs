@@ -1,9 +1,7 @@
 //! Test page rendering.
 
 use assert2::{check, let_assert};
-
-use riki::Error;
-use riki::Page;
+use riki::{Error, Page};
 
 /// Get metadata value from page in format that’s easy to compare.
 fn get_metadata<'a>(page: &'a Page, key: &'_ str) -> Option<&'a str> {

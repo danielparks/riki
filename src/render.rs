@@ -1,5 +1,7 @@
 //! Handle rendering a page.
 
+use crate::errors::{Error, Result};
+use crate::templates::TemplateManager;
 use dom_query::Document;
 use pulldown_cmark::{Options, Parser, html};
 use regex::Regex;
@@ -10,9 +12,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::LazyLock;
-
-use crate::errors::{Error, Result};
-use crate::templates::TemplateManager;
 
 /// Page metadata
 type Metadata = HashMap<String, String>;
