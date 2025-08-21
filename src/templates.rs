@@ -17,7 +17,7 @@ pub struct TemplateManager {
 }
 
 impl TemplateManager {
-    /// Create a new `TemplateManager` with the passed
+    /// Create a new `TemplateManager` from templates in a directory.
     ///
     /// # Errors
     ///
