@@ -102,15 +102,16 @@ impl Page {
     ///
     /// This will return [`Error`] if there is a problem loading the template or
     /// rendering the page.
-    pub fn render_to_string(
-        &self,
-        tpls: &mut TemplateManager,
-    ) -> Result<String> {
-        if let Some(tpl_name) = self.metadata.get("template") {
-            Ok(tpls.get(tpl_name)?.render_to_string(&self)?)
-        } else {
-            Ok(tpls.default()?.render_to_string(&self)?)
-        }
+    pub fn render_to_string(&self, tpls: &TemplateManager) -> Result<String> {
+        let default_name = "default".to_owned();
+        let tpl_name = self.metadata.get("template").unwrap_or(&default_name);
+        tpls.get(tpl_name)?
+            .render_to_string(&self)
+            .map_err(|error| Error::PageRender {
+                source: error,
+                page: self.file.clone(),
+                template: tpl_name.clone(),
+            })
     }
 
     /// Split the raw page string into metadata and body.

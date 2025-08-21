@@ -26,10 +26,11 @@ pub type WebResult<T, E = WebError> = Result<T, E>;
 
 impl WebError {
     /// Render the error into an `HttpResponse`.
+    #[must_use]
     pub fn render(
         &self,
         req: &HttpRequest,
-        tpls: &mut TemplateManager,
+        tpls: &TemplateManager,
     ) -> HttpResponse {
         let (code, template_path, data) = match self {
             Self::Internal(error) => (
@@ -48,7 +49,7 @@ impl WebError {
             ),
         };
 
-        let buffer = match tpls.get(&template_path) {
+        let buffer = match tpls.get(template_path) {
             Ok(tpl) => match tpl.render_data_to_string(&data) {
                 Ok(buffer) => buffer,
                 Err(error2) => self.fallback_render(req, &error2.into()),

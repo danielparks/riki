@@ -12,7 +12,6 @@ use actix_web::{
 };
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use tracing_actix_web::TracingLogger;
 
 // TODO testing
@@ -30,7 +29,7 @@ use tracing_actix_web::TracingLogger;
 pub async fn serve<S: AsRef<str>>(address: S) -> Result<()> {
     let address = address.as_ref();
 
-    let data = Data::new(Mutex::new(TemplateManager::new("templates")?));
+    let data = Data::new(TemplateManager::from_directory("templates")?);
 
     HttpServer::new(move || {
         App::new()
@@ -53,16 +52,14 @@ pub async fn serve<S: AsRef<str>>(address: S) -> Result<()> {
 #[get("/{path:.*}")]
 async fn path_handler(
     req: HttpRequest,
-    tpls: Data<Mutex<TemplateManager>>,
+    tpls: Data<TemplateManager>,
 ) -> impl Responder {
     if let Some(path) = find_static_path(req.path()) {
         render_static(&req, &path)
     } else {
-        render_page(&req, &mut tpls.lock().unwrap())
+        render_page(&req, &tpls)
     }
-    .unwrap_or_else(|web_error| {
-        web_error.render(&req, &mut tpls.lock().unwrap())
-    })
+    .unwrap_or_else(|web_error| web_error.render(&req, &tpls))
 }
 
 /// Check if a request path corresponds to a static file
@@ -143,7 +140,7 @@ fn render_static(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
 /// Returns [`WebError`] if the page cannot be found or cannot be rendered.
 fn render_page(
     req: &HttpRequest,
-    tpls: &mut TemplateManager,
+    tpls: &TemplateManager,
 ) -> WebResult<HttpResponse> {
     let path = find_page_path(req.path())?;
     let buffer = Page::read_from(&path)?.render_to_string(tpls)?;
