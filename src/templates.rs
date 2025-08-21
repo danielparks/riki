@@ -3,8 +3,7 @@
 use crate::errors::{Error, Result};
 use mustache::Template;
 use std::collections::HashMap;
-use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Load, compile, and cache templates
 #[derive(Clone, Debug)]
@@ -16,26 +15,25 @@ pub struct TemplateManager {
 impl Default for TemplateManager {
     /// Create an empty `TemplateManager`.
     fn default() -> Self {
-        Self { templates: HashMap::new() }
+        Self::new()
     }
 }
+
 impl TemplateManager {
+    /// Create an empty `TemplateManager`.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { templates: HashMap::new() }
+    }
+
     /// Create a new `TemplateManager` from templates in a directory.
     ///
     /// # Errors
     ///
     /// This will return [`Error::Io`] if `directory` does not contain a path
     /// to a directory.
-    pub fn new<P: AsRef<Path>>(directory: P) -> Result<Self> {
-        let mut manager = Self::default();
-
-        let directory = directory.as_ref();
-        if !directory.is_dir() {
-            return Err(Error::Io(io::Error::other(format!(
-                "Loading templates: {directory:?} is not a directory"
-            ))));
-        }
-
+    pub fn from_directory<P: AsRef<Path>>(directory: P) -> Result<Self> {
+        let mut manager = Self::new();
         manager.load_from_directory(directory)?;
         Ok(manager)
     }
@@ -92,13 +90,7 @@ impl TemplateManager {
                 let name = name.to_str().ok_or_else(|| {
                     Error::TemplateName { path: path.clone() }
                 })?;
-                tracing::debug!("Loading template {name:?} from {path:?}");
-                self.templates.insert(
-                    name.to_owned(),
-                    mustache::compile_path(&path).map_err(|error| {
-                        Error::TemplateCompile { source: error, path }
-                    })?,
-                );
+                self.load_from_path(name, path)?;
             }
         }
 
@@ -114,5 +106,37 @@ impl TemplateManager {
         self.templates.get(name.as_ref()).ok_or_else(|| {
             Error::TemplateNotFound { name: name.as_ref().to_owned() }
         })
+    }
+
+    // This lint doesn’t know ToString can be by reference:
+    #[allow(clippy::needless_pass_by_value)]
+    /// Load and compile a template from a file.
+    ///
+    /// If the template has already been loaded then it will be reloaded.
+    ///
+    /// # Errors
+    ///
+    /// This will return [`Error::TemplateCompile`] if [`mustache`] cannot
+    /// compile the template. See [`mustache::compile_path()`].
+    pub fn load_from_path<N: ToString, P: AsRef<Path>>(
+        &mut self,
+        name: N,
+        path: P,
+    ) -> Result<()> {
+        let name = name.to_string();
+        let path = path.as_ref();
+
+        tracing::debug!("Loading template {name:?} from {path:?}");
+        self.templates.insert(
+            name,
+            mustache::compile_path(path).map_err(|error| {
+                Error::TemplateCompile {
+                    source: error,
+                    path: PathBuf::from(path),
+                }
+            })?,
+        );
+
+        Ok(())
     }
 }

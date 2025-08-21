@@ -26,7 +26,7 @@ fn empty_template() {
     let temp = TempDir::default();
     create_file(&temp, "default.tmpl", "");
 
-    let tpls = TemplateManager::new(temp.as_ref()).unwrap();
+    let tpls = TemplateManager::from_directory(temp.as_ref()).unwrap();
     let_assert!(Ok(tpl) = tpls.get("default"));
 
     let_assert!(Ok(page) = Page::from_string("title: page\n---\n# Page"));
@@ -38,7 +38,7 @@ fn basic_template() {
     let temp = TempDir::default();
     create_file(&temp, "default.tmpl", "{{ metadata.title }} {{& body }}");
 
-    let tpls = TemplateManager::new(temp.as_ref()).unwrap();
+    let tpls = TemplateManager::from_directory(temp.as_ref()).unwrap();
     let_assert!(Ok(tpl) = tpls.get("default"));
 
     let_assert!(
@@ -58,7 +58,7 @@ fn basic_template_twice() {
     let temp = TempDir::default();
     create_file(&temp, "default.tmpl", "{{& body }}");
 
-    let tpls = TemplateManager::new(temp.as_ref()).unwrap();
+    let tpls = TemplateManager::from_directory(temp.as_ref()).unwrap();
 
     let_assert!(Ok(tpl) = tpls.get("default"));
     let_assert!(Ok(page) = Page::from_string("# 1"));
@@ -81,7 +81,7 @@ fn multiple_templates() {
     create_file(&temp, "default.tmpl", "{{& body }}");
     create_file(&temp, "weird.tmpl", "strange {{& body }}");
 
-    let tpls = TemplateManager::new(temp.as_ref()).unwrap();
+    let tpls = TemplateManager::from_directory(temp.as_ref()).unwrap();
 
     let_assert!(Ok(tpl) = tpls.get("default"));
     let_assert!(Ok(page) = Page::from_string("# 1"));

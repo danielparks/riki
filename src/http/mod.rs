@@ -29,7 +29,7 @@ use tracing_actix_web::TracingLogger;
 pub async fn serve<S: AsRef<str>>(address: S) -> Result<()> {
     let address = address.as_ref();
 
-    let data = Data::new(TemplateManager::new("templates")?);
+    let data = Data::new(TemplateManager::from_directory("templates")?);
 
     HttpServer::new(move || {
         App::new()
