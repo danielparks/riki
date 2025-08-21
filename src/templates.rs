@@ -13,6 +13,12 @@ pub struct TemplateManager {
     templates: HashMap<String, Template>,
 }
 
+impl Default for TemplateManager {
+    /// Create an empty `TemplateManager`.
+    fn default() -> Self {
+        Self { templates: HashMap::new() }
+    }
+}
 impl TemplateManager {
     /// Create a new `TemplateManager` from templates in a directory.
     ///
@@ -21,7 +27,7 @@ impl TemplateManager {
     /// This will return [`Error::Io`] if `directory` does not contain a path
     /// to a directory.
     pub fn new<P: AsRef<Path>>(directory: P) -> Result<Self> {
-        let mut manager = Self { templates: HashMap::new() };
+        let mut manager = Self::default();
 
         let directory = directory.as_ref();
         if !directory.is_dir() {
@@ -97,15 +103,6 @@ impl TemplateManager {
         }
 
         Ok(())
-    }
-
-    /// Get the default template.
-    ///
-    /// # Errors
-    ///
-    ///   * [`Error::TemplateNotFound`] if no template is found.
-    pub fn default(&self) -> Result<&Template> {
-        self.get("default")
     }
 
     /// Get a template by name.

@@ -27,7 +27,7 @@ fn empty_template() {
     create_file(&temp, "default.tmpl", "");
 
     let tpls = TemplateManager::new(temp.as_ref()).unwrap();
-    let_assert!(Ok(tpl) = tpls.default());
+    let_assert!(Ok(tpl) = tpls.get("default"));
 
     let_assert!(Ok(page) = Page::from_string("title: page\n---\n# Page"));
     check!(let Ok("") = tpl.render_to_string(&page).as_ref().map(AS_STR));
@@ -39,7 +39,7 @@ fn basic_template() {
     create_file(&temp, "default.tmpl", "{{ metadata.title }} {{& body }}");
 
     let tpls = TemplateManager::new(temp.as_ref()).unwrap();
-    let_assert!(Ok(tpl) = tpls.default());
+    let_assert!(Ok(tpl) = tpls.get("default"));
 
     let_assert!(
         Ok(page) = Page::from_string("title: title<test>\n---\n# heading")
@@ -60,14 +60,14 @@ fn basic_template_twice() {
 
     let tpls = TemplateManager::new(temp.as_ref()).unwrap();
 
-    let_assert!(Ok(tpl) = tpls.default());
+    let_assert!(Ok(tpl) = tpls.get("default"));
     let_assert!(Ok(page) = Page::from_string("# 1"));
     check!(
         let Ok("<h1>1</h1>\n")
             = tpl.render_to_string(&page).as_ref().map(AS_STR)
     );
 
-    let_assert!(Ok(tpl) = tpls.default());
+    let_assert!(Ok(tpl) = tpls.get("default"));
     let_assert!(Ok(page) = Page::from_string("# 2"));
     check!(
         let Ok("<h1>2</h1>\n")
@@ -83,7 +83,7 @@ fn multiple_templates() {
 
     let tpls = TemplateManager::new(temp.as_ref()).unwrap();
 
-    let_assert!(Ok(tpl) = tpls.default());
+    let_assert!(Ok(tpl) = tpls.get("default"));
     let_assert!(Ok(page) = Page::from_string("# 1"));
     check!(
         let Ok("<h1>1</h1>\n")
