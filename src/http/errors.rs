@@ -48,7 +48,7 @@ impl WebError {
             ),
         };
 
-        let buffer = match tpls.get(&template_path) {
+        let buffer = match tpls.get(template_path) {
             Ok(tpl) => match tpl.render_data_to_string(&data) {
                 Ok(buffer) => buffer,
                 Err(error2) => self.fallback_render(req, &error2.into()),

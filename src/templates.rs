@@ -5,13 +5,10 @@ use mustache::Template;
 use std::collections::HashMap;
 use std::io;
 use std::path::Path;
-use std::path::PathBuf;
 
 /// Load, compile, and cache templates
 #[derive(Clone, Debug)]
 pub struct TemplateManager {
-    /// The directory containing the templates
-    directory: PathBuf,
     /// Cache of templates by name
     templates: HashMap<String, Template>,
 }
@@ -21,66 +18,104 @@ impl TemplateManager {
     ///
     /// # Errors
     ///
-    /// This will return [`Error::Io`] if `directory` does not contain the path
+    /// This will return [`Error::Io`] if `directory` does not contain a path
     /// to a directory.
     pub fn new<P: AsRef<Path>>(directory: P) -> Result<Self> {
-        let manager = Self {
-            directory: directory.as_ref().to_path_buf(),
-            templates: HashMap::new(),
-        };
+        let mut manager = Self { templates: HashMap::new() };
 
-        if manager.directory.is_dir() {
-            Ok(manager)
-        } else {
-            Err(Error::Io(io::Error::other(format!(
-                "Loading templates: \"{}\" is not a directory",
-                &manager.directory.display()
-            ))))
+        let directory = directory.as_ref();
+        if !directory.is_dir() {
+            return Err(Error::Io(io::Error::other(format!(
+                "Loading templates: {directory:?} is not a directory"
+            ))));
         }
+
+        manager.load_from_directory(directory)?;
+        Ok(manager)
+    }
+
+    /// Load all the .tmpl files under a directory.
+    ///
+    /// # Errors
+    ///
+    ///   * [`Error::Io`] if `directory` is not a path to a directory.
+    ///   * [`Error::TemplateName`] if a template name would contain any
+    ///     non-Unicode characters.
+    ///   * [`Error::TemplateCompile`] if [`mustache`] cannot compile a
+    ///     template. See [`mustache::compile_path()`].
+    pub fn load_from_directory<P: AsRef<Path>>(
+        &mut self,
+        directory: P,
+    ) -> Result<()> {
+        let directory = directory.as_ref();
+        self.load_from_subdirectory(directory, directory)
+    }
+
+    /// Recusively load all the .tmpl files in the `directory` subdirectoy of
+    /// the `root` template directory.
+    ///
+    /// # Errors
+    ///
+    ///   * [`Error::Io`] if `directory` is not a path to a directory.
+    ///   * [`Error::TemplateName`] if a template name would contain any
+    ///     non-Unicode characters.
+    ///   * [`Error::TemplateCompile`] if [`mustache`] cannot compile a
+    ///     template. See [`mustache::compile_path()`].
+    ///
+    /// # Panics
+    ///
+    /// This will panic if `root` is not an ancestor of `directory` (or the same
+    /// as `directory`).
+    fn load_from_subdirectory(
+        &mut self,
+        root: &Path,
+        directory: &Path,
+    ) -> Result<()> {
+        for entry in directory.read_dir()? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                self.load_from_subdirectory(root, &path)?;
+            } else if path.extension().is_some_and(|ext| ext == "tmpl") {
+                let name = path
+                    .strip_prefix(root)
+                    .unwrap_or_else(|_| {
+                        panic!("root {root:?} is not an ancestor of {path:?}")
+                    })
+                    .with_extension("");
+                let name = name.to_str().ok_or_else(|| {
+                    Error::TemplateName { path: path.clone() }
+                })?;
+                tracing::debug!("Loading template {name:?} from {path:?}");
+                self.templates.insert(
+                    name.to_owned(),
+                    mustache::compile_path(&path).map_err(|error| {
+                        Error::TemplateCompile { source: error, path }
+                    })?,
+                );
+            }
+        }
+
+        Ok(())
     }
 
     /// Get the default template.
     ///
     /// # Errors
     ///
-    /// This will return [`Error::PageRender`] if [`mustache`] cannot compile the
-    /// template. See [`mustache::compile_path()`].
-    pub fn default(&mut self) -> Result<&Template> {
-        self.get(&"default")
+    ///   * [`Error::TemplateNotFound`] if no template is found.
+    pub fn default(&self) -> Result<&Template> {
+        self.get("default")
     }
 
     /// Get a template by name.
     ///
     /// # Errors
     ///
-    /// This will return [`Error::PageRender`] if [`mustache`] cannot compile the
-    /// template. See [`mustache::compile_path()`].
-    pub fn get<S: AsRef<str>>(&mut self, name: &S) -> Result<&Template> {
-        let name = name.as_ref();
-        if self.templates.contains_key(name) {
-            return Ok(&self.templates[name]);
-        }
-
-        self.load(&name)
-    }
-
-    /// Load and compile a template
-    ///
-    /// If the template has already been loaded then it will be reloaded.
-    ///
-    /// # Errors
-    ///
-    /// This will return [`Error::PageRender`] if [`mustache`] cannot compile the
-    /// template. See [`mustache::compile_path()`].
-    pub fn load<S: AsRef<str>>(&mut self, name: &S) -> Result<&Template> {
-        let name = name.as_ref();
-
-        // FIXME? just trust that name doesn’t contain '/'
-        let mut path = self.directory.join(name);
-        path.set_extension("tmpl");
-        self.templates
-            .insert(name.to_owned(), mustache::compile_path(&path)?);
-
-        Ok(&self.templates[name])
+    ///   * [`Error::TemplateNotFound`] if no template is found.
+    pub fn get<S: AsRef<str>>(&self, name: S) -> Result<&Template> {
+        self.templates.get(name.as_ref()).ok_or_else(|| {
+            Error::TemplateNotFound { name: name.as_ref().to_owned() }
+        })
     }
 }
