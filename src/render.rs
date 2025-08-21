@@ -102,10 +102,7 @@ impl Page {
     ///
     /// This will return [`Error`] if there is a problem loading the template or
     /// rendering the page.
-    pub fn render_to_string(
-        &self,
-        tpls: &mut TemplateManager,
-    ) -> Result<String> {
+    pub fn render_to_string(&self, tpls: &TemplateManager) -> Result<String> {
         let default_name = "default".to_owned();
         let tpl_name = self.metadata.get("template").unwrap_or(&default_name);
         tpls.get(tpl_name)?
