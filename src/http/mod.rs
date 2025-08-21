@@ -1,20 +1,17 @@
 //! Serve pages over HTTP
 
 mod errors;
-mod render;
 pub use crate::http::errors::*;
-pub use crate::http::render::*;
 
-use crate::errors::Error;
-use crate::errors::Result;
+use crate::errors::{Error, Result};
+use crate::render::Page;
 use crate::templates::TemplateManager;
 use actix_files::NamedFile;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
 use std::ffi::OsStr;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tracing_actix_web::TracingLogger;
 
@@ -42,7 +39,10 @@ pub async fn serve<S: AsRef<str>>(address: S) -> Result<()> {
             .service(path_handler)
     })
     .bind(address)
-    .map_err(Error::BindErrorMap(address))?
+    .map_err(|error| Error::BindError {
+        source: error,
+        address: String::from(address),
+    })?
     .run()
     .await
     .map_err(Error::Io)
@@ -55,15 +55,14 @@ async fn path_handler(
     req: HttpRequest,
     tpls: Data<Mutex<TemplateManager>>,
 ) -> impl Responder {
-    let result = match clean_file_path(req.path()) {
-        Some(path) => static_render(&req, &path),
-        _ => render(&req, &mut tpls.lock().unwrap()),
-    };
-
-    match result {
-        Ok(response) => response,
-        Err(error) => error.render(&req, &mut tpls.lock().unwrap()),
+    if let Some(path) = find_static_path(req.path()) {
+        render_static(&req, &path)
+    } else {
+        render_page(&req, &mut tpls.lock().unwrap())
     }
+    .unwrap_or_else(|web_error| {
+        web_error.render(&req, &mut tpls.lock().unwrap())
+    })
 }
 
 /// Check if a request path corresponds to a static file
@@ -75,7 +74,7 @@ async fn path_handler(
 /// This should never encounter an error since Actix should clean up the path
 /// for us. If this does encounter an error, e.g. a path containing “..”, it
 /// will log the error to stderr (FIXME) and return `None`.
-fn clean_file_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
+fn find_static_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
     // TODO? Actix seems to do deal with .. and maybe // for us. Simplify?
     match path.as_ref().strip_prefix("/") {
         Ok(path) => {
@@ -117,12 +116,13 @@ fn clean_file_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
     }
 }
 
-/// Return a static page as an [`HttpResponse`].
+/// Return a static file as an [`HttpResponse`].
 ///
 /// # Errors
 ///
-/// This returns [`Error::Io`] when there is a problem reading the static file.
-fn static_render(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
+/// This returns [`WebError::Internal`]`(`[`Error::Io`]`)` when there is a
+/// problem reading the static file.
+fn render_static(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
     match NamedFile::open(path) {
         Ok(file) => Ok(file.into_response(req)),
         Err(error) => {
@@ -134,4 +134,45 @@ fn static_render(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
             Err(WebError::Internal(Error::Io(error)))
         }
     }
+}
+
+/// Render a page to be served over HTTP.
+///
+/// # Errors
+///
+/// Returns [`WebError`] if the page cannot be found or cannot be rendered.
+fn render_page(
+    req: &HttpRequest,
+    tpls: &mut TemplateManager,
+) -> WebResult<HttpResponse> {
+    let path = find_page_path(req.path())?;
+    let buffer = Page::read_from(&path)?.render_to_string(tpls)?;
+
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=UTF-8")
+        .body(buffer))
+}
+
+/// Find the page file that corresponds to a request path.
+///
+/// # Errors
+///
+/// Returns [`WebError::NotFound`] if the page cannot be found.
+fn find_page_path(req_path: &str) -> WebResult<PathBuf> {
+    // Actix mostly cleans the path for us (FIXME it should redirect).
+
+    // req_path always starts with a /
+    let base = format!("pages{}", req_path.trim_end_matches('/'));
+
+    let test = PathBuf::from(format!("{base}.md"));
+    if test.is_file() {
+        return Ok(test);
+    }
+
+    let test = PathBuf::from(base).join("index.md");
+    if test.is_file() {
+        return Ok(test);
+    }
+
+    Err(WebError::NotFound { req_path: req_path.to_owned() })
 }
