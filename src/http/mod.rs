@@ -117,7 +117,7 @@ fn find_static_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
 ///
 /// # Errors
 ///
-/// This returns <code>[WebError::Internal][]([Error::Io][])</code> is there is
+/// This returns <code>[WebError::Internal][]([Error::Io][])</code> if there is
 /// a problem reading the static file.
 fn render_static(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
     match NamedFile::open(path) {
