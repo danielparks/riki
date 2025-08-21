@@ -23,14 +23,31 @@ const AS_STR: for<'a> fn(&'a String) -> &'a str = String::as_str;
 
 #[test]
 fn empty_template() {
-    let temp = TempDir::default();
-    create_file(&temp, "default.tmpl", "");
-
-    let tpls = TemplateManager::from_directory(temp.as_ref()).unwrap();
+    let mut tpls = TemplateManager::new();
+    tpls.load_from_string("default", "").unwrap();
     let_assert!(Ok(tpl) = tpls.get("default"));
 
     let_assert!(Ok(page) = Page::from_string("title: page\n---\n# Page"));
     check!(let Ok("") = tpl.render_to_string(&page).as_ref().map(AS_STR));
+}
+
+#[test]
+fn builtin_template() {
+    let tpls = TemplateManager::default();
+    let_assert!(Ok(tpl) = tpls.get("default"));
+
+    let_assert!(Ok(page) = Page::from_string("title: page\n---\n# Page"));
+    check!(let Ok("<!DOCTYPE html>
+<html>
+\t<head>
+\t\t<title>page</title>
+\t</head>
+\t<body>
+\t\t<h1>Page</h1>
+
+\t</body>
+</html>
+") = tpl.render_to_string(&page).as_ref().map(AS_STR));
 }
 
 #[test]

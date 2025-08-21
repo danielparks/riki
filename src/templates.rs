@@ -13,9 +13,11 @@ pub struct TemplateManager {
 }
 
 impl Default for TemplateManager {
-    /// Create an empty `TemplateManager`.
+    /// Create a `TemplateManager` with only the built-in templates.
     fn default() -> Self {
-        Self::new()
+        let mut manager = Self::new();
+        manager.ensure_basic_templates();
+        manager
     }
 }
 
@@ -35,7 +37,44 @@ impl TemplateManager {
     pub fn from_directory<P: AsRef<Path>>(directory: P) -> Result<Self> {
         let mut manager = Self::new();
         manager.load_from_directory(directory)?;
+        manager.ensure_basic_templates();
+
         Ok(manager)
+    }
+
+    /// Ensure that the basic templates, e.g. default, are loaded.
+    ///
+    /// This will **not** replace existing templates. It uses simple
+    /// templates compiled into the executable.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if [`mustache`] cannot compile one of the built-in
+    /// templates. See [`mustache::compile_str()`].
+    pub fn ensure_basic_templates(&mut self) {
+        if !self.has("default") {
+            self.load_from_string(
+                "default",
+                include_str!("templates/default.tmpl"),
+            )
+            .unwrap();
+        }
+
+        if !self.has("error404") {
+            self.load_from_string(
+                "error404",
+                include_str!("templates/error404.tmpl"),
+            )
+            .unwrap();
+        }
+
+        if !self.has("error500") {
+            self.load_from_string(
+                "error500",
+                include_str!("templates/error500.tmpl"),
+            )
+            .unwrap();
+        }
     }
 
     /// Load all the .tmpl files under a directory.
@@ -106,6 +145,42 @@ impl TemplateManager {
         self.templates.get(name.as_ref()).ok_or_else(|| {
             Error::TemplateNotFound { name: name.as_ref().to_owned() }
         })
+    }
+
+    /// Check if a template has been loaded.
+    pub fn has<S: AsRef<str>>(&self, name: S) -> bool {
+        self.templates.contains_key(name.as_ref())
+    }
+
+    // This lint doesn’t know ToString can be by reference:
+    #[allow(clippy::needless_pass_by_value)]
+    /// Load and compile a template from a string.
+    ///
+    /// If the template has already been loaded then it will be reloaded.
+    ///
+    /// # Errors
+    ///
+    /// This will return [`Error::TemplateCompile`] if [`mustache`] cannot
+    /// compile the template. See [`mustache::compile_str()`].
+    pub fn load_from_string<N: ToString, T: AsRef<str>>(
+        &mut self,
+        name: N,
+        template: T,
+    ) -> Result<()> {
+        let name = name.to_string();
+
+        tracing::debug!("Loading template {name:?} from memory");
+        self.templates.insert(
+            name,
+            mustache::compile_str(template.as_ref()).map_err(|error| {
+                Error::TemplateCompile {
+                    source: error,
+                    path: PathBuf::from("-"), // FIXME?
+                }
+            })?,
+        );
+
+        Ok(())
     }
 
     // This lint doesn’t know ToString can be by reference:
