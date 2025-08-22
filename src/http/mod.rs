@@ -113,11 +113,7 @@ fn render_static(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
     match NamedFile::open(path) {
         Ok(file) => Ok(file.into_response(req)),
         Err(error) => {
-            eprintln!(
-                "ERROR static file open {:}: {:}",
-                path.display(),
-                &error
-            );
+            tracing::warn!("failed to open static file {path:?}: {error:?}");
             Err(WebError::Internal(Error::Io(error)))
         }
     }
