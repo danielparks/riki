@@ -10,7 +10,8 @@ use actix_files::NamedFile;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
-use std::ffi::OsStr;
+use std::fs;
+use std::io::{self, Read, Seek};
 use std::path::{Path, PathBuf};
 use tracing;
 use tracing_actix_web::TracingLogger;
@@ -55,51 +56,35 @@ async fn path_handler(
     req: HttpRequest,
     tpls: Data<TemplateManager>,
 ) -> impl Responder {
-    if let Some(path) = find_static_path(req.path()) {
-        render_static(&req, &path)
-    } else {
-        render_page(&req, &tpls)
-    }
-    .unwrap_or_else(|web_error| web_error.render(&req, &tpls))
+    clean_path(req.path())
+        .and_then(|path| match render_static(&req, path) {
+            Err(WebError::NotFound) => {
+                tracing::trace!("static not found, trying page");
+                render_page(&req, path, &tpls)
+            }
+            other => other,
+        })
+        .unwrap_or_else(|error: WebError| error.render(&req, &tpls))
 }
 
-/// Check if a request path corresponds to a static file
-///
-/// Returns `None` if there is no matching static file.
+/// Get a relative path that can be joined to another path safely.
 ///
 /// # Errors
 ///
-/// This should never encounter an error since Actix should clean up the path
-/// for us. If this does encounter an error, e.g. a path containing “..”, it
-/// will log the error to stderr (FIXME) and return `None`.
-fn find_static_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
+///   * [`WebError::InternalString`] if the path doesn’t start with / or if the
+///     path contains a .. segment.
+fn clean_path(path: &str) -> WebResult<&str> {
     // TODO? Actix seems to do deal with .. and maybe // for us. Simplify?
-    let path = path.as_ref();
-    let Ok(path) = path.strip_prefix("/") else {
-        // WTF. It should always start with "/".
-        tracing::error!("reqest path {path:?} does not start with /");
-        return None;
-    };
-
-    // Should be impossible.
-    assert!(
-        !(path.is_absolute() || path.has_root()),
-        "stripped request path {path:?} is not relative"
-    );
-
-    let dotdot = OsStr::new("..");
-    if path.iter().any(|v| v == dotdot) {
-        tracing::error!("stripped request path {path:?} contains ..");
-        return None;
-    }
-
-    let mut static_path = PathBuf::from("static");
-    static_path.push(path);
-
-    if static_path.is_file() {
-        Some(static_path)
+    if !path.starts_with('/') {
+        Err(WebError::InternalString(format!(
+            "reqest path {path:?} does not start with /"
+        )))
+    } else if path.split('/').any(|v| v == "..") {
+        Err(WebError::InternalString(format!(
+            "stripped request path {path:?} contains .."
+        )))
     } else {
-        None
+        Ok(path.trim_start_matches('/'))
     }
 }
 
@@ -109,14 +94,31 @@ fn find_static_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
 ///
 /// This returns <code>[WebError::Internal][]([Error::Io][])</code> if there is
 /// a problem reading the static file.
-fn render_static(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
-    match NamedFile::open(path) {
-        Ok(file) => Ok(file.into_response(req)),
-        Err(error) => {
-            tracing::warn!("failed to open static file {path:?}: {error:?}");
-            Err(WebError::Internal(Error::Io(error)))
-        }
-    }
+fn render_static(
+    req: &HttpRequest,
+    relative_path: &str,
+) -> WebResult<HttpResponse> {
+    Ok(open_static(&PathBuf::from("static").join(relative_path))?
+        .into_response(req))
+}
+
+/// Open a path as a [`NamedFile`].
+///
+/// This reads one byte from the file to check if it’s actually a directory.
+///
+/// # Errors
+///
+///   * [`io::Error`] if there was a problem opening or reading the file.
+fn open_static(path: &Path) -> io::Result<NamedFile> {
+    let mut file = fs::File::open(path)?;
+
+    // Read 1 byte to check if the file is a directory. Using `is_dir()` would
+    // create a race condition.
+    let mut buffer: [u8; 1] = [0];
+    _ = file.read(&mut buffer)?;
+    file.rewind()?;
+
+    NamedFile::from_file(file, path)
 }
 
 /// Render a page to be served over HTTP.
@@ -125,37 +127,39 @@ fn render_static(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
 ///
 /// Returns [`WebError`] if the page cannot be found or cannot be rendered.
 fn render_page(
-    req: &HttpRequest,
+    _req: &HttpRequest,
+    relative_path: &str,
     tpls: &TemplateManager,
 ) -> WebResult<HttpResponse> {
-    let path = find_page_path(req.path())?;
-    let buffer = Page::read_from(&path)?.render_to_string(tpls)?;
+    let root = PathBuf::from("pages");
+    let relative_path = relative_path.trim_end_matches('/');
+
+    let page = try_read_page(root.join(format!("{relative_path}.md")))
+        .or_else(|| try_read_page(root.join(relative_path).join("index.md")))
+        .unwrap_or(Err(WebError::NotFound))?;
 
     Ok(HttpResponse::Ok()
         .content_type("text/html; charset=UTF-8")
-        .body(buffer))
+        .body(page.render_to_string(tpls)?))
 }
 
-/// Find the page file that corresponds to a request path.
+/// Read a page file, or return `None` if it doesn’t exist or is a directory.
 ///
 /// # Errors
 ///
-/// Returns [`WebError::NotFound`] if the page cannot be found.
-fn find_page_path(req_path: &str) -> WebResult<PathBuf> {
-    // Actix mostly cleans the path for us (FIXME it should redirect).
-
-    // req_path always starts with a /
-    let base = format!("pages{}", req_path.trim_end_matches('/'));
-
-    let test = PathBuf::from(format!("{base}.md"));
-    if test.is_file() {
-        return Ok(test);
+///   * [`WebError`] if the page cannot be read.
+fn try_read_page(path: PathBuf) -> Option<WebResult<Page>> {
+    match fs::read_to_string(&path) {
+        Ok(content) => match Page::from_string(content) {
+            Ok(mut page) => {
+                page.file = path;
+                Some(Ok(page))
+            }
+            Err(error) => Some(Err(WebError::Internal(error))),
+        },
+        Err(error) => match WebError::from(error) {
+            WebError::NotFound => None,
+            error => Some(Err(error)),
+        },
     }
-
-    let test = PathBuf::from(base).join("index.md");
-    if test.is_file() {
-        return Ok(test);
-    }
-
-    Err(WebError::NotFound { req_path: req_path.to_owned() })
 }

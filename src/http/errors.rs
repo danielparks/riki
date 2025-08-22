@@ -1,28 +1,47 @@
 //! Render error pages.
 
+use crate::errors::Error;
 use crate::templates::TemplateManager;
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, http};
 use htmlize::escape_text;
+use std::io::{self, ErrorKind};
 use std::result::Result;
-use thiserror::Error;
+
+/// `Result` type for `WebError`.
+pub type WebResult<T, E = WebError> = Result<T, E>;
 
 /// An error that will be reported to the user as a web page.
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum WebError {
     /// Internal server error.
     #[error("internal server error: {0}")]
     Internal(#[from] crate::errors::Error),
 
+    /// Internal server error.
+    ///
+    /// This takes a string message for rare conditions.
+    #[error("{0}")]
+    InternalString(String),
+
     /// Page not found error.
-    #[error("page {req_path} not found")]
-    NotFound {
-        /// The request path.
-        req_path: String,
-    },
+    #[error("page not found")]
+    NotFound,
+
+    /// Permission denied error.
+    #[error("access forbidden")]
+    Forbidden,
 }
 
-/// `Result` type for `WebError`.
-pub type WebResult<T, E = WebError> = Result<T, E>;
+impl From<io::Error> for WebError {
+    fn from(error: io::Error) -> Self {
+        match error.kind() {
+            // `IsADirectory` is equivalent to `NotFound` for easy fallbacks.
+            ErrorKind::IsADirectory | ErrorKind::NotFound => Self::NotFound,
+            ErrorKind::PermissionDenied => Self::Forbidden,
+            _ => Self::Internal(Error::Io(error)),
+        }
+    }
+}
 
 impl WebError {
     /// Render the error into an `HttpResponse`.
@@ -38,10 +57,20 @@ impl WebError {
                 "error500",
                 mustache_key_value("error", error),
             ),
-            Self::NotFound { req_path } => (
+            Self::InternalString(error) => (
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                "error500",
+                mustache_key_value("error", error),
+            ),
+            Self::NotFound => (
                 http::StatusCode::NOT_FOUND,
                 "error404",
-                mustache_key_value("req_path", req_path),
+                mustache_key_value("req_path", req.path()),
+            ),
+            Self::Forbidden => (
+                http::StatusCode::FORBIDDEN,
+                "error403",
+                mustache_key_value("req_path", req.path()),
             ),
         };
 
