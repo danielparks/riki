@@ -12,6 +12,7 @@ use actix_web::{
 };
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use tracing;
 use tracing_actix_web::TracingLogger;
 
 // TODO testing
@@ -73,43 +74,32 @@ async fn path_handler(
 /// will log the error to stderr (FIXME) and return `None`.
 fn find_static_path<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
     // TODO? Actix seems to do deal with .. and maybe // for us. Simplify?
-    match path.as_ref().strip_prefix("/") {
-        Ok(path) => {
-            let mut path_buf = PathBuf::from("static");
-            path_buf.push(path);
+    let path = path.as_ref();
+    let Ok(path) = path.strip_prefix("/") else {
+        // WTF. It should always start with "/".
+        tracing::error!("reqest path {path:?} does not start with /");
+        return None;
+    };
 
-            if path_buf.is_absolute() || path_buf.has_root() {
-                eprintln!(
-                    "ERROR calculated path \"{}\" is not relative",
-                    path_buf.display()
-                );
-                return None;
-            }
+    // Should be impossible.
+    assert!(
+        !(path.is_absolute() || path.has_root()),
+        "stripped request path {path:?} is not relative"
+    );
 
-            let dotdot = OsStr::new("..");
-            if path_buf.iter().any(|v| v == dotdot) {
-                eprintln!(
-                    "ERROR calculated path \"{}\" contains ..",
-                    path_buf.display()
-                );
-                return None;
-            }
+    let dotdot = OsStr::new("..");
+    if path.iter().any(|v| v == dotdot) {
+        tracing::error!("stripped request path {path:?} contains ..");
+        return None;
+    }
 
-            if path_buf.is_file() {
-                Some(path_buf)
-            } else {
-                None
-            }
-        }
-        Err(error) => {
-            // WTF. It should always start with "/".
-            eprintln!(
-                "ERROR path.strip_prefix(\"/\") for \"{}\": {}",
-                path.as_ref().display(),
-                &error
-            );
-            None
-        }
+    let mut static_path = PathBuf::from("static");
+    static_path.push(path);
+
+    if static_path.is_file() {
+        Some(static_path)
+    } else {
+        None
     }
 }
 
@@ -123,11 +113,7 @@ fn render_static(req: &HttpRequest, path: &Path) -> WebResult<HttpResponse> {
     match NamedFile::open(path) {
         Ok(file) => Ok(file.into_response(req)),
         Err(error) => {
-            eprintln!(
-                "ERROR static file open {:}: {:}",
-                path.display(),
-                &error
-            );
+            tracing::warn!("failed to open static file {path:?}: {error:?}");
             Err(WebError::Internal(Error::Io(error)))
         }
     }
