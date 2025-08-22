@@ -22,20 +22,57 @@ use tracing_actix_web::TracingLogger;
 //      - dev mode
 //      - log errors
 
+/// Application configuration.
+#[derive(Debug, Clone)]
+pub struct Configuration {
+    /// The path to the directory containing pages.
+    pub pages_path: PathBuf,
+    /// The path to the directory containing static files.
+    pub static_path: PathBuf,
+    /// The path to the directory containing templates.
+    pub templates_path: PathBuf,
+}
+
+impl Default for Configuration {
+    /// Create a configuration using the default subdirectories names in the
+    /// current directory.
+    fn default() -> Self {
+        Self::default_in(".")
+    }
+}
+
+impl Configuration {
+    /// Create a configuration using the default subdirectories under `root`.
+    fn default_in<P: Into<PathBuf>>(root: P) -> Self {
+        let root: PathBuf = root.into();
+        Self {
+            pages_path: root.join("pages"),
+            static_path: root.join("static"),
+            templates_path: root.join("templates"),
+        }
+    }
+}
+
 /// Main entry point for serving over HTTP
 ///
 /// # Errors
 ///
 /// May return an error if the server could not start correctly.
 #[actix_web::main]
-pub async fn serve<S: AsRef<str>>(address: S) -> Result<()> {
+pub async fn serve<P: AsRef<Path>, S: AsRef<str>>(
+    path: P,
+    address: S,
+) -> Result<()> {
     let address = address.as_ref();
 
-    let data = Data::new(TemplateManager::from_directory("templates")?);
+    let config = Data::new(Configuration::default_in(path.as_ref()));
+    let tpls =
+        Data::new(TemplateManager::from_directory(&config.templates_path)?);
 
     HttpServer::new(move || {
         App::new()
-            .app_data(Data::clone(&data))
+            .app_data(Data::clone(&tpls))
+            .app_data(Data::clone(&config))
             .wrap(TracingLogger::default())
             .service(path_handler)
     })
@@ -55,15 +92,18 @@ pub async fn serve<S: AsRef<str>>(address: S) -> Result<()> {
 async fn path_handler(
     req: HttpRequest,
     tpls: Data<TemplateManager>,
+    config: Data<Configuration>,
 ) -> impl Responder {
     clean_path(req.path())
-        .and_then(|path| match render_static(&req, path) {
-            Err(WebError::NotFound) => {
-                tracing::trace!("static not found, trying page");
-                render_page(&req, path, &tpls)
-            }
-            other => other,
-        })
+        .and_then(
+            |path| match render_static(&req, &config.static_path, path) {
+                Err(WebError::NotFound) => {
+                    tracing::trace!("static not found, trying page");
+                    render_page(&req, &config.pages_path, path, &tpls)
+                }
+                other => other,
+            },
+        )
         .unwrap_or_else(|error: WebError| error.render(&req, &tpls))
 }
 
@@ -96,10 +136,10 @@ fn clean_path(path: &str) -> WebResult<&str> {
 /// a problem reading the static file.
 fn render_static(
     req: &HttpRequest,
+    static_path: &Path,
     relative_path: &str,
 ) -> WebResult<HttpResponse> {
-    Ok(open_static(&PathBuf::from("static").join(relative_path))?
-        .into_response(req))
+    Ok(open_static(&static_path.join(relative_path))?.into_response(req))
 }
 
 /// Open a path as a [`NamedFile`].
@@ -128,10 +168,10 @@ fn open_static(path: &Path) -> io::Result<NamedFile> {
 /// Returns [`WebError`] if the page cannot be found or cannot be rendered.
 fn render_page(
     _req: &HttpRequest,
+    root: &Path,
     relative_path: &str,
     tpls: &TemplateManager,
 ) -> WebResult<HttpResponse> {
-    let root = PathBuf::from("pages");
     let relative_path = relative_path.trim_end_matches('/');
 
     let page = try_read_page(root.join(format!("{relative_path}.md")))
