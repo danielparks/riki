@@ -32,24 +32,20 @@ impl WebError {
         req: &HttpRequest,
         tpls: &TemplateManager,
     ) -> HttpResponse {
-        let (code, template_path, data) = match self {
+        let (code, template_name, data) = match self {
             Self::Internal(error) => (
                 http::StatusCode::INTERNAL_SERVER_ERROR,
-                "error500.tmpl",
-                mustache::MapBuilder::new()
-                    .insert_str("error", error.to_string())
-                    .build(),
+                "error500",
+                mustache_key_value("error", error),
             ),
             Self::NotFound { req_path } => (
                 http::StatusCode::NOT_FOUND,
-                "error404.tmpl",
-                mustache::MapBuilder::new()
-                    .insert_str("req_path", req_path)
-                    .build(),
+                "error404",
+                mustache_key_value("req_path", req_path),
             ),
         };
 
-        let buffer = match tpls.get(template_path) {
+        let buffer = match tpls.get(template_name) {
             Ok(tpl) => match tpl.render_data_to_string(&data) {
                 Ok(buffer) => buffer,
                 Err(error2) => self.fallback_render(req, &error2.into()),
@@ -86,4 +82,13 @@ impl WebError {
 </html>"#
         )
     }
+}
+
+// This lint doesn’t know that references can implement `ToString`:
+#[allow(clippy::needless_pass_by_value)]
+/// Generate [`mustache::Data`] that only contains a single key value.
+fn mustache_key_value<V: ToString>(key: &str, value: V) -> mustache::Data {
+    mustache::MapBuilder::new()
+        .insert_str(key, value.to_string())
+        .build()
 }

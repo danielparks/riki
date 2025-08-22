@@ -152,7 +152,7 @@ impl TemplateManager {
         self.templates.contains_key(name.as_ref())
     }
 
-    // This lint doesn’t know ToString can be by reference:
+    // This lint doesn’t know that references can implement `ToString`:
     #[allow(clippy::needless_pass_by_value)]
     /// Load and compile a template from a string.
     ///
@@ -183,7 +183,7 @@ impl TemplateManager {
         Ok(())
     }
 
-    // This lint doesn’t know ToString can be by reference:
+    // This lint doesn’t know that references can implement `ToString`:
     #[allow(clippy::needless_pass_by_value)]
     /// Load and compile a template from a file.
     ///
