@@ -50,8 +50,8 @@ impl Page {
     /// # Errors
     ///
     /// This will return [`Error`] if there is a problem parsing `raw`.
-    pub fn from_string(raw: &str) -> Result<Self> {
-        let (header, body) = Self::split_raw_page(raw);
+    pub fn from_string<S: AsRef<str>>(raw: S) -> Result<Self> {
+        let (header, body) = Self::split_raw_page(raw.as_ref());
 
         let mut metadata = Self::metadata_from_string(header)?;
         let fragment = Document::fragment(Self::render_markdown(body));
