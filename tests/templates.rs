@@ -2,20 +2,16 @@
 
 use assert2::{check, let_assert};
 use riki::{Page, TemplateManager};
-use std::fs::File;
-use std::io::Write;
+use std::fs;
 use std::path::Path;
-use temp_testdir::TempDir;
+use temp_dir::TempDir;
 
-fn create_file<P, S, C>(dir: P, name: S, contents: C)
+fn create_file<P, C>(dir: &TempDir, name: P, contents: C)
 where
     P: AsRef<Path>,
-    S: AsRef<str>,
     C: AsRef<[u8]>,
 {
-    let path = dir.as_ref().to_path_buf().join(name.as_ref());
-    let mut f = File::create(path).unwrap();
-    f.write_all(contents.as_ref()).unwrap();
+    fs::write(dir.path().join(name.as_ref()), contents.as_ref()).unwrap();
 }
 
 /// Makes error output more legible.
@@ -52,10 +48,10 @@ fn builtin_template() {
 
 #[test]
 fn basic_template() {
-    let temp = TempDir::default();
+    let temp = TempDir::new().unwrap();
     create_file(&temp, "default.tmpl", "{{ metadata.title }} {{& body }}");
 
-    let tpls = TemplateManager::from_directory(temp.as_ref()).unwrap();
+    let tpls = TemplateManager::from_directory(temp.path()).unwrap();
     let_assert!(Ok(tpl) = tpls.get("default"));
 
     let_assert!(
@@ -72,10 +68,10 @@ fn basic_template() {
 
 #[test]
 fn basic_template_twice() {
-    let temp = TempDir::default();
+    let temp = TempDir::new().unwrap();
     create_file(&temp, "default.tmpl", "{{& body }}");
 
-    let tpls = TemplateManager::from_directory(temp.as_ref()).unwrap();
+    let tpls = TemplateManager::from_directory(temp.path()).unwrap();
 
     let_assert!(Ok(tpl) = tpls.get("default"));
     let_assert!(Ok(page) = Page::from_string("# 1"));
@@ -94,11 +90,11 @@ fn basic_template_twice() {
 
 #[test]
 fn multiple_templates() {
-    let temp = TempDir::default();
+    let temp = TempDir::new().unwrap();
     create_file(&temp, "default.tmpl", "{{& body }}");
     create_file(&temp, "weird.tmpl", "strange {{& body }}");
 
-    let tpls = TemplateManager::from_directory(temp.as_ref()).unwrap();
+    let tpls = TemplateManager::from_directory(temp.path()).unwrap();
 
     let_assert!(Ok(tpl) = tpls.get("default"));
     let_assert!(Ok(page) = Page::from_string("# 1"));
