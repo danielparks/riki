@@ -60,6 +60,14 @@ impl TemplateManager {
             .unwrap();
         }
 
+        if !self.has("error403") {
+            self.load_from_string(
+                "error403",
+                include_str!("templates/error403.tmpl"),
+            )
+            .unwrap();
+        }
+
         if !self.has("error404") {
             self.load_from_string(
                 "error404",

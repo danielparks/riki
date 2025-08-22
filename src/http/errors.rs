@@ -19,6 +19,13 @@ pub enum WebError {
         /// The request path.
         req_path: String,
     },
+
+    /// Permission denied error.
+    #[error("access to {req_path} forbidden")]
+    Forbidden {
+        /// The request path.
+        req_path: String,
+    },
 }
 
 /// `Result` type for `WebError`.
@@ -41,6 +48,11 @@ impl WebError {
             Self::NotFound { req_path } => (
                 http::StatusCode::NOT_FOUND,
                 "error404",
+                mustache_key_value("req_path", req_path),
+            ),
+            Self::Forbidden { req_path } => (
+                http::StatusCode::FORBIDDEN,
+                "error403",
                 mustache_key_value("req_path", req_path),
             ),
         };
