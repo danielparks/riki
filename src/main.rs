@@ -5,7 +5,6 @@ mod params;
 
 use params::{Command, Params, Parser};
 use riki::Page;
-use std::env;
 use std::io;
 use std::process::ExitCode;
 
@@ -45,10 +44,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             }
         }
         Command::Serve { basedir, bind } => {
-            // Switch to base directory. The default is ".".
-            env::set_current_dir(basedir)?;
-
-            riki::http::serve(bind)?;
+            riki::http::serve(basedir, bind)?;
         }
     }
 
