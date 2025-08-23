@@ -191,6 +191,9 @@ fn render_page(
         .or_else(|| try_read_page(root.join(relative_path).join("index.md")))
         .unwrap_or(Err(WebError::NotFound))?;
 
+    // FIXME: caching headers based on template and Page.
+    // FIXME: add cache-busting to href, src, etc. in HTML.
+
     Ok(HttpResponse::Ok()
         .content_type("text/html; charset=UTF-8")
         .body(page.render_to_string(tpls)?))
