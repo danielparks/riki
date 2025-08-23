@@ -11,7 +11,7 @@ use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
 use std::fs;
-use std::io::{self, Read, Seek};
+use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use tracing;
 use tracing_actix_web::TracingLogger;
@@ -142,7 +142,12 @@ fn render_static(
     static_path: &Path,
     relative_path: &str,
 ) -> WebResult<HttpResponse> {
-    Ok(open_static(&static_path.join(relative_path))?.into_response(req))
+    let candidate = static_path.join(relative_path);
+    Ok(match open_static(&candidate) {
+        Err(WebError::NotFound) => open_static(&candidate.join("index.html")),
+        other => other,
+    }?
+    .into_response(req))
 }
 
 /// Open a path as a [`NamedFile`].
@@ -151,8 +156,8 @@ fn render_static(
 ///
 /// # Errors
 ///
-///   * [`io::Error`] if there was a problem opening or reading the file.
-fn open_static(path: &Path) -> io::Result<NamedFile> {
+///   * [`WebError`] if there was a problem opening or reading the file.
+fn open_static(path: &Path) -> WebResult<NamedFile> {
     let mut file = fs::File::open(path)?;
 
     // Read 1 byte to check if the file is a directory. Using `is_dir()` would
@@ -161,7 +166,7 @@ fn open_static(path: &Path) -> io::Result<NamedFile> {
     _ = file.read(&mut buffer)?;
     file.rewind()?;
 
-    NamedFile::from_file(file, path)
+    Ok(NamedFile::from_file(file, path)?)
 }
 
 /// Render a page to be served over HTTP.
@@ -212,6 +217,7 @@ mod tests {
     use actix_web::{App, body, test, web};
     use assert2::{check, let_assert};
     use temp_dir::TempDir;
+    use tracing_test::traced_test;
 
     use super::*;
 
@@ -235,7 +241,8 @@ mod tests {
         tpls.load_from_string("default", "{{& body }}").unwrap();
         tpls.load_from_string("error403", "403").unwrap();
         tpls.load_from_string("error404", "404").unwrap();
-        tpls.load_from_string("error500", "500").unwrap();
+        tpls.load_from_string("error500", "{{& error_debug }}")
+            .unwrap();
 
         (
             temp_dir,
@@ -264,18 +271,56 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_index_get() {
+    #[traced_test]
+    async fn test_index_page_get() {
         let (_dir, config, app) = init_app().await;
 
         fs::write(config.pages_path.join("index.md"), "index").unwrap();
 
+        // FIXME check content-type
         let resp = get(&app, "/").await;
+        check!(resp.status().as_u16() == 200);
+        let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
+        check!(body == B(b"<p>index</p>\n"));
+
+        let resp = get(&app, "/.").await;
         check!(resp.status().as_u16() == 200);
         let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
         check!(body == B(b"<p>index</p>\n"));
     }
 
     #[actix_web::test]
+    #[traced_test]
+    async fn test_static_get() {
+        let (_dir, config, app) = init_app().await;
+
+        fs::write(config.static_path.join("a.txt"), "AAA").unwrap();
+
+        // FIXME check content-type
+        let resp = get(&app, "/a.txt").await;
+        check!(resp.status().as_u16() == 200);
+        let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
+        check!(body == B(b"AAA"));
+    }
+
+    #[actix_web::test]
+    #[traced_test]
+    async fn test_static_index_get() {
+        let (_dir, config, app) = init_app().await;
+
+        let b_dir = config.static_path.join("b");
+        fs::create_dir(b_dir).unwrap();
+        fs::write(config.static_path.join("b/index.html"), "BBB").unwrap();
+
+        // FIXME check content-type
+        let resp = get(&app, "/b").await;
+        check!(resp.status().as_u16() == 200);
+        let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
+        check!(body == B(b"BBB"));
+    }
+
+    #[actix_web::test]
+    #[traced_test]
     async fn test_not_found_get() {
         let (_dir, _config, app) = init_app().await;
 
@@ -287,6 +332,7 @@ mod tests {
 
     #[cfg(all(not(target_os = "hermit"), unix))]
     #[actix_web::test]
+    #[traced_test]
     async fn test_forbidden_page_get() {
         use std::os::unix::fs::PermissionsExt;
 
@@ -304,6 +350,7 @@ mod tests {
 
     #[cfg(all(not(target_os = "hermit"), unix))]
     #[actix_web::test]
+    #[traced_test]
     async fn test_forbidden_static_get() {
         use std::os::unix::fs::PermissionsExt;
 
