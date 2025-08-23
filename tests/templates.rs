@@ -23,7 +23,7 @@ fn empty_template() {
     tpls.load_from_string("default", "").unwrap();
     let_assert!(Ok(tpl) = tpls.get("default"));
 
-    let_assert!(Ok(page) = Page::from_string("title: page\n---\n# Page"));
+    let_assert!(Ok(page) = Page::from_memory("title: page\n---\n# Page"));
     check!(let Ok("") = tpl.render_to_string(&page).as_ref().map(AS_STR));
 }
 
@@ -32,7 +32,7 @@ fn builtin_template() {
     let tpls = TemplateManager::default();
     let_assert!(Ok(tpl) = tpls.get("default"));
 
-    let_assert!(Ok(page) = Page::from_string("title: page\n---\n# Page"));
+    let_assert!(Ok(page) = Page::from_memory("title: page\n---\n# Page"));
     check!(let Ok("<!DOCTYPE html>
 <html>
 \t<head>
@@ -55,14 +55,14 @@ fn basic_template() {
     let_assert!(Ok(tpl) = tpls.get("default"));
 
     let_assert!(
-        Ok(page) = Page::from_string("title: title<test>\n---\n# heading")
+        Ok(page) = Page::from_memory("title: title<test>\n---\n# heading")
     );
     check!(
         let Ok("title&lt;test&gt; <h1>heading</h1>\n")
             = tpl.render_to_string(&page).as_ref().map(AS_STR)
     );
 
-    let_assert!(Ok(page) = Page::from_string("title: t2\n---\n"));
+    let_assert!(Ok(page) = Page::from_memory("title: t2\n---\n"));
     check!(let Ok("t2 ") = tpl.render_to_string(&page).as_ref().map(AS_STR));
 }
 
@@ -74,14 +74,14 @@ fn basic_template_twice() {
     let tpls = TemplateManager::from_directory(temp.path()).unwrap();
 
     let_assert!(Ok(tpl) = tpls.get("default"));
-    let_assert!(Ok(page) = Page::from_string("# 1"));
+    let_assert!(Ok(page) = Page::from_memory("# 1"));
     check!(
         let Ok("<h1>1</h1>\n")
             = tpl.render_to_string(&page).as_ref().map(AS_STR)
     );
 
     let_assert!(Ok(tpl) = tpls.get("default"));
-    let_assert!(Ok(page) = Page::from_string("# 2"));
+    let_assert!(Ok(page) = Page::from_memory("# 2"));
     check!(
         let Ok("<h1>2</h1>\n")
             = tpl.render_to_string(&page).as_ref().map(AS_STR)
@@ -97,14 +97,14 @@ fn multiple_templates() {
     let tpls = TemplateManager::from_directory(temp.path()).unwrap();
 
     let_assert!(Ok(tpl) = tpls.get("default"));
-    let_assert!(Ok(page) = Page::from_string("# 1"));
+    let_assert!(Ok(page) = Page::from_memory("# 1"));
     check!(
         let Ok("<h1>1</h1>\n")
             = tpl.render_to_string(&page).as_ref().map(AS_STR)
     );
 
     let_assert!(Ok(tpl) = tpls.get("weird"));
-    let_assert!(Ok(page) = Page::from_string("# 2"));
+    let_assert!(Ok(page) = Page::from_memory("# 2"));
     check!(
         let Ok("strange <h1>2</h1>\n")
             = tpl.render_to_string(&page).as_ref().map(AS_STR)

@@ -1,5 +1,6 @@
 //! Errors returned by the crate.
 
+use crate::render::Source;
 use std::io;
 use std::path::PathBuf;
 use std::result;
@@ -24,8 +25,8 @@ pub enum Error {
     PageRender {
         /// The original error.
         source: mustache::Error,
-        /// The page file.
-        page: PathBuf,
+        /// The source of the page.
+        page_source: Source,
         /// The template name.
         template: String,
     },
