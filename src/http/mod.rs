@@ -190,13 +190,9 @@ fn render_page(
 ///   * [`WebError`] if the page cannot be read.
 fn try_read_page(path: PathBuf) -> Option<WebResult<Page>> {
     match fs::read_to_string(&path) {
-        Ok(content) => match Page::from_string(content) {
-            Ok(mut page) => {
-                page.file = path;
-                Some(Ok(page))
-            }
-            Err(error) => Some(Err(WebError::Internal(error))),
-        },
+        Ok(content) => {
+            Some(Page::from_source(path, content).map_err(WebError::Internal))
+        }
         Err(error) => match WebError::from(error) {
             WebError::NotFound => None,
             error => Some(Err(error)),

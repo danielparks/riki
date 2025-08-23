@@ -9,7 +9,7 @@ use serde::Serialize;
 use serde_yaml::Error as YamlError;
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::result;
 use std::sync::LazyLock;
 
@@ -19,14 +19,34 @@ type Metadata = HashMap<String, String>;
 /// A rendered page
 #[derive(Debug, Serialize)]
 pub struct Page {
-    /// The path to the file on disk, or "-" for stdin (FIXME)
-    pub file: PathBuf,
+    /// Source of the page
+    pub source: Source,
 
     /// Metadata about the page
     pub metadata: Metadata,
 
     /// The HTML body of the page
     pub body: String,
+}
+
+/// The source of a [`Page`]
+#[derive(Clone, Debug, Default, Serialize)]
+pub enum Source {
+    /// From memory.
+    #[default]
+    Memory,
+
+    /// From stdin.
+    Stdin,
+
+    /// From a file.
+    File(PathBuf),
+}
+
+impl<P: Into<PathBuf>> From<P> for Source {
+    fn from(path: P) -> Self {
+        Self::File(path.into())
+    }
 }
 
 impl Page {
@@ -36,13 +56,12 @@ impl Page {
     ///
     /// This will return [`Error`] if there is a problem loading `path`.
     /// and
-    pub fn read_from(path: &Path) -> Result<Self> {
-        let raw = fs::read_to_string(path)
-            .map_err(|source| Error::ReadPageFile { source })?;
+    pub fn read_from<P: Into<PathBuf>>(path: P) -> Result<Self> {
+        let path: PathBuf = path.into();
+        let raw = fs::read_to_string(&path)
+            .map_err(|error| Error::ReadPageFile { source: error })?;
 
-        let mut page = Self::from_string(&raw)?;
-        page.file = PathBuf::from(path);
-        Ok(page)
+        Self::from_source(path, &raw)
     }
 
     /// Load a `Page` from a string.
@@ -50,7 +69,19 @@ impl Page {
     /// # Errors
     ///
     /// This will return [`Error`] if there is a problem parsing `raw`.
-    pub fn from_string<S: AsRef<str>>(raw: S) -> Result<Self> {
+    pub fn from_memory<S: AsRef<str>>(raw: S) -> Result<Self> {
+        Self::from_source(Source::Memory, raw)
+    }
+
+    /// Load a `Page` from a string with a source.
+    ///
+    /// # Errors
+    ///
+    /// This will return [`Error`] if there is a problem parsing `raw`.
+    pub fn from_source<S: Into<Source>, R: AsRef<str>>(
+        source: S,
+        raw: R,
+    ) -> Result<Self> {
         let (header, body) = Self::split_raw_page(raw.as_ref());
 
         let mut metadata = Self::metadata_from_string(header)?;
@@ -64,7 +95,7 @@ impl Page {
         }
 
         Ok(Self {
-            file: PathBuf::from("-"), // i.e. STDIN
+            source: source.into(),
             metadata,
             body: fragment.html_root().inner_html().to_string(),
         })
@@ -109,7 +140,7 @@ impl Page {
             .render_to_string(&self)
             .map_err(|error| Error::PageRender {
                 source: error,
-                page: self.file.clone(),
+                page_source: self.source.clone(),
                 template: tpl_name.clone(),
             })
     }
