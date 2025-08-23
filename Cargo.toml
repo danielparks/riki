@@ -39,6 +39,7 @@ tracing-subscriber = { version = "0.3.19", features = ["chrono"] }
 [dev-dependencies]
 actix-http = "3.11.0"
 assert2 = "0.3.16"
+mime = "0.3.17"
 temp-dir = "0.1.16"
 tracing-test = "0.2.5"
 

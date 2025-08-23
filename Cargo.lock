@@ -1631,6 +1631,7 @@ dependencies = [
  "clap",
  "dom_query",
  "htmlize",
+ "mime",
  "mustache",
  "pulldown-cmark",
  "regex",

@@ -1,12 +1,13 @@
 //! Test HTTP server.
 
-use actix_http::Request;
+use actix_http::{Request, header};
 use actix_web::body::BoxBody;
 use actix_web::dev::{Service, ServiceResponse};
+use actix_web::http::header::HeaderName;
 use actix_web::test::TestRequest;
-use actix_web::web::Data;
-use actix_web::{App, body, test, web};
-use assert2::{check, let_assert};
+use actix_web::web::{Bytes, Data};
+use actix_web::{App, body, test};
+use assert2::check;
 use riki::TemplateManager;
 use riki::http::{Configuration, path_handler};
 use std::fs;
@@ -49,8 +50,34 @@ async fn init_app() -> (
     )
 }
 
+/// Get body of response
+#[expect(clippy::future_not_send)] // Actix doesn’t require Send.
+async fn get_body(resp: ServiceResponse<BoxBody>) -> Bytes {
+    body::to_bytes(resp.into_body()).await.unwrap()
+}
+
+/// Get the value of a response header
+fn get_header(
+    resp: &ServiceResponse<BoxBody>,
+    name: HeaderName,
+) -> Option<Bytes> {
+    resp.headers()
+        .get(name)
+        .map(|v| v.as_bytes().to_vec().into())
+}
+
+/// Get the content-type of a response
+fn get_content_type(resp: &ServiceResponse<BoxBody>) -> Option<mime::Mime> {
+    resp.headers().get(header::CONTENT_TYPE).map(|v| {
+        v.to_str()
+            .expect("content-type to be ASCII")
+            .parse()
+            .unwrap()
+    })
+}
+
 /// Convert byte string to right type for comparison with a response body.
-const B: fn(&'static [u8]) -> web::Bytes = web::Bytes::from_static;
+const B: fn(&'static [u8]) -> Bytes = Bytes::from_static;
 
 /// Make a GET request to the test app.
 #[expect(clippy::future_not_send)] // Actix doesn’t require Send.
@@ -69,16 +96,19 @@ async fn test_index_page_get() {
 
     fs::write(config.pages_path.join("index.md"), "index").unwrap();
 
-    // FIXME check content-type
     let resp = get(&app, "/").await;
     check!(resp.status().as_u16() == 200);
-    let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
-    check!(body == B(b"<p>index</p>\n"));
+    check!(get_content_type(&resp) == Some(mime::TEXT_HTML_UTF_8));
+    check!(get_header(&resp, header::LAST_MODIFIED) == None);
+    check!(get_header(&resp, header::ETAG) == None);
+    check!(get_body(resp).await == B(b"<p>index</p>\n"));
 
     let resp = get(&app, "/.").await;
     check!(resp.status().as_u16() == 200);
-    let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
-    check!(body == B(b"<p>index</p>\n"));
+    check!(get_content_type(&resp) == Some(mime::TEXT_HTML_UTF_8));
+    check!(get_header(&resp, header::LAST_MODIFIED) == None);
+    check!(get_header(&resp, header::ETAG) == None);
+    check!(get_body(resp).await == B(b"<p>index</p>\n"));
 }
 
 #[actix_web::test]
@@ -88,47 +118,26 @@ async fn test_static_get() {
 
     fs::write(config.static_path.join("a.txt"), "AAA").unwrap();
 
-    // FIXME check content-type
     let resp = get(&app, "/a.txt").await;
     check!(resp.status().as_u16() == 200);
-    let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
-    check!(body == B(b"AAA"));
+    check!(get_content_type(&resp) == Some(mime::TEXT_PLAIN_UTF_8));
+    check!(get_header(&resp, header::LAST_MODIFIED).is_some());
+    check!(get_header(&resp, header::ETAG).is_some());
+    check!(get_body(resp).await == B(b"AAA"));
 
     let resp = get(&app, "/a.txt/").await;
     check!(resp.status().as_u16() == 200);
-    let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
-    check!(body == B(b"AAA"));
+    check!(get_content_type(&resp) == Some(mime::TEXT_PLAIN_UTF_8));
+    check!(get_header(&resp, header::LAST_MODIFIED).is_some());
+    check!(get_header(&resp, header::ETAG).is_some());
+    check!(get_body(resp).await == B(b"AAA"));
 
     let resp = get(&app, "/a.txt/.").await;
     check!(resp.status().as_u16() == 200);
-    let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
-    check!(body == B(b"AAA"));
-}
-
-#[actix_web::test]
-#[traced_test]
-async fn test_fall_through() {
-    let (_dir, config, app) = init_app().await;
-
-    fs::write(config.static_path.join("static"), "STATIC").unwrap();
-    fs::create_dir(config.pages_path.join("static")).unwrap();
-    fs::write(config.pages_path.join("static/page.md"), "PAGE").unwrap();
-
-    // FIXME check content-type
-    let resp = get(&app, "/static").await;
-    check!(resp.status().as_u16() == 200);
-    let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
-    check!(body == B(b"STATIC"));
-
-    let resp = get(&app, "/static/page").await;
-    check!(resp.status().as_u16() == 200);
-    let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
-    check!(body == B(b"<p>PAGE</p>\n"));
-
-    let resp = get(&app, "/static/page/.").await;
-    check!(resp.status().as_u16() == 200);
-    let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
-    check!(body == B(b"<p>PAGE</p>\n"));
+    check!(get_content_type(&resp) == Some(mime::TEXT_PLAIN_UTF_8));
+    check!(get_header(&resp, header::LAST_MODIFIED).is_some());
+    check!(get_header(&resp, header::ETAG).is_some());
+    check!(get_body(resp).await == B(b"AAA"));
 }
 
 #[actix_web::test]
@@ -140,16 +149,44 @@ async fn test_static_index_get() {
     fs::create_dir(b_dir).unwrap();
     fs::write(config.static_path.join("b/index.html"), "BBB").unwrap();
 
-    // FIXME check content-type
     let resp = get(&app, "/b").await;
     check!(resp.status().as_u16() == 200);
-    let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
-    check!(body == B(b"BBB"));
+    check!(get_content_type(&resp) == Some(mime::TEXT_HTML_UTF_8));
+    check!(get_header(&resp, header::LAST_MODIFIED).is_some());
+    check!(get_header(&resp, header::ETAG).is_some());
+    check!(get_body(resp).await == B(b"BBB"));
 
     let resp = get(&app, "/b/").await;
     check!(resp.status().as_u16() == 200);
-    let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
-    check!(body == B(b"BBB"));
+    check!(get_content_type(&resp) == Some(mime::TEXT_HTML_UTF_8));
+    check!(get_header(&resp, header::LAST_MODIFIED).is_some());
+    check!(get_header(&resp, header::ETAG).is_some());
+    check!(get_body(resp).await == B(b"BBB"));
+}
+
+#[actix_web::test]
+#[traced_test]
+async fn test_fall_through() {
+    let (_dir, config, app) = init_app().await;
+
+    fs::write(config.static_path.join("static"), "STATIC").unwrap();
+    fs::create_dir(config.pages_path.join("static")).unwrap();
+    fs::write(config.pages_path.join("static/page.md"), "PAGE").unwrap();
+
+    let resp = get(&app, "/static").await;
+    check!(resp.status().as_u16() == 200);
+    check!(get_content_type(&resp) == Some(mime::APPLICATION_OCTET_STREAM));
+    check!(get_body(resp).await == B(b"STATIC"));
+
+    let resp = get(&app, "/static/page").await;
+    check!(resp.status().as_u16() == 200);
+    check!(get_content_type(&resp) == Some(mime::TEXT_HTML_UTF_8));
+    check!(get_body(resp).await == B(b"<p>PAGE</p>\n"));
+
+    let resp = get(&app, "/static/page/.").await;
+    check!(resp.status().as_u16() == 200);
+    check!(get_content_type(&resp) == Some(mime::TEXT_HTML_UTF_8));
+    check!(get_body(resp).await == B(b"<p>PAGE</p>\n"));
 }
 
 #[actix_web::test]
@@ -159,8 +196,10 @@ async fn test_not_found_get() {
 
     let resp = get(&app, "/not-found").await;
     check!(resp.status().as_u16() == 404);
-    let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
-    check!(body == B(b"404"));
+    check!(get_content_type(&resp) == Some(mime::TEXT_HTML_UTF_8));
+    check!(get_header(&resp, header::LAST_MODIFIED) == None);
+    check!(get_header(&resp, header::ETAG) == None);
+    check!(get_body(resp).await == B(b"404"));
 }
 
 #[cfg(all(not(target_os = "hermit"), unix))]
@@ -177,8 +216,10 @@ async fn test_forbidden_page_get() {
 
     let resp = get(&app, "/forbidden").await;
     check!(resp.status().as_u16() == 403);
-    let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
-    check!(body == B(b"403"));
+    check!(get_content_type(&resp) == Some(mime::TEXT_HTML_UTF_8));
+    check!(get_header(&resp, header::LAST_MODIFIED) == None);
+    check!(get_header(&resp, header::ETAG) == None);
+    check!(get_body(resp).await == B(b"403"));
 }
 
 #[cfg(all(not(target_os = "hermit"), unix))]
@@ -195,6 +236,8 @@ async fn test_forbidden_static_get() {
 
     let resp = get(&app, "/forbidden.txt").await;
     check!(resp.status().as_u16() == 403);
-    let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
-    check!(body == B(b"403"));
+    check!(get_content_type(&resp) == Some(mime::TEXT_HTML_UTF_8));
+    check!(get_header(&resp, header::LAST_MODIFIED) == None);
+    check!(get_header(&resp, header::ETAG) == None);
+    check!(get_body(resp).await == B(b"403"));
 }
