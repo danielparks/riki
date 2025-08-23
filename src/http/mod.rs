@@ -95,15 +95,15 @@ async fn path_handler(
     config: Data<Configuration>,
 ) -> impl Responder {
     clean_path(req.path())
-        .and_then(
-            |path| match render_static(&req, &config.static_path, path) {
+        .and_then(|path| {
+            match render_static(&req, &config.static_path, &path) {
                 Err(WebError::NotFound) => {
                     tracing::trace!("static not found, trying page");
-                    render_page(&req, &config.pages_path, path, &tpls)
+                    render_page(&req, &config.pages_path, &path, &tpls)
                 }
                 other => other,
-            },
-        )
+            }
+        })
         .unwrap_or_else(|error: WebError| {
             tracing::error!("{}: {error:?}", req.path());
             error.render(&req, &tpls)
@@ -116,7 +116,7 @@ async fn path_handler(
 ///
 ///   * [`WebError::InternalString`] if the path doesn’t start with / or if the
 ///     path contains a .. segment.
-fn clean_path(path: &str) -> WebResult<&str> {
+fn clean_path(path: &str) -> WebResult<String> {
     // TODO? Actix seems to do deal with .. and maybe // for us. Simplify?
     if !path.starts_with('/') {
         Err(WebError::InternalString(format!(
@@ -127,7 +127,15 @@ fn clean_path(path: &str) -> WebResult<&str> {
             "stripped request path {path:?} contains .."
         )))
     } else {
-        Ok(path.trim_start_matches('/'))
+        // This guarantees that the returned path doesn’t start or end with a /,
+        // and doesn’t contain any "" or "." segments.
+        // FIXME: redirect (maybe if the canonical path != req.path())?
+        #[expect(clippy::comparison_to_empty)]
+        Ok(path
+            .split('/')
+            .filter(|part| *part != "." && *part != "")
+            .collect::<Vec<_>>()
+            .join("/"))
     }
 }
 
@@ -180,8 +188,7 @@ fn render_page(
     relative_path: &str,
     tpls: &TemplateManager,
 ) -> WebResult<HttpResponse> {
-    let relative_path = relative_path.trim_end_matches('/');
-
+    // clean_path() guarantees that relative_path doesn’t start or end with /.
     let page = try_read_page(root.join(format!("{relative_path}.md")))
         .or_else(|| try_read_page(root.join(relative_path).join("index.md")))
         .unwrap_or(Err(WebError::NotFound))?;
@@ -301,6 +308,16 @@ mod tests {
         check!(resp.status().as_u16() == 200);
         let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
         check!(body == B(b"AAA"));
+
+        let resp = get(&app, "/a.txt/").await;
+        check!(resp.status().as_u16() == 200);
+        let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
+        check!(body == B(b"AAA"));
+
+        let resp = get(&app, "/a.txt/.").await;
+        check!(resp.status().as_u16() == 200);
+        let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
+        check!(body == B(b"AAA"));
     }
 
     #[actix_web::test]
@@ -314,6 +331,11 @@ mod tests {
 
         // FIXME check content-type
         let resp = get(&app, "/b").await;
+        check!(resp.status().as_u16() == 200);
+        let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
+        check!(body == B(b"BBB"));
+
+        let resp = get(&app, "/b/").await;
         check!(resp.status().as_u16() == 200);
         let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
         check!(body == B(b"BBB"));
