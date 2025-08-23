@@ -161,7 +161,7 @@ impl TemplateManager {
     }
 
     // This lint doesn’t know that references can implement `ToString`:
-    #[allow(clippy::needless_pass_by_value)]
+    #[expect(clippy::needless_pass_by_value)]
     /// Load and compile a template from a string.
     ///
     /// If the template has already been loaded then it will be reloaded.
@@ -192,7 +192,7 @@ impl TemplateManager {
     }
 
     // This lint doesn’t know that references can implement `ToString`:
-    #[allow(clippy::needless_pass_by_value)]
+    #[expect(clippy::needless_pass_by_value)]
     /// Load and compile a template from a file.
     ///
     /// If the template has already been loaded then it will be reloaded.
