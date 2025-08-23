@@ -113,9 +113,8 @@ impl WebError {
     }
 }
 
-// This lint doesn’t know that references can implement `ToString`:
-#[expect(clippy::needless_pass_by_value)]
 /// Generate [`mustache::Data`] that only contains a single key value.
+#[expect(clippy::needless_pass_by_value)] // `ToString` allows borrowing
 fn mustache_key_value<V: ToString>(key: &str, value: V) -> mustache::Data {
     mustache::MapBuilder::new()
         .insert_str(key, value.to_string())

@@ -216,7 +216,7 @@ mod tests {
     use super::*;
 
     /// Initialize the test app.
-    #[allow(clippy::future_not_send)] // Actix doesn’t require Send.
+    #[expect(clippy::future_not_send)] // Actix doesn’t require Send.
     async fn init_app() -> (
         TempDir,
         Configuration,
@@ -254,7 +254,7 @@ mod tests {
     const B: fn(&'static [u8]) -> web::Bytes = web::Bytes::from_static;
 
     /// Make a GET request to the test app.
-    #[allow(clippy::future_not_send)] // Actix doesn’t require Send.
+    #[expect(clippy::future_not_send)] // Actix doesn’t require Send.
     async fn get<S, B, E>(app: S, uri: &str) -> S::Response
     where
         S: Service<Request, Response = ServiceResponse<B>, Error = E>,
