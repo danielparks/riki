@@ -16,19 +16,6 @@ use std::sync::LazyLock;
 /// Page metadata
 type Metadata = HashMap<String, String>;
 
-/// A rendered page
-#[derive(Debug, Serialize)]
-pub struct Page {
-    /// Source of the page
-    pub source: Source,
-
-    /// Metadata about the page
-    pub metadata: Metadata,
-
-    /// The HTML body of the page
-    pub body: String,
-}
-
 /// The source of a [`Page`]
 #[derive(Clone, Debug, Default, Serialize)]
 pub enum Source {
@@ -47,6 +34,19 @@ impl<P: Into<PathBuf>> From<P> for Source {
     fn from(path: P) -> Self {
         Self::File(path.into())
     }
+}
+
+/// A rendered page
+#[derive(Debug, Serialize)]
+pub struct Page {
+    /// Source of the page
+    pub source: Source,
+
+    /// Metadata about the page
+    pub metadata: Metadata,
+
+    /// The HTML body of the page
+    pub body: String,
 }
 
 impl Page {
@@ -82,10 +82,10 @@ impl Page {
         source: S,
         raw: R,
     ) -> Result<Self> {
-        let (header, body) = Self::split_raw_page(raw.as_ref());
+        let (header, body) = split_raw_page(raw.as_ref());
 
-        let mut metadata = Self::metadata_from_string(header)?;
-        let fragment = Document::fragment(Self::render_markdown(body));
+        let mut metadata = metadata_from_string(header)?;
+        let fragment = Document::fragment(render_markdown(body));
 
         if !metadata.contains_key("title") {
             let h1 = fragment.select_single("h1");
@@ -144,39 +144,39 @@ impl Page {
                 template: tpl_name.clone(),
             })
     }
+}
 
-    /// Split the raw page string into metadata and body.
-    fn split_raw_page(raw: &str) -> (&str, &str) {
-        static SPLIT_RE: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new(r"(?:^|\s*[\r\n])---(?:$|[\r\n]\s*)").unwrap()
-        });
-        let parts: Vec<&str> = SPLIT_RE.splitn(raw, 2).collect();
-        match parts[..] {
-            [yaml, body] => (yaml, body),
-            [body] => ("", body),
-            _ => unreachable!(),
-        }
+/// Split the raw page string into metadata and body.
+fn split_raw_page(raw: &str) -> (&str, &str) {
+    static SPLIT_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?:^|\s*[\r\n])---(?:$|[\r\n]\s*)").unwrap()
+    });
+    let parts: Vec<&str> = SPLIT_RE.splitn(raw, 2).collect();
+    match parts[..] {
+        [yaml, body] => (yaml, body),
+        [body] => ("", body),
+        _ => unreachable!(),
     }
+}
 
-    /// Load metadata from string.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`YamlError`] if the YAML is invalid.
-    fn metadata_from_string(raw: &str) -> result::Result<Metadata, YamlError> {
-        if raw.trim().is_empty() {
-            Ok(HashMap::new())
-        } else {
-            serde_yaml::from_str(raw)
-        }
+/// Load metadata from string.
+///
+/// # Errors
+///
+/// Returns [`YamlError`] if the YAML is invalid.
+fn metadata_from_string(raw: &str) -> result::Result<Metadata, YamlError> {
+    if raw.trim().is_empty() {
+        Ok(HashMap::new())
+    } else {
+        serde_yaml::from_str(raw)
     }
+}
 
-    /// Render `markdown` as HTML.
-    fn render_markdown(markdown: &str) -> String {
-        let mut buffer = String::new();
-        let parser = Parser::new_ext(markdown, Options::all());
-        pulldown_cmark::html::push_html(&mut buffer, parser);
+/// Render `markdown` as HTML.
+fn render_markdown(markdown: &str) -> String {
+    let mut buffer = String::new();
+    let parser = Parser::new_ext(markdown, Options::all());
+    pulldown_cmark::html::push_html(&mut buffer, parser);
 
-        buffer
-    }
+    buffer
 }
