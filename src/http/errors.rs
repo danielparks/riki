@@ -4,6 +4,7 @@ use crate::errors::Error;
 use crate::templates::TemplateManager;
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, http};
 use htmlize::escape_text;
+use std::fmt;
 use std::io::{self, ErrorKind};
 use std::result::Result;
 
@@ -55,12 +56,12 @@ impl WebError {
             Self::Internal(error) => (
                 http::StatusCode::INTERNAL_SERVER_ERROR,
                 "error500",
-                mustache_key_value("error", error),
+                mustache_key_value_debug("error", error),
             ),
             Self::InternalString(error) => (
                 http::StatusCode::INTERNAL_SERVER_ERROR,
                 "error500",
-                mustache_key_value("error", error),
+                mustache_key_value_debug("error", error),
             ),
             Self::NotFound => (
                 http::StatusCode::NOT_FOUND,
@@ -113,11 +114,22 @@ impl WebError {
     }
 }
 
-// This lint doesn’t know that references can implement `ToString`:
-#[allow(clippy::needless_pass_by_value)]
 /// Generate [`mustache::Data`] that only contains a single key value.
+#[expect(clippy::needless_pass_by_value)] // `ToString` allows borrowing
 fn mustache_key_value<V: ToString>(key: &str, value: V) -> mustache::Data {
     mustache::MapBuilder::new()
         .insert_str(key, value.to_string())
+        .build()
+}
+
+/// Generate [`mustache::Data`] containing the Display and Debug of a value.
+#[expect(clippy::needless_pass_by_value)] // `ToString` allows borrowing
+fn mustache_key_value_debug<V: ToString + fmt::Debug>(
+    key: &str,
+    value: V,
+) -> mustache::Data {
+    mustache::MapBuilder::new()
+        .insert_str(key, value.to_string())
+        .insert_str(format!("{key}_debug"), format!("{value:#?}"))
         .build()
 }

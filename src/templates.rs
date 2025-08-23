@@ -160,8 +160,6 @@ impl TemplateManager {
         self.templates.contains_key(name.as_ref())
     }
 
-    // This lint doesn’t know that references can implement `ToString`:
-    #[allow(clippy::needless_pass_by_value)]
     /// Load and compile a template from a string.
     ///
     /// If the template has already been loaded then it will be reloaded.
@@ -170,6 +168,7 @@ impl TemplateManager {
     ///
     /// This will return [`Error::TemplateCompile`] if [`mustache`] cannot
     /// compile the template. See [`mustache::compile_str()`].
+    #[expect(clippy::needless_pass_by_value)] // `ToString` allows borrowing
     pub fn load_from_string<N: ToString, T: AsRef<str>>(
         &mut self,
         name: N,
@@ -191,8 +190,6 @@ impl TemplateManager {
         Ok(())
     }
 
-    // This lint doesn’t know that references can implement `ToString`:
-    #[allow(clippy::needless_pass_by_value)]
     /// Load and compile a template from a file.
     ///
     /// If the template has already been loaded then it will be reloaded.
@@ -201,6 +198,7 @@ impl TemplateManager {
     ///
     /// This will return [`Error::TemplateCompile`] if [`mustache`] cannot
     /// compile the template. See [`mustache::compile_path()`].
+    #[expect(clippy::needless_pass_by_value)] // `ToString` allows borrowing
     pub fn load_from_path<N: ToString, P: AsRef<Path>>(
         &mut self,
         name: N,
