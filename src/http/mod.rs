@@ -104,7 +104,10 @@ async fn path_handler(
                 other => other,
             },
         )
-        .unwrap_or_else(|error: WebError| error.render(&req, &tpls))
+        .unwrap_or_else(|error: WebError| {
+            tracing::error!("{}: {error:?}", req.path());
+            error.render(&req, &tpls)
+        })
 }
 
 /// Get a relative path that can be joined to another path safely.
