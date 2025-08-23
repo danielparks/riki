@@ -25,6 +25,9 @@ pub enum WebError {
     InternalString(String),
 
     /// Page not found error.
+    ///
+    /// This generally means that the request will fall through to the next
+    /// layer, e.g. if it was looking for a static file it will look for a page.
     #[error("page not found")]
     NotFound,
 
@@ -34,10 +37,16 @@ pub enum WebError {
 }
 
 impl From<io::Error> for WebError {
+    /// Convert [`io::Error`] into [`WebError`]. Handles fall-through logic.
+    ///
+    /// See [`WebError::NotFound`].
     fn from(error: io::Error) -> Self {
         match error.kind() {
-            // `IsADirectory` is equivalent to `NotFound` for easy fallbacks.
-            ErrorKind::IsADirectory | ErrorKind::NotFound => Self::NotFound,
+            // These errors all map to `NotFound` for the purpose of falling
+            // through to the next possible match.
+            ErrorKind::IsADirectory
+            | ErrorKind::NotFound
+            | ErrorKind::NotADirectory => Self::NotFound,
             ErrorKind::PermissionDenied => Self::Forbidden,
             _ => Self::Internal(Error::Io(error)),
         }

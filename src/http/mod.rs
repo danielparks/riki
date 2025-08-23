@@ -322,6 +322,32 @@ mod tests {
 
     #[actix_web::test]
     #[traced_test]
+    async fn test_fall_through() {
+        let (_dir, config, app) = init_app().await;
+
+        fs::write(config.static_path.join("static"), "STATIC").unwrap();
+        fs::create_dir(config.pages_path.join("static")).unwrap();
+        fs::write(config.pages_path.join("static/page.md"), "PAGE").unwrap();
+
+        // FIXME check content-type
+        let resp = get(&app, "/static").await;
+        check!(resp.status().as_u16() == 200);
+        let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
+        check!(body == B(b"STATIC"));
+
+        let resp = get(&app, "/static/page").await;
+        check!(resp.status().as_u16() == 200);
+        let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
+        check!(body == B(b"<p>PAGE</p>\n"));
+
+        let resp = get(&app, "/static/page/.").await;
+        check!(resp.status().as_u16() == 200);
+        let_assert!(Ok(body) = body::to_bytes(resp.into_body()).await);
+        check!(body == B(b"<p>PAGE</p>\n"));
+    }
+
+    #[actix_web::test]
+    #[traced_test]
     async fn test_static_index_get() {
         let (_dir, config, app) = init_app().await;
 
