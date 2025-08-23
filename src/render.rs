@@ -3,7 +3,7 @@
 use crate::errors::{Error, Result};
 use crate::templates::TemplateManager;
 use dom_query::Document;
-use pulldown_cmark::{Options, Parser, html};
+use pulldown_cmark::{Options, Parser};
 use regex::Regex;
 use serde::Serialize;
 use serde_yaml::Error as YamlError;
@@ -175,7 +175,7 @@ impl Page {
     fn render_markdown(markdown: &str) -> String {
         let mut buffer = String::new();
         let parser = Parser::new_ext(markdown, Options::all());
-        html::push_html(&mut buffer, parser);
+        pulldown_cmark::html::push_html(&mut buffer, parser);
 
         buffer
     }
