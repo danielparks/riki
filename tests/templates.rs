@@ -1,9 +1,10 @@
 //! Test template manager.
 
 use assert2::{check, let_assert};
-use riki::Page;
+use jiff::Timestamp;
+use riki::{Page, Source};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use temp_dir::TempDir;
 
 fn create_file<P, C>(dir: &TempDir, name: P, contents: C)
@@ -29,6 +30,7 @@ fn empty_template() {
 #[test]
 fn override_template() {
     let mut tpls = riki::templates();
+    // Override embedded default template
     tpls.register_template_string("default", "").unwrap();
 
     let_assert!(Ok(page) = Page::from_memory("title: page\n---\n# Page"));
@@ -123,4 +125,42 @@ fn multiple_templates() {
         let Ok("strange <h1>2</h1>\n")
             = tpls.render("weird", &page).as_ref().map(AS_STR)
     );
+}
+
+#[test]
+fn strftime_helper() {
+    let ref_time: Timestamp = "2001-09-08 18:46:40-0700".parse().unwrap();
+    let source = Source::File {
+        path: PathBuf::from("memory"),
+        modified: Some(ref_time),
+        created: Some(ref_time),
+    };
+    let_assert!(Ok(page) = Page::from_source(source, ""));
+
+    let mut tpls = riki::templates();
+
+    tpls.register_template_string(
+        "la_tz",
+        r#"{{ strftime source.File.modified "%Y-%m-%d %H:%M:%S %z"
+            tz="America/Los_Angeles" }}"#,
+    )
+    .unwrap();
+    check!(let Ok("2001-09-08 18:46:40 -0700")
+        = tpls.render("la_tz", &page).as_ref().map(AS_STR));
+
+    tpls.register_template_string(
+        "local",
+        r#"{{ strftime source.File.modified "%Y" }}"#,
+    )
+    .unwrap();
+    check!(let Ok("2001") = tpls.render("local", &page).as_ref().map(AS_STR));
+
+    tpls.register_template_string(
+        "broken",
+        r#"{{ strftime source.File.modified "" tz="broken" }}"#,
+    )
+    .unwrap();
+    let result = tpls.render("broken", &page);
+    let_assert!(Err(error) = result.as_ref().map(AS_STR));
+    check!(error.to_string().contains(" strftime helper: "));
 }

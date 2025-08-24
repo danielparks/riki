@@ -1832,6 +1832,7 @@ dependencies = [
  "regex",
  "rust-embed",
  "serde",
+ "serde_json",
  "serde_yaml",
  "temp-dir",
  "termcolor",

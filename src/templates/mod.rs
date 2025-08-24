@@ -5,6 +5,8 @@ use crate::errors::{Error, Result};
 use handlebars::{DirectorySourceOptions, Handlebars};
 use std::path::Path;
 
+mod helpers;
+
 /// Get the basic template registry.
 ///
 /// # Panics
@@ -14,6 +16,8 @@ use std::path::Path;
 pub fn templates() -> Handlebars<'static> {
     let mut tpls = Handlebars::new();
     tpls.set_strict_mode(true);
+
+    helpers::register(&mut tpls);
 
     // Embedded templates will override future templates if dev mode is turned
     // on before they’re registered.
