@@ -3,6 +3,7 @@
 use crate::errors::{Error, Result};
 use crate::templates::TemplateManager;
 use dom_query::Document;
+use jiff::Timestamp;
 use pulldown_cmark::{Options, Parser};
 use regex::Regex;
 use serde::Serialize;
@@ -27,12 +28,52 @@ pub enum Source {
     Stdin,
 
     /// From a file.
-    File(PathBuf),
+    File {
+        /// Path to the file.
+        path: PathBuf,
+
+        /// Time the file was last modified
+        modified: Option<Timestamp>,
+
+        /// Time the file was created
+        created: Option<Timestamp>,
+    },
 }
 
-impl<P: Into<PathBuf>> From<P> for Source {
-    fn from(path: P) -> Self {
-        Self::File(path.into())
+impl Source {
+    /// Create a [`Source::File`] from a `Path`-like object.
+    pub fn from_path<P: Into<PathBuf>>(path: P) -> Self {
+        let path = path.into();
+        let metadata = path.metadata().ok();
+        Self::File {
+            path,
+            modified: metadata
+                .as_ref()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| Timestamp::try_from(t).ok()),
+            created: metadata
+                .as_ref()
+                .and_then(|m| m.created().ok())
+                .and_then(|t| Timestamp::try_from(t).ok()),
+        }
+    }
+
+    /// Get the last modified time, if available.
+    #[must_use]
+    pub const fn modified(&self) -> Option<Timestamp> {
+        match self {
+            Self::File { modified, .. } => *modified,
+            _ => None,
+        }
+    }
+
+    /// Get the creation time, if available.
+    #[must_use]
+    pub const fn created(&self) -> Option<Timestamp> {
+        match self {
+            Self::File { created, .. } => *created,
+            _ => None,
+        }
     }
 }
 
@@ -61,7 +102,7 @@ impl Page {
         let raw = fs::read_to_string(&path)
             .map_err(|error| Error::ReadPageFile { source: error })?;
 
-        Self::from_source(path, &raw)
+        Self::from_source(Source::from_path(path), &raw)
     }
 
     /// Load a `Page` from a string.
@@ -140,7 +181,7 @@ impl Page {
             .render_to_string(&self)
             .map_err(|error| Error::PageRender {
                 source: error,
-                page_source: self.source.clone(),
+                page_source: Box::new(self.source.clone()),
                 template: tpl_name.clone(),
             })
     }

@@ -4,7 +4,7 @@ mod errors;
 pub use crate::http::errors::*;
 
 use crate::errors::{Error, Result};
-use crate::render::Page;
+use crate::render::{Page, Source};
 use crate::templates::TemplateManager;
 use actix_files::NamedFile;
 use actix_web::{
@@ -206,9 +206,10 @@ fn render_page(
 ///   * [`WebError`] if the page cannot be read.
 fn try_read_page(path: PathBuf) -> Option<WebResult<Page>> {
     match fs::read_to_string(&path) {
-        Ok(content) => {
-            Some(Page::from_source(path, content).map_err(WebError::Internal))
-        }
+        Ok(content) => Some(
+            Page::from_source(Source::from_path(path), content)
+                .map_err(WebError::Internal),
+        ),
         Err(error) => match WebError::from(error) {
             WebError::NotFound => None,
             error => Some(Err(error)),

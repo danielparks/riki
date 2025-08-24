@@ -26,7 +26,9 @@ pub enum Error {
         /// The original error.
         source: mustache::Error,
         /// The source of the page.
-        page_source: Source,
+        ///
+        /// Boxed to prevent the error type from getting too big.
+        page_source: Box<Source>,
         /// The template name.
         template: String,
     },
