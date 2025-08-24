@@ -20,15 +20,21 @@ repos:
       - id: no-commit-to-branch
   - repo: local
     hooks:
-      - id: cargo fmt
-        name: cargo fmt
-        language: system
-        entry: cargo fmt --check
-        types: [rust]
-        pass_filenames: false
       - id: cargo clippy
         name: cargo clippy
         language: system
         entry: cargo clippy --all-targets --all-features
+        types: [rust]
+        pass_filenames: false
+      - id: cargo doc
+        name: cargo doc
+        language: system
+        entry: sh -c 'RUSTDOCFLAGS=-Dwarnings cargo doc --all-features --no-deps --document-private-items'
+        types: [rust]
+        pass_filenames: false
+      - id: cargo fmt
+        name: cargo fmt
+        language: system
+        entry: cargo fmt --check
         types: [rust]
         pass_filenames: false
