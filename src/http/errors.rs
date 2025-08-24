@@ -1,10 +1,10 @@
 //! Render error pages.
 
 use crate::errors::Error;
-use crate::templates::TemplateManager;
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, http};
+use handlebars::Handlebars;
 use htmlize::escape_text;
-use std::fmt;
+use maplit::hashmap;
 use std::io::{self, ErrorKind};
 use std::result::Result;
 
@@ -56,41 +56,41 @@ impl From<io::Error> for WebError {
 impl WebError {
     /// Render the error into an `HttpResponse`.
     #[must_use]
-    pub fn render(
-        &self,
-        req: &HttpRequest,
-        tpls: &TemplateManager,
-    ) -> HttpResponse {
+    pub fn render(&self, req: &HttpRequest, tpls: &Handlebars) -> HttpResponse {
         let (code, template_name, data) = match self {
             Self::Internal(error) => (
                 http::StatusCode::INTERNAL_SERVER_ERROR,
                 "error500",
-                mustache_key_value_debug("error", error),
+                hashmap! {
+                    "error" => error.to_string(),
+                    "error_debug" => format!("{error:#?}"),
+                    "req_path" => req.path().to_owned(),
+                },
             ),
             Self::InternalString(error) => (
                 http::StatusCode::INTERNAL_SERVER_ERROR,
                 "error500",
-                mustache_key_value_debug("error", error),
+                hashmap! {
+                    "error" => error.clone(),
+                    "error_debug" => error.clone(),
+                    "req_path" => req.path().to_owned(),
+                },
             ),
             Self::NotFound => (
                 http::StatusCode::NOT_FOUND,
                 "error404",
-                mustache_key_value("req_path", req.path()),
+                hashmap! { "req_path" => req.path().to_owned() },
             ),
             Self::Forbidden => (
                 http::StatusCode::FORBIDDEN,
                 "error403",
-                mustache_key_value("req_path", req.path()),
+                hashmap! { "req_path" => req.path().to_owned() },
             ),
         };
 
-        let buffer = match tpls.get(template_name) {
-            Ok(tpl) => match tpl.render_data_to_string(&data) {
-                Ok(buffer) => buffer,
-                Err(error2) => self.fallback_render(req, &error2.into()),
-            },
-            Err(error2) => self.fallback_render(req, &error2.into()),
-        };
+        let buffer = tpls
+            .render(template_name, &data)
+            .unwrap_or_else(|error2| self.fallback_render(req, &error2.into()));
 
         HttpResponseBuilder::new(code)
             .content_type("text/html; charset=UTF-8")
@@ -121,24 +121,4 @@ impl WebError {
 </html>"#
         )
     }
-}
-
-/// Generate [`mustache::Data`] that only contains a single key value.
-#[expect(clippy::needless_pass_by_value)] // `ToString` allows borrowing
-fn mustache_key_value<V: ToString>(key: &str, value: V) -> mustache::Data {
-    mustache::MapBuilder::new()
-        .insert_str(key, value.to_string())
-        .build()
-}
-
-/// Generate [`mustache::Data`] containing the Display and Debug of a value.
-#[expect(clippy::needless_pass_by_value)] // `ToString` allows borrowing
-fn mustache_key_value_debug<V: ToString + fmt::Debug>(
-    key: &str,
-    value: V,
-) -> mustache::Data {
-    mustache::MapBuilder::new()
-        .insert_str(key, value.to_string())
-        .insert_str(format!("{key}_debug"), format!("{value:#?}"))
-        .build()
 }

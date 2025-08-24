@@ -8,7 +8,6 @@ use actix_web::test::TestRequest;
 use actix_web::web::{Bytes, Data};
 use actix_web::{App, body, test};
 use assert2::check;
-use riki::TemplateManager;
 use riki::http::{Configuration, path_handler};
 use std::fs;
 use temp_dir::TempDir;
@@ -30,11 +29,13 @@ async fn init_app() -> (
     fs::create_dir(&config.pages_path).unwrap();
     fs::create_dir(&config.static_path).unwrap();
 
-    let mut tpls = TemplateManager::new();
-    tpls.load_from_string("default", "{{& body }}").unwrap();
-    tpls.load_from_string("error403", "403").unwrap();
-    tpls.load_from_string("error404", "404").unwrap();
-    tpls.load_from_string("error500", "{{& error_debug }}")
+    let mut tpls = riki::templates();
+    tpls.clear_templates();
+    tpls.register_template_string("default", "{{{ body }}}")
+        .unwrap();
+    tpls.register_template_string("error403", "403").unwrap();
+    tpls.register_template_string("error404", "404").unwrap();
+    tpls.register_template_string("error500", "{{{ error_debug }}}")
         .unwrap();
 
     (

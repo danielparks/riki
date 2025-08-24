@@ -1,7 +1,7 @@
 //! Test template manager.
 
 use assert2::{check, let_assert};
-use riki::{Page, TemplateManager};
+use riki::Page;
 use std::fs;
 use std::path::Path;
 use temp_dir::TempDir;
@@ -19,18 +19,30 @@ const AS_STR: for<'a> fn(&'a String) -> &'a str = String::as_str;
 
 #[test]
 fn empty_template() {
-    let mut tpls = TemplateManager::new();
-    tpls.load_from_string("default", "").unwrap();
-    let_assert!(Ok(tpl) = tpls.get("default"));
+    let mut tpls = riki::templates();
+    tpls.register_template_string("empty", "").unwrap();
 
     let_assert!(Ok(page) = Page::from_memory("title: page\n---\n# Page"));
-    check!(let Ok("") = tpl.render_to_string(&page).as_ref().map(AS_STR));
+    check!(let Ok("") = tpls.render("empty", &page).as_ref().map(AS_STR));
 }
 
 #[test]
-fn builtin_template() {
-    let tpls = TemplateManager::default();
-    let_assert!(Ok(tpl) = tpls.get("default"));
+fn override_template() {
+    let mut tpls = riki::templates();
+    tpls.register_template_string("default", "").unwrap();
+
+    let_assert!(Ok(page) = Page::from_memory("title: page\n---\n# Page"));
+    check!(let Ok("") = tpls.render("default", &page).as_ref().map(AS_STR));
+}
+
+#[test]
+fn embedded_template() {
+    let tpls = riki::templates();
+    let mut embeded_names: Vec<_> = tpls.get_templates().keys().collect();
+    embeded_names.sort();
+    check!(
+        embeded_names == vec!["default", "error403", "error404", "error500"]
+    );
 
     let_assert!(Ok(page) = Page::from_memory("title: page\n---\n# Page"));
     check!(let Ok("<!DOCTYPE html>
@@ -43,70 +55,65 @@ fn builtin_template() {
 
 \t</body>
 </html>
-") = tpl.render_to_string(&page).as_ref().map(AS_STR));
+") = riki::templates().render("default", &page).as_ref().map(AS_STR));
 }
 
 #[test]
 fn basic_template() {
     let temp = TempDir::new().unwrap();
-    create_file(&temp, "default.tmpl", "{{ metadata.title }} {{& body }}");
+    create_file(&temp, "default.hbs", "{{ metadata.title }} {{{ body }}}");
 
-    let tpls = TemplateManager::from_directory(temp.path()).unwrap();
-    let_assert!(Ok(tpl) = tpls.get("default"));
+    let tpls = riki::templates_from_directory(temp.path()).unwrap();
 
     let_assert!(
         Ok(page) = Page::from_memory("title: title<test>\n---\n# heading")
     );
     check!(
         let Ok("title&lt;test&gt; <h1>heading</h1>\n")
-            = tpl.render_to_string(&page).as_ref().map(AS_STR)
+            = tpls.render("default", &page).as_ref().map(AS_STR)
     );
 
     let_assert!(Ok(page) = Page::from_memory("title: t2\n---\n"));
-    check!(let Ok("t2 ") = tpl.render_to_string(&page).as_ref().map(AS_STR));
+    check!(let Ok("t2 ") = tpls.render("default", &page).as_ref().map(AS_STR));
 }
 
 #[test]
 fn basic_template_twice() {
     let temp = TempDir::new().unwrap();
-    create_file(&temp, "default.tmpl", "{{& body }}");
+    create_file(&temp, "default.hbs", "{{{ body }}}");
 
-    let tpls = TemplateManager::from_directory(temp.path()).unwrap();
+    let tpls = riki::templates_from_directory(temp.path()).unwrap();
 
-    let_assert!(Ok(tpl) = tpls.get("default"));
     let_assert!(Ok(page) = Page::from_memory("# 1"));
     check!(
         let Ok("<h1>1</h1>\n")
-            = tpl.render_to_string(&page).as_ref().map(AS_STR)
+            = tpls.render("default", &page).as_ref().map(AS_STR)
     );
 
-    let_assert!(Ok(tpl) = tpls.get("default"));
     let_assert!(Ok(page) = Page::from_memory("# 2"));
     check!(
         let Ok("<h1>2</h1>\n")
-            = tpl.render_to_string(&page).as_ref().map(AS_STR)
+            = tpls.render("default", &page).as_ref().map(AS_STR)
     );
 }
 
 #[test]
 fn multiple_templates() {
     let temp = TempDir::new().unwrap();
-    create_file(&temp, "default.tmpl", "{{& body }}");
-    create_file(&temp, "weird.tmpl", "strange {{& body }}");
+    create_file(&temp, "default.hbs", "{{{ body }}}");
+    create_file(&temp, "weird.hbs", "strange {{{ body }}}");
 
-    let tpls = TemplateManager::from_directory(temp.path()).unwrap();
+    let tpls = riki::templates_from_directory(temp.path()).unwrap();
 
-    let_assert!(Ok(tpl) = tpls.get("default"));
     let_assert!(Ok(page) = Page::from_memory("# 1"));
     check!(
         let Ok("<h1>1</h1>\n")
-            = tpl.render_to_string(&page).as_ref().map(AS_STR)
+            = tpls.render("default", &page).as_ref().map(AS_STR)
     );
 
-    let_assert!(Ok(tpl) = tpls.get("weird"));
     let_assert!(Ok(page) = Page::from_memory("# 2"));
     check!(
         let Ok("strange <h1>2</h1>\n")
-            = tpl.render_to_string(&page).as_ref().map(AS_STR)
+            = tpls.render("weird", &page).as_ref().map(AS_STR)
     );
 }

@@ -5,11 +5,12 @@ pub use crate::http::errors::*;
 
 use crate::errors::{Error, Result};
 use crate::render::{Page, Source};
-use crate::templates::TemplateManager;
+use crate::templates::templates_from_directory;
 use actix_files::NamedFile;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
+use handlebars::Handlebars;
 use std::fs;
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
@@ -64,8 +65,7 @@ pub async fn serve<P: AsRef<Path>, S: AsRef<str>>(
     let address = address.as_ref();
 
     let config = Data::new(Configuration::default_in(path.as_ref()));
-    let tpls =
-        Data::new(TemplateManager::from_directory(&config.templates_path)?);
+    let tpls = Data::new(templates_from_directory(&config.templates_path)?);
 
     HttpServer::new(move || {
         App::new()
@@ -89,7 +89,7 @@ pub async fn serve<P: AsRef<Path>, S: AsRef<str>>(
 #[get("/{path:.*}")]
 pub async fn path_handler(
     req: HttpRequest,
-    tpls: Data<TemplateManager>,
+    tpls: Data<Handlebars<'_>>,
     config: Data<Configuration>,
 ) -> impl Responder {
     clean_path(req.path())
@@ -184,7 +184,7 @@ fn render_page(
     _req: &HttpRequest,
     root: &Path,
     relative_path: &str,
-    tpls: &TemplateManager,
+    tpls: &Handlebars<'_>,
 ) -> WebResult<HttpResponse> {
     // clean_path() guarantees that relative_path doesn’t start or end with /.
     let page = try_read_page(root.join(format!("{relative_path}.md")))

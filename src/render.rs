@@ -1,8 +1,8 @@
 //! Handle rendering a page.
 
 use crate::errors::{Error, Result};
-use crate::templates::TemplateManager;
 use dom_query::Document;
+use handlebars::Handlebars;
 use jiff::Timestamp;
 use pulldown_cmark::{Options, Parser};
 use regex::Regex;
@@ -174,11 +174,10 @@ impl Page {
     ///
     /// This will return [`Error`] if there is a problem loading the template or
     /// rendering the page.
-    pub fn render_to_string(&self, tpls: &TemplateManager) -> Result<String> {
+    pub fn render_to_string(&self, tpls: &Handlebars) -> Result<String> {
         let default_name = "default".to_owned();
         let tpl_name = self.metadata.get("template").unwrap_or(&default_name);
-        tpls.get(tpl_name)?
-            .render_to_string(&self)
+        tpls.render(tpl_name, &self)
             .map_err(|error| Error::PageRender {
                 source: error,
                 page_source: Box::new(self.source.clone()),

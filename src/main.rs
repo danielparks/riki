@@ -3,9 +3,9 @@
 mod logging;
 mod params;
 
+use handlebars::Handlebars;
 use params::{Command, Params, Parser};
 use riki::Page;
-use std::io;
 use std::process::ExitCode;
 
 /// Wrapper to handle errors.
@@ -32,10 +32,11 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
 
     match &params.command {
         Command::Render { template, page } => {
-            let template = mustache::compile_path(template)?;
+            let mut tpls = Handlebars::new();
+            tpls.register_template_file("tpl", template)?;
             let page = Page::read_from(page)?;
 
-            template.render(&mut io::stdout(), &page)?;
+            print!("{}", tpls.render("tpl", &page)?);
         }
         Command::Info { page } => {
             let metadata = Page::read_from(page)?.metadata_as_string()?;
