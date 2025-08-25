@@ -1,6 +1,6 @@
 //! Errors returned by the crate.
 
-use crate::render::Source;
+use crate::pages::Source;
 use std::io;
 use std::result;
 use thiserror::Error; // doesn’t conflict with the enum.

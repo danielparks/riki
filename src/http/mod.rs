@@ -4,7 +4,7 @@ mod errors;
 pub use crate::http::errors::*;
 
 use crate::errors::{Error, Result};
-use crate::render::{Page, Source};
+use crate::pages::{Page, Source};
 use crate::templates::templates_from_directory;
 use actix_files::NamedFile;
 use actix_web::{
