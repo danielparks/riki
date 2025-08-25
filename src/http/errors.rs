@@ -41,14 +41,12 @@ impl From<io::Error> for WebError {
     ///
     /// See [`WebError::NotFound`].
     fn from(error: io::Error) -> Self {
-        match error.kind() {
-            // These errors all map to `NotFound` for the purpose of falling
-            // through to the next possible match.
-            ErrorKind::IsADirectory
-            | ErrorKind::NotFound
-            | ErrorKind::NotADirectory => Self::NotFound,
-            ErrorKind::PermissionDenied => Self::Forbidden,
-            _ => Self::Internal(Error::Io(error)),
+        if is_not_found(&error) {
+            Self::NotFound
+        } else if error.kind() == ErrorKind::PermissionDenied {
+            Self::Forbidden
+        } else {
+            Self::Internal(Error::Io(error))
         }
     }
 }
@@ -121,4 +119,18 @@ impl WebError {
 </html>"#
         )
     }
+}
+
+/// Check if an [`io::Error`] represents something not found for our purposes.
+///
+/// Generally this is used for purpose of falling through to the next possible
+/// match, e.g. if a static file isn’t found, fall through to try a page.
+#[must_use]
+pub fn is_not_found(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        ErrorKind::IsADirectory
+            | ErrorKind::NotFound
+            | ErrorKind::NotADirectory
+    )
 }

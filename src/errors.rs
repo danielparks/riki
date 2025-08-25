@@ -2,6 +2,7 @@
 
 use crate::pages::Source;
 use std::io;
+use std::path::PathBuf;
 use std::result;
 use thiserror::Error; // doesn’t conflict with the enum.
 
@@ -28,6 +29,10 @@ pub enum Error {
         /// The original error
         source: serde_yaml::Error,
     },
+
+    /// An important directory is missing
+    #[error("Missing directory {0:?}")]
+    MissingDirectory(PathBuf),
 
     /// Failed to render page body with [`handlebars`]
     #[error("Failed to render page body")]

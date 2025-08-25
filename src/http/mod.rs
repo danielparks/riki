@@ -63,8 +63,12 @@ pub async fn serve<P: AsRef<Path>, S: AsRef<str>>(
     address: S,
 ) -> Result<()> {
     let address = address.as_ref();
+    let path = path.as_ref();
+    check_dir(path)?;
 
-    let config = Data::new(Configuration::default_in(path.as_ref()));
+    let config = Data::new(Configuration::default_in(path));
+    check_dir(&config.pages_path)?;
+
     let tpls = Data::new(templates_from_directory(&config.templates_path)?);
 
     HttpServer::new(move || {
@@ -214,5 +218,20 @@ fn try_read_page(path: PathBuf) -> Option<WebResult<Page>> {
             WebError::NotFound => None,
             error => Some(Err(error)),
         },
+    }
+}
+
+/// Check that path is a directory or a symlink that resolves to a directory.
+///
+/// # Errors
+///
+///   * [`Error::MissingDirectory`] not a directory or doesn’t exist.
+///   * [`Error::Io`] some other problem getting info about `path`.
+fn check_dir<P: AsRef<Path>>(path: P) -> Result<()> {
+    let path = path.as_ref();
+    match path.metadata().map(|m| m.is_dir()) {
+        Ok(true) => Ok(()),
+        Err(error) if !is_not_found(&error) => Err(Error::Io(error)),
+        _ => Err(Error::MissingDirectory(path.to_path_buf())),
     }
 }
