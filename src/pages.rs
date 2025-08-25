@@ -14,10 +14,36 @@ use std::path::PathBuf;
 use std::result;
 use std::sync::LazyLock;
 
-/// Page metadata
-type Metadata = HashMap<String, String>;
+/// Page metadata.
+///
+/// This is the YAML data in the page header, for example:
+///
+/// ```text
+/// class: blog-post
+///
+/// ---
+///
+/// # How to use riki to host your web site
+///
+/// ...
+/// ```
+///
+/// If not present, the `title` will be set to the contents of the first `<h1>`
+/// on the page.
+pub type Metadata = HashMap<String, String>;
 
-/// The source of a [`Page`]
+/// The source of a [`Page`].
+///
+/// This will be available in the template as `{{source}}`. To access variant
+/// fields, use <code>source.<i>variant</i>.<i>field</i></code>.
+///
+/// For example:
+///
+/// ```hbs
+/// {{#if source.File.modified}}
+///     <p>Last updated {{ source.File.modified }}</p>
+/// {{/if}}
+/// ```
 #[derive(Clone, Debug, Default, Serialize)]
 pub enum Source {
     /// From memory.
@@ -30,12 +56,24 @@ pub enum Source {
     /// From a file.
     File {
         /// Path to the file.
+        ///
+        /// Access in templates with `{{source.File.path}}`. Note that you
+        /// probably want to wrap it with `{{#if source.File}}...{{/if}}` to
+        /// prevent errors rendering pages from other sources.
         path: PathBuf,
 
-        /// Time the file was last modified
+        /// Time the file was last modified.
+        ///
+        /// Access in templates with `{{source.File.modified}}`. Note that you
+        /// probably want to wrap it with `{{#if source.File}}...{{/if}}` to
+        /// prevent errors rendering pages from other sources.
         modified: Option<Timestamp>,
 
-        /// Time the file was created
+        /// Time the file was created.
+        ///
+        /// Access in templates with `{{source.File.created}}`. Note that you
+        /// probably want to wrap it with `{{#if source.File}}...{{/if}}` to
+        /// prevent errors rendering pages from other sources.
         created: Option<Timestamp>,
     },
 }
@@ -77,16 +115,33 @@ impl Source {
     }
 }
 
-/// A rendered page
+/// A rendered page.
+///
+/// This is passed to the template, so the fields become available as variables
+/// in the template.
 #[derive(Debug, Serialize)]
 pub struct Page {
-    /// Source of the page
+    /// Source of the page.
+    ///
+    /// See [`Source`] for information on how to access its fields.
     pub source: Source,
 
-    /// Metadata about the page
+    /// Metadata from the page header.
+    ///
+    /// For example, you might have a page file like:
+    ///
+    /// ```text
+    /// title: My Page
+    /// ---
+    /// # Some content
+    /// ```
+    ///
+    /// The title would be available to the template as `{{metadata.title}}`.
     pub metadata: Metadata,
 
-    /// The HTML body of the page
+    /// The HTML body of the page.
+    ///
+    /// This shouldn’t be HTML-escaped, so use the raw syntax: `{{{body}}}`.
     pub body: String,
 }
 
