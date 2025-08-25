@@ -174,10 +174,7 @@ impl Page {
     /// # Errors
     ///
     /// This will return [`Error`] if there is a problem parsing `raw`.
-    pub fn from_source<S: Into<Source>, R: AsRef<str>>(
-        source: S,
-        raw: R,
-    ) -> Result<Self> {
+    pub fn from_source<R: AsRef<str>>(source: Source, raw: R) -> Result<Self> {
         let (header, body) = split_raw_page(raw.as_ref());
 
         let mut metadata = metadata_from_string(header)?;
@@ -191,7 +188,7 @@ impl Page {
         }
 
         Ok(Self {
-            source: source.into(),
+            source,
             metadata,
             body: fragment.html_root().inner_html().to_string(),
         })
