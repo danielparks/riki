@@ -139,6 +139,11 @@ pub struct Page {
     /// The title would be available to the template as `{{metadata.title}}`.
     pub metadata: Metadata,
 
+    /// The name of the template to render with.
+    // FIXME: it would be nice to have template metadata like modification and
+    // creation time, but handlebars doesn’t support that.
+    pub template: String,
+
     /// The HTML body of the page.
     ///
     /// This shouldn’t be HTML-escaped, so use the raw syntax: `{{{body}}}`.
@@ -187,9 +192,15 @@ impl Page {
             }
         }
 
+        let template = metadata
+            .get("template")
+            .cloned()
+            .unwrap_or_else(|| "default".to_owned());
+
         Ok(Self {
             source,
             metadata,
+            template,
             body: fragment.html_root().inner_html().to_string(),
         })
     }
@@ -227,13 +238,11 @@ impl Page {
     /// This will return [`Error`] if there is a problem loading the template or
     /// rendering the page.
     pub fn render_to_string(&self, tpls: &Handlebars) -> Result<String> {
-        let default_name = "default".to_owned();
-        let tpl_name = self.metadata.get("template").unwrap_or(&default_name);
-        tpls.render(tpl_name, &self)
+        tpls.render(&self.template, &self)
             .map_err(|error| Error::PageRender {
                 source: error,
                 page_source: Box::new(self.source.clone()),
-                template: tpl_name.clone(),
+                template: self.template.clone(),
             })
     }
 }
