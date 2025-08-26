@@ -252,7 +252,7 @@ fn render_page(
 
     Ok(HttpResponse::Ok()
         .content_type("text/html; charset=UTF-8")
-        .body(page.render_to_string(tpls)?))
+        .body(page.render_to_string(tpls, Some(req))?))
 }
 
 /// Read a file page.

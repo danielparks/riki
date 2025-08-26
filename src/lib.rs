@@ -5,6 +5,7 @@ mod errors;
 mod pages;
 mod templates;
 
+pub mod elements;
 pub mod http;
 
 pub use errors::*;

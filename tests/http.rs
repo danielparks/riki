@@ -171,11 +171,19 @@ async fn test_directory_page_get() {
     fs::create_dir(config.pages_path.join("dir")).unwrap();
     fs::write(config.pages_path.join("dir/index.md"), "DIR").unwrap();
 
-    check!(Response::page_html("<p>index</p>\n") == get(&app, "/").await);
+    check!(
+        Response::page_html(
+            "<html><head></head><body><p>index</p>\n</body></html>"
+        ) == get(&app, "/").await
+    );
     check!(Response::redirect("/") == get(&app, "/.").await);
     check!(Response::redirect("/") == get(&app, "/index").await);
 
-    check!(Response::page_html("<p>DIR</p>\n") == get(&app, "/dir/").await);
+    check!(
+        Response::page_html(
+            "<html><head></head><body><p>DIR</p>\n</body></html>"
+        ) == get(&app, "/dir/").await
+    );
     check!(Response::redirect("/dir/") == get(&app, "/dir").await);
     check!(Response::redirect("/dir/") == get(&app, "/dir/.").await);
     check!(Response::redirect("/dir/") == get(&app, "/dir/index").await);
@@ -189,7 +197,11 @@ async fn test_file_page_get() {
 
     fs::write(config.pages_path.join("page.md"), "PAGE").unwrap();
 
-    check!(Response::page_html("<p>PAGE</p>\n") == get(&app, "/page").await);
+    check!(
+        Response::page_html(
+            "<html><head></head><body><p>PAGE</p>\n</body></html>"
+        ) == get(&app, "/page").await
+    );
     check!(Response::redirect("/page") == get(&app, "/page/").await);
     check!(Response::redirect("/page") == get(&app, "/page/.").await);
     check!(Response::redirect("/page") == get(&app, "/page/././").await);
@@ -241,7 +253,9 @@ async fn test_fall_through() {
     );
     check!(Response::redirect("/static") == get(&app, "/static/").await);
     check!(
-        Response::page_html("<p>PAGE</p>\n") == get(&app, "/static/page").await
+        Response::page_html(
+            "<html><head></head><body><p>PAGE</p>\n</body></html>"
+        ) == get(&app, "/static/page").await
     );
     check!(
         Response::redirect("/static/page") == get(&app, "/static/page/").await

@@ -22,6 +22,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 actix-files = "0.6.6"
 actix-web = "4.11.0"
 anyhow = "1.0.95"
+base64 = "0.22.1"
 clap = { version = "4.5.27", features = ["derive"] }
 dom_query = "0.21.0"
 handlebars = { version = "6.3.2", features = ["dir_source", "rust-embed"] }
@@ -39,6 +40,7 @@ thiserror = "2.0.15"
 tracing = "0.1.41"
 tracing-actix-web = "0.7.19"
 tracing-subscriber = { version = "0.3.20", features = ["chrono"] }
+url = "2.5.7"
 
 [dev-dependencies]
 actix-http = "3.11.0"

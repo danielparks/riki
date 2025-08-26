@@ -48,7 +48,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             let tpls = templates_from_directory(template_dir)?;
             let page = Page::read_from(page)?;
 
-            print!("{}", page.render_to_string(&tpls)?);
+            print!("{}", page.render_to_string(&tpls, None)?);
         }
         Command::Info { page } => {
             let metadata = Page::read_from(page)?.metadata_as_string()?;

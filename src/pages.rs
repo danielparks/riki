@@ -1,6 +1,10 @@
 //! Handle rendering a page.
 
+use crate::elements::{
+    self, ElementError, handle_a_email, handle_last_modified,
+};
 use crate::errors::{Error, Result};
+use actix_web::HttpRequest;
 use dom_query::Document;
 use handlebars::Handlebars;
 use jiff::Timestamp;
@@ -234,13 +238,43 @@ impl Page {
     ///
     /// This will return [`Error`] if there is a problem loading the template or
     /// rendering the page.
-    pub fn render_to_string(&self, tpls: &Handlebars) -> Result<String> {
-        tpls.render(&self.template, &self).map_err(|error| {
-            Error::TemplateRender {
-                source: error,
-                page_source: Box::new(self.source.clone()),
+    pub fn render_to_string(
+        &self,
+        tpls: &Handlebars,
+        req: Option<&HttpRequest>,
+    ) -> Result<String> {
+        let document =
+            Document::from(tpls.render(&self.template, &self).map_err(
+                |error| Error::TemplateRender {
+                    source: error,
+                    page_source: Box::new(self.source.clone()),
+                },
+            )?);
+
+        let ctx = elements::Context {
+            document: &document,
+            page: self,
+            req,
+            show_detailed_errors: true,
+        };
+        for node in document.select("a-email").nodes() {
+            if let Err(ElementError(msg)) = handle_a_email(&ctx, node) {
+                tracing::error!("Handling <a-email>: {msg}");
+                let b = document.tree.new_element("b");
+                b.set_text(msg);
+                node.replace_with(&b);
             }
-        })
+        }
+        for node in document.select("last-modified").nodes() {
+            if let Err(ElementError(msg)) = handle_last_modified(&ctx, node) {
+                tracing::error!("Handling <last-modified>: {msg}");
+                let b = document.tree.new_element("b");
+                b.set_text(msg);
+                node.replace_with(&b);
+            }
+        }
+
+        Ok(document.html().to_string())
     }
 }
 
