@@ -1,4 +1,22 @@
-//! Serve pages over HTTP
+//! # Serve pages over HTTP
+//!
+//! [`path_handler()`][path_handler] first checks if the URL path corresponds to
+//! something in the static directory, then it checks the pages. If nothing is
+//! found it renders the error404 template.
+//!
+//! ## Canonical URLs and redirects
+//!
+//! Riki redirects to the canonical URL of a page when possible.
+//!
+//! The canonical URL will end with a / if (and only if) it corresponds to a
+//! `index.html`-like page or static file.
+//!
+//! | Source path             | Canonical path   |
+//! |-------------------------|------------------|
+//! | `pages/page.md`         | `/page`          |
+//! | `pages/dir/index.md`    | `/dir/`          |
+//! | `static/static.html`    | `/static.html`   |
+//! | `static/dir/index.html` | `/dir/`          |
 
 mod errors;
 pub use crate::http::errors::*;
@@ -12,7 +30,7 @@ use actix_web::{
 };
 use handlebars::Handlebars;
 use std::fs;
-use std::io::{Read, Seek};
+use std::io::{self, Read, Seek};
 use std::path::{Path, PathBuf};
 use tracing;
 use tracing_actix_web::TracingLogger;
@@ -129,10 +147,21 @@ fn clean_path(path: &str) -> WebResult<String> {
             "stripped request path {path:?} contains .."
         )))
     } else {
+        // Remove trailing "index.html".
+        let path = if path.rsplit('/').next() == Some("index.html") {
+            // Any trailing / will be taken care of by the next block of code.
+            #[expect(
+                clippy::arithmetic_side_effects,
+                reason = "the if condition guarantees this is safe"
+            )]
+            &path[..path.len() - "index.html".len()]
+        } else {
+            path
+        };
+
         // This guarantees that the returned path doesn’t start or end with a /,
         // and doesn’t contain any "" or "." segments.
-        // FIXME: redirect (maybe if the canonical path != req.path())?
-        #[expect(clippy::comparison_to_empty)]
+        #[expect(clippy::comparison_to_empty, reason = "clarity")]
         Ok(path
             .split('/')
             .filter(|part| *part != "." && *part != "")
@@ -152,9 +181,10 @@ fn render_static(
     static_path: &Path,
     relative_path: &str,
 ) -> WebResult<HttpResponse> {
-    let candidate = static_path.join(relative_path);
-    Ok(match open_static(&candidate) {
-        Err(WebError::NotFound) => open_static(&candidate.join("index.html")),
+    Ok(match open_static(req, static_path, relative_path) {
+        Err(WebError::NotFound) => {
+            open_static_directory(req, static_path, relative_path)
+        }
         other => other,
     }?
     .into_response(req))
@@ -167,16 +197,49 @@ fn render_static(
 /// # Errors
 ///
 ///   * [`WebError`] if there was a problem opening or reading the file.
-fn open_static(path: &Path) -> WebResult<NamedFile> {
-    let mut file = fs::File::open(path)?;
+fn open_static(
+    req: &HttpRequest,
+    static_path: &Path,
+    relative_path: &str,
+) -> WebResult<NamedFile> {
+    let path = static_path.join(relative_path);
+    let file = open_confirmed_file(&path)?;
 
-    // Read 1 byte to check if the file is a directory. Using `is_dir()` would
-    // create a race condition.
-    let mut buffer: [u8; 1] = [0];
-    _ = file.read(&mut buffer)?;
-    file.rewind()?;
+    // req.path() always starts with /, but relative_path never does
+    if req.path()[1..] == *relative_path {
+        Ok(NamedFile::from_file(file, path)?)
+    } else {
+        Err(WebError::RedirectCanonical(format!("/{relative_path}")))
+    }
+}
 
-    Ok(NamedFile::from_file(file, path)?)
+/// Open a directory path as a [`NamedFile`].
+///
+/// This looks for an `index.html` file inside the directory, then reads one
+/// byte from file to check if it’s actually a directory.
+///
+/// # Errors
+///
+///   * [`WebError`] if there was a problem opening or reading the file.
+fn open_static_directory(
+    req: &HttpRequest,
+    static_path: &Path,
+    relative_path: &str,
+) -> WebResult<NamedFile> {
+    let path = static_path.join(relative_path).join("index.html");
+    let file = open_confirmed_file(&path)?;
+
+    let canonical_path = if relative_path.is_empty() {
+        "/".to_owned()
+    } else {
+        format!("/{relative_path}/")
+    };
+
+    if req.path() == canonical_path {
+        Ok(NamedFile::from_file(file, path)?)
+    } else {
+        Err(WebError::RedirectCanonical(canonical_path))
+    }
 }
 
 /// Render a page to be served over HTTP.
@@ -234,4 +297,23 @@ fn check_dir<P: AsRef<Path>>(path: P) -> Result<()> {
         Err(error) if !is_not_found(&error) => Err(Error::Io(error)),
         _ => Err(Error::MissingDirectory(path.to_path_buf())),
     }
+}
+
+/// Open a file and confirm that it is a file.
+///
+/// This reads one byte to check if the file is a directory (using `is_dir()`
+/// would create a race condition.)
+///
+/// Returns the opened file (rewound).
+///
+/// # Errors
+///
+///   * [`io::Error`] resulting from opening the file, reading a byte, or
+///     seeking to the start of the file.
+fn open_confirmed_file(path: &Path) -> io::Result<fs::File> {
+    let mut file = fs::File::open(path)?;
+    let mut buffer: [u8; 1] = [0];
+    _ = file.read(&mut buffer)?;
+    file.rewind()?;
+    Ok(file)
 }

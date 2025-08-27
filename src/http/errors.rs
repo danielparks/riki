@@ -4,6 +4,7 @@ use crate::errors::Error;
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, http};
 use handlebars::Handlebars;
 use htmlize::escape_text;
+use http::{StatusCode, header};
 use maplit::hashmap;
 use std::io::{self, ErrorKind};
 use std::result::Result;
@@ -34,6 +35,12 @@ pub enum WebError {
     /// Permission denied error.
     #[error("access forbidden")]
     Forbidden,
+
+    /// # Redirect.
+    ///
+    /// Generally this means that a non-canonical URL was requested.
+    #[error("redirect to {0}")]
+    RedirectCanonical(String),
 }
 
 impl From<io::Error> for WebError {
@@ -55,9 +62,9 @@ impl WebError {
     /// Render the error into an `HttpResponse`.
     #[must_use]
     pub fn render(&self, req: &HttpRequest, tpls: &Handlebars) -> HttpResponse {
-        let (code, template_name, data) = match self {
+        let (mut builder, template_name, data) = match self {
             Self::Internal(error) => (
-                http::StatusCode::INTERNAL_SERVER_ERROR,
+                HttpResponseBuilder::new(StatusCode::INTERNAL_SERVER_ERROR),
                 "error500",
                 hashmap! {
                     "error" => error.to_string(),
@@ -66,7 +73,7 @@ impl WebError {
                 },
             ),
             Self::InternalString(error) => (
-                http::StatusCode::INTERNAL_SERVER_ERROR,
+                HttpResponseBuilder::new(StatusCode::INTERNAL_SERVER_ERROR),
                 "error500",
                 hashmap! {
                     "error" => error.clone(),
@@ -75,22 +82,33 @@ impl WebError {
                 },
             ),
             Self::NotFound => (
-                http::StatusCode::NOT_FOUND,
+                HttpResponseBuilder::new(StatusCode::NOT_FOUND),
                 "error404",
                 hashmap! { "req_path" => req.path().to_owned() },
             ),
             Self::Forbidden => (
-                http::StatusCode::FORBIDDEN,
+                HttpResponseBuilder::new(StatusCode::FORBIDDEN),
                 "error403",
                 hashmap! { "req_path" => req.path().to_owned() },
             ),
+            Self::RedirectCanonical(url) => {
+                // FIXME should this be permanent?
+                let mut builder =
+                    HttpResponseBuilder::new(StatusCode::MOVED_PERMANENTLY);
+                builder.insert_header((header::LOCATION, url.clone()));
+                (
+                    builder,
+                    "redirect301",
+                    hashmap! { "canonical_url" => url.clone() },
+                )
+            }
         };
 
         let buffer = tpls
             .render(template_name, &data)
             .unwrap_or_else(|error2| self.fallback_render(req, &error2.into()));
 
-        HttpResponseBuilder::new(code)
+        builder
             .content_type("text/html; charset=UTF-8")
             .body(buffer)
     }

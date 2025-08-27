@@ -41,7 +41,14 @@ fn embedded_template() {
     let mut embeded_names: Vec<_> = tpls.get_templates().keys().collect();
     embeded_names.sort();
     check!(
-        embeded_names == vec!["default", "error403", "error404", "error500"]
+        embeded_names
+            == vec![
+                "default",
+                "error403",
+                "error404",
+                "error500",
+                "redirect301"
+            ]
     );
 
     let_assert!(Ok(page) = Page::from_memory("title: page\n---\n# Page"));
