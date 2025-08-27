@@ -181,7 +181,7 @@ fn render_static(
     static_path: &Path,
     relative_path: &str,
 ) -> WebResult<HttpResponse> {
-    Ok(match open_static(req, static_path, relative_path) {
+    Ok(match open_static_file(req, static_path, relative_path) {
         Err(WebError::NotFound) => {
             open_static_directory(req, static_path, relative_path)
         }
@@ -190,14 +190,14 @@ fn render_static(
     .into_response(req))
 }
 
-/// Open a path as a [`NamedFile`].
+/// Open a file path as a [`NamedFile`].
 ///
 /// This reads one byte from the file to check if it’s actually a directory.
 ///
 /// # Errors
 ///
 ///   * [`WebError`] if there was a problem opening or reading the file.
-fn open_static(
+fn open_static_file(
     req: &HttpRequest,
     static_path: &Path,
     relative_path: &str,
