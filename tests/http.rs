@@ -164,13 +164,25 @@ where
 
 #[actix_web::test]
 #[traced_test]
-async fn test_index_page_get() {
+async fn test_directory_page_get() {
     let (_dir, config, app) = init_app().await;
 
     fs::write(config.pages_path.join("index.md"), "index").unwrap();
 
     check!(Response::page_html("<p>index</p>\n") == get(&app, "/").await);
-    check!(Response::page_html("<p>index</p>\n") == get(&app, "/.").await);
+    check!(Response::redirect("/") == get(&app, "/.").await);
+}
+
+#[actix_web::test]
+#[traced_test]
+async fn test_file_page_get() {
+    let (_dir, config, app) = init_app().await;
+
+    fs::write(config.pages_path.join("page.md"), "PAGE").unwrap();
+
+    check!(Response::page_html("<p>PAGE</p>\n") == get(&app, "/page").await);
+    check!(Response::redirect("/page") == get(&app, "/page/").await);
+    check!(Response::redirect("/page") == get(&app, "/page/.").await);
 }
 
 #[actix_web::test]
@@ -220,8 +232,7 @@ async fn test_fall_through() {
         Response::page_html("<p>PAGE</p>\n") == get(&app, "/static/page").await
     );
     check!(
-        Response::page_html("<p>PAGE</p>\n")
-            == get(&app, "/static/page/").await
+        Response::redirect("/static/page") == get(&app, "/static/page/").await
     );
 }
 

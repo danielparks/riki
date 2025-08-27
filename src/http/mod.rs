@@ -275,14 +275,21 @@ fn render_page(
 ///
 ///   * [`WebError`] if the page cannot be read.
 fn try_read_file_page(
-    _req: &HttpRequest,
+    req: &HttpRequest,
     root: &Path,
     relative_path: &str,
 ) -> WebResult<Page> {
     let path = root.join(format!("{relative_path}.md"));
     let content = fs::read_to_string(&path)?;
-    Page::from_source(Source::from_path(path), content)
-        .map_err(WebError::Internal)
+
+    let canonical_path = format!("/{relative_path}");
+
+    if req.path() == canonical_path {
+        Page::from_source(Source::from_path(path), content)
+            .map_err(WebError::Internal)
+    } else {
+        Err(WebError::RedirectCanonical(canonical_path))
+    }
 }
 
 /// Read a directory page (i.e. `index.md`).
@@ -291,14 +298,25 @@ fn try_read_file_page(
 ///
 ///   * [`WebError`] if the page cannot be read.
 fn try_read_directory_page(
-    _req: &HttpRequest,
+    req: &HttpRequest,
     root: &Path,
     relative_path: &str,
 ) -> WebResult<Page> {
     let path = root.join(relative_path).join("index.md");
     let content = fs::read_to_string(&path)?;
-    Page::from_source(Source::from_path(path), content)
-        .map_err(WebError::Internal)
+
+    let canonical_path = if relative_path.is_empty() {
+        "/".to_owned()
+    } else {
+        format!("/{relative_path}/")
+    };
+
+    if req.path() == canonical_path {
+        Page::from_source(Source::from_path(path), content)
+            .map_err(WebError::Internal)
+    } else {
+        Err(WebError::RedirectCanonical(canonical_path))
+    }
 }
 
 /// Check that path is a directory or a symlink that resolves to a directory.
