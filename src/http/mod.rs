@@ -107,7 +107,7 @@ pub async fn serve<P: AsRef<Path>, S: AsRef<str>>(
 }
 
 /// Handle all GET requests
-#[expect(clippy::future_not_send)] // Actix doesn’t require Send.
+#[expect(clippy::future_not_send, reason = "Actix doesn’t require Send")]
 #[get("/{path:.*}")]
 pub async fn path_handler(
     req: HttpRequest,

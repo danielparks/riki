@@ -14,7 +14,7 @@ use temp_dir::TempDir;
 use tracing_test::traced_test;
 
 /// Initialize the test app.
-#[expect(clippy::future_not_send)] // Actix doesn’t require Send.
+#[expect(clippy::future_not_send, reason = "Actix doesn’t require Send")]
 async fn init_app() -> (
     TempDir,
     Configuration,
@@ -57,7 +57,7 @@ async fn init_app() -> (
 }
 
 /// Get body of response
-#[expect(clippy::future_not_send)] // Actix doesn’t require Send.
+#[expect(clippy::future_not_send, reason = "Actix doesn’t require Send")]
 async fn get_body(resp: ServiceResponse<BoxBody>) -> Bytes {
     body::to_bytes(resp.into_body()).await.unwrap()
 }
@@ -97,7 +97,7 @@ struct Response {
 
 impl Response {
     /// Create the summary from an actual [`ServiceResponse`].
-    #[expect(clippy::future_not_send)] // Actix doesn’t require Send.
+    #[expect(clippy::future_not_send, reason = "Actix doesn’t require Send")]
     async fn from(resp: ServiceResponse<BoxBody>) -> Self {
         Self {
             status: resp.status(),
@@ -149,7 +149,7 @@ impl Response {
 }
 
 /// Make a GET request to the test app.
-#[expect(clippy::future_not_send)] // Actix doesn’t require Send.
+#[expect(clippy::future_not_send, reason = "Actix doesn’t require Send")]
 async fn get<S, E>(app: S, uri: &str) -> Response
 where
     S: Service<Request, Response = ServiceResponse<BoxBody>, Error = E>,
