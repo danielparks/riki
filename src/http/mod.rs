@@ -248,15 +248,18 @@ fn open_static_directory(
 ///
 /// Returns [`WebError`] if the page cannot be found or cannot be rendered.
 fn render_page(
-    _req: &HttpRequest,
+    req: &HttpRequest,
     root: &Path,
     relative_path: &str,
     tpls: &Handlebars<'_>,
 ) -> WebResult<HttpResponse> {
     // clean_path() guarantees that relative_path doesn’t start or end with /.
-    let page = try_read_page(root.join(format!("{relative_path}.md")))
-        .or_else(|| try_read_page(root.join(relative_path).join("index.md")))
-        .unwrap_or(Err(WebError::NotFound))?;
+    let page = match try_read_file_page(req, root, relative_path) {
+        Err(WebError::NotFound) => {
+            try_read_directory_page(req, root, relative_path)
+        }
+        other => other,
+    }?;
 
     // FIXME: caching headers based on template and Page.
     // FIXME: add cache-busting to href, src, etc. in HTML.
@@ -266,22 +269,36 @@ fn render_page(
         .body(page.render_to_string(tpls)?))
 }
 
-/// Read a page file, or return `None` if it doesn’t exist or is a directory.
+/// Read a file page.
 ///
 /// # Errors
 ///
 ///   * [`WebError`] if the page cannot be read.
-fn try_read_page(path: PathBuf) -> Option<WebResult<Page>> {
-    match fs::read_to_string(&path) {
-        Ok(content) => Some(
-            Page::from_source(Source::from_path(path), content)
-                .map_err(WebError::Internal),
-        ),
-        Err(error) => match WebError::from(error) {
-            WebError::NotFound => None,
-            error => Some(Err(error)),
-        },
-    }
+fn try_read_file_page(
+    _req: &HttpRequest,
+    root: &Path,
+    relative_path: &str,
+) -> WebResult<Page> {
+    let path = root.join(format!("{relative_path}.md"));
+    let content = fs::read_to_string(&path)?;
+    Page::from_source(Source::from_path(path), content)
+        .map_err(WebError::Internal)
+}
+
+/// Read a directory page (i.e. `index.md`).
+///
+/// # Errors
+///
+///   * [`WebError`] if the page cannot be read.
+fn try_read_directory_page(
+    _req: &HttpRequest,
+    root: &Path,
+    relative_path: &str,
+) -> WebResult<Page> {
+    let path = root.join(relative_path).join("index.md");
+    let content = fs::read_to_string(&path)?;
+    Page::from_source(Source::from_path(path), content)
+        .map_err(WebError::Internal)
 }
 
 /// Check that path is a directory or a symlink that resolves to a directory.
