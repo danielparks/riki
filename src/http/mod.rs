@@ -165,8 +165,9 @@ fn clean_path(path: &str) -> WebResult<String> {
 ///
 /// # Errors
 ///
-/// This returns <code>[WebError::Internal][]([Error::Io][])</code> if there is
-/// a problem reading the static file.
+///   * [`WebError`] if there was a problem opening or reading the file.
+///   * [`WebError::RedirectCanonical`] if the canonical path for the file does
+///     not match the request path.
 fn render_static(
     req: &HttpRequest,
     static_path: &Path,
@@ -193,6 +194,8 @@ fn render_static(
 /// # Errors
 ///
 ///   * [`WebError`] if there was a problem opening or reading the file.
+///   * [`WebError::RedirectCanonical`] if the canonical path for the file does
+///     not match the request path.
 fn open_static_file(
     req: &HttpRequest,
     root: &Path,
@@ -218,7 +221,9 @@ fn open_static_file(
 ///
 /// # Errors
 ///
-/// Returns [`WebError`] if the page cannot be found or cannot be rendered.
+///   * [`WebError`] if the page cannot be read.
+///   * [`WebError::RedirectCanonical`] if the canonical path for the page does
+///     not match the request path.
 fn render_page(
     req: &HttpRequest,
     root: &Path,
@@ -250,6 +255,8 @@ fn render_page(
 /// # Errors
 ///
 ///   * [`WebError`] if the page cannot be read.
+///   * [`WebError::RedirectCanonical`] if the canonical path for the page does
+///     not match the request path.
 fn read_page_file(
     req: &HttpRequest,
     root: &Path,
