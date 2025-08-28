@@ -130,7 +130,7 @@ pub async fn path_handler(
         })
 }
 
-/// Get a relative path that can be joined to another path safely.
+/// Get a clean path request path.
 ///
 /// # Errors
 ///
@@ -147,14 +147,17 @@ fn clean_path(path: &str) -> WebResult<String> {
             "stripped request path {path:?} contains .."
         )))
     } else {
-        // This guarantees that the returned path doesn’t start or end with a /,
-        // and doesn’t contain any "" or "." segments.
+        // This guarantees the returned path:
+        //   * either is "/" or doesn’t end with '/'
+        //   * doesn’t contain any "" or "." segments
         #[expect(clippy::comparison_to_empty, reason = "clarity")]
-        Ok(path
-            .split('/')
-            .filter(|part| *part != "." && *part != "")
-            .collect::<Vec<_>>()
-            .join("/"))
+        Ok(format!(
+            "/{}",
+            path.split('/')
+                .filter(|part| *part != "." && *part != "")
+                .collect::<Vec<_>>()
+                .join("/")
+        ))
     }
 }
 
@@ -167,16 +170,16 @@ fn clean_path(path: &str) -> WebResult<String> {
 fn render_static(
     req: &HttpRequest,
     static_path: &Path,
-    relative_path: &str,
+    clean_path: &str,
 ) -> WebResult<HttpResponse> {
-    Ok(match open_static_file(req, static_path, relative_path) {
+    Ok(match open_static_file(req, static_path, clean_path) {
         Err(WebError::NotFound) => {
-            let index_relative_path = format!("{relative_path}/index.html");
-            open_static_file(
-                req,
-                static_path,
-                index_relative_path.trim_start_matches('/'),
-            )
+            let index_clean_path = if clean_path.ends_with('/') {
+                format!("{clean_path}index.html")
+            } else {
+                format!("{clean_path}/index.html")
+            };
+            open_static_file(req, static_path, &index_clean_path)
         }
         other => other,
     }?
@@ -193,25 +196,21 @@ fn render_static(
 fn open_static_file(
     req: &HttpRequest,
     root: &Path,
-    relative_path: &str,
+    clean_path: &str,
 ) -> WebResult<NamedFile> {
-    let path = root.join(relative_path);
+    let path = root.join(&clean_path[1..]);
     let file = open_confirmed_file(&path)?;
 
-    let canonical_path = if relative_path.ends_with("/index.html") {
-        // This leaves a trailing '/'. relative_path is guaranteed not to start
-        // with '/', so there must be another character before that, too.
-        format!("/{}", relative_path.strip_suffix("index.html").unwrap())
-    } else if relative_path == "index.html" {
-        "/".to_owned()
+    let canonical_path = if clean_path.ends_with("/index.html") {
+        clean_path.strip_suffix("index.html").unwrap()
     } else {
-        format!("/{relative_path}")
+        clean_path
     };
 
     if req.path() == canonical_path {
         Ok(NamedFile::from_file(file, path)?)
     } else {
-        Err(WebError::RedirectCanonical(canonical_path))
+        Err(WebError::RedirectCanonical(canonical_path.to_owned()))
     }
 }
 
@@ -223,18 +222,17 @@ fn open_static_file(
 fn render_page(
     req: &HttpRequest,
     root: &Path,
-    relative_path: &str,
+    clean_path: &str,
     tpls: &Handlebars<'_>,
 ) -> WebResult<HttpResponse> {
-    // clean_path() guarantees that relative_path doesn’t start or end with /.
-    let page = match read_page_file(req, root, relative_path) {
+    let page = match read_page_file(req, root, clean_path) {
         Err(WebError::NotFound) => {
-            let index_relative_path = if relative_path.is_empty() {
-                "index".to_owned()
+            let index_clean_path = if clean_path.ends_with('/') {
+                format!("{clean_path}index")
             } else {
-                format!("{relative_path}/index")
+                format!("{clean_path}/index")
             };
-            read_page_file(req, root, &index_relative_path)
+            read_page_file(req, root, &index_clean_path)
         }
         other => other,
     }?;
@@ -255,26 +253,23 @@ fn render_page(
 fn read_page_file(
     req: &HttpRequest,
     root: &Path,
-    relative_path: &str,
+    clean_path: &str,
 ) -> WebResult<Page> {
-    let path = root.join(format!("{relative_path}.md"));
+    let path = root.join(format!("{}.md", &clean_path[1..]));
+    // FIXME we don’t have to read the whole file if we are going to redirect.
     let content = fs::read_to_string(&path)?;
 
-    let canonical_path = if relative_path.ends_with("/index") {
-        // This leaves a trailing '/'. relative_path is guaranteed not to start
-        // with '/', so there must be another character before that, too.
-        format!("/{}", relative_path.strip_suffix("index").unwrap())
-    } else if relative_path == "index" {
-        "/".to_owned()
+    let canonical_path = if clean_path.ends_with("/index") {
+        clean_path.strip_suffix("index").unwrap()
     } else {
-        format!("/{relative_path}")
+        clean_path
     };
 
     if req.path() == canonical_path {
         Page::from_source(Source::from_path(path), content)
             .map_err(WebError::Internal)
     } else {
-        Err(WebError::RedirectCanonical(canonical_path))
+        Err(WebError::RedirectCanonical(canonical_path.to_owned()))
     }
 }
 
