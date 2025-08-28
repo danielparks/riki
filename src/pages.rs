@@ -252,11 +252,11 @@ fn split_raw_page(raw: &str) -> (&str, &str) {
     static SPLIT_RE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"(?:^|\s*[\r\n])---(?:$|[\r\n]\s*)").unwrap()
     });
-    let parts: Vec<&str> = SPLIT_RE.splitn(raw, 2).collect();
-    match parts[..] {
-        [yaml, body] => (yaml, body),
-        [body] => ("", body),
-        _ => unreachable!(),
+    let mut iter = SPLIT_RE.splitn(raw, 2);
+    match (iter.next(), iter.next()) {
+        (Some(yaml), Some(body)) => (yaml, body),
+        (Some(body), None) => ("", body),
+        (None, _) => unreachable!(),
     }
 }
 
