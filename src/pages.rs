@@ -159,8 +159,7 @@ impl Page {
     /// and
     pub fn read_from<P: Into<PathBuf>>(path: P) -> Result<Self> {
         let path: PathBuf = path.into();
-        let raw = fs::read_to_string(&path)
-            .map_err(|error| Error::ReadPageFile { source: error })?;
+        let raw = fs::read_to_string(&path).map_err(Error::ReadPageFile)?;
 
         Self::from_source(Source::from_path(path), &raw)
     }
@@ -213,7 +212,7 @@ impl Page {
     /// serializing the metadata as YAML.
     pub fn metadata_as_string(&self) -> Result<String> {
         let yaml = serde_yaml::to_string(&self.metadata)
-            .map_err(|source| Error::MetadataRender { source })?;
+            .map_err(Error::MetadataRender)?;
 
         let prefix = "---\n";
         let start = if yaml.starts_with(prefix) {

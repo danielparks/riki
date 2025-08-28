@@ -25,10 +25,7 @@ pub enum Error {
 
     /// Failed to render page metadata
     #[error("Failed to render page metadata")]
-    MetadataRender {
-        /// The original error
-        source: serde_yaml::Error,
-    },
+    MetadataRender(serde_yaml::Error),
 
     /// An important directory is missing
     #[error("Missing directory {0:?}")]
@@ -53,10 +50,7 @@ pub enum Error {
 
     /// Failed to read page file
     #[error("Failed to read page file")]
-    ReadPageFile {
-        /// The original error.
-        source: io::Error,
-    },
+    ReadPageFile(io::Error),
 
     /// Failed to compile template with [`handlebars`]
     #[error("Failed to compile template at: {0:?}")]
