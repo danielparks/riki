@@ -29,7 +29,6 @@ use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
 use handlebars::Handlebars;
-use std::ffi::OsStr;
 use std::fs;
 use std::io::{self, Read, Seek};
 use std::path::{Path, PathBuf};
@@ -172,7 +171,12 @@ fn render_static(
 ) -> WebResult<HttpResponse> {
     Ok(match open_static_file(req, static_path, relative_path) {
         Err(WebError::NotFound) => {
-            open_static_directory(req, static_path, relative_path)
+            let index_relative_path = format!("{relative_path}/index.html");
+            open_static_file(
+                req,
+                static_path,
+                index_relative_path.trim_start_matches('/'),
+            )
         }
         other => other,
     }?
@@ -188,57 +192,20 @@ fn render_static(
 ///   * [`WebError`] if there was a problem opening or reading the file.
 fn open_static_file(
     req: &HttpRequest,
-    static_path: &Path,
+    root: &Path,
     relative_path: &str,
 ) -> WebResult<NamedFile> {
-    let path = static_path.join(relative_path);
+    let path = root.join(relative_path);
     let file = open_confirmed_file(&path)?;
 
-    let relative_path = if path.file_name() == Some(OsStr::new("index.html")) {
-        // This is actually a directory-style path, so it should end with /.
-        #[expect(
-            clippy::arithmetic_side_effects,
-            reason = "the if implies relative_path ends with index.html"
-        )]
-        &relative_path[..relative_path.len() - "index.html".len()]
-        // relative_path is now either empty, or ends with '/'.
-    } else {
-        relative_path
-    };
-
-    let canonical_path = if relative_path.is_empty() {
+    let canonical_path = if relative_path.ends_with("/index.html") {
+        // This leaves a trailing '/'. relative_path is guaranteed not to start
+        // with '/', so there must be another character before that, too.
+        format!("/{}", relative_path.strip_suffix("index.html").unwrap())
+    } else if relative_path == "index.html" {
         "/".to_owned()
     } else {
         format!("/{relative_path}")
-    };
-
-    if req.path() == canonical_path {
-        Ok(NamedFile::from_file(file, path)?)
-    } else {
-        Err(WebError::RedirectCanonical(canonical_path))
-    }
-}
-
-/// Open a directory path as a [`NamedFile`].
-///
-/// This looks for an `index.html` file inside the directory, then reads one
-/// byte from file to check if it’s actually a directory.
-///
-/// # Errors
-///
-///   * [`WebError`] if there was a problem opening or reading the file.
-fn open_static_directory(
-    req: &HttpRequest,
-    static_path: &Path,
-    relative_path: &str,
-) -> WebResult<NamedFile> {
-    let path = static_path.join(relative_path).join("index.html");
-    let file = open_confirmed_file(&path)?;
-
-    let canonical_path = if relative_path.is_empty() {
-        "/".to_owned()
-    } else {
-        format!("/{relative_path}/")
     };
 
     if req.path() == canonical_path {
