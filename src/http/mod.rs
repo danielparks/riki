@@ -29,6 +29,7 @@ use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
 use handlebars::Handlebars;
+use std::ffi::OsStr;
 use std::fs;
 use std::io::{self, Read, Seek};
 use std::path::{Path, PathBuf};
@@ -147,18 +148,6 @@ fn clean_path(path: &str) -> WebResult<String> {
             "stripped request path {path:?} contains .."
         )))
     } else {
-        // Remove trailing "index.html".
-        let path = if path.rsplit('/').next() == Some("index.html") {
-            // Any trailing / will be taken care of by the next block of code.
-            #[expect(
-                clippy::arithmetic_side_effects,
-                reason = "the if condition guarantees this is safe"
-            )]
-            &path[..path.len() - "index.html".len()]
-        } else {
-            path
-        };
-
         // This guarantees that the returned path doesn’t start or end with a /,
         // and doesn’t contain any "" or "." segments.
         #[expect(clippy::comparison_to_empty, reason = "clarity")]
@@ -205,11 +194,28 @@ fn open_static_file(
     let path = static_path.join(relative_path);
     let file = open_confirmed_file(&path)?;
 
-    // req.path() always starts with /, but relative_path never does
-    if req.path()[1..] == *relative_path {
+    let relative_path = if path.file_name() == Some(OsStr::new("index.html")) {
+        // This is actually a directory-style path, so it should end with /.
+        #[expect(
+            clippy::arithmetic_side_effects,
+            reason = "the if implies relative_path ends with index.html"
+        )]
+        &relative_path[..relative_path.len() - "index.html".len()]
+        // relative_path is now either empty, or ends with '/'.
+    } else {
+        relative_path
+    };
+
+    let canonical_path = if relative_path.is_empty() {
+        "/".to_owned()
+    } else {
+        format!("/{relative_path}")
+    };
+
+    if req.path() == canonical_path {
         Ok(NamedFile::from_file(file, path)?)
     } else {
-        Err(WebError::RedirectCanonical(format!("/{relative_path}")))
+        Err(WebError::RedirectCanonical(canonical_path))
     }
 }
 

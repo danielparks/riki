@@ -183,11 +183,12 @@ async fn test_file_page_get() {
     check!(Response::page_html("<p>PAGE</p>\n") == get(&app, "/page").await);
     check!(Response::redirect("/page") == get(&app, "/page/").await);
     check!(Response::redirect("/page") == get(&app, "/page/.").await);
+    check!(Response::redirect("/page") == get(&app, "/page/././").await);
 }
 
 #[actix_web::test]
 #[traced_test]
-async fn test_static_get() {
+async fn test_static_file_get() {
     let (_dir, config, app) = init_app().await;
 
     fs::write(config.static_path.join("a.txt"), "AAA").unwrap();
@@ -198,11 +199,12 @@ async fn test_static_get() {
     );
     check!(Response::redirect("/a.txt") == get(&app, "/a.txt/").await);
     check!(Response::redirect("/a.txt") == get(&app, "/a.txt/.").await);
+    check!(Response::redirect("/a.txt") == get(&app, "/a.txt/././").await);
 }
 
 #[actix_web::test]
 #[traced_test]
-async fn test_static_index_get() {
+async fn test_static_directory_get() {
     let (_dir, config, app) = init_app().await;
 
     let b_dir = config.static_path.join("b");
@@ -212,6 +214,7 @@ async fn test_static_index_get() {
     check!(Response::static_html("BBB") == get(&app, "/b/").await);
     check!(Response::redirect("/b/") == get(&app, "/b").await);
     check!(Response::redirect("/b/") == get(&app, "/b/index.html").await);
+    check!(Response::redirect("/b/") == get(&app, "/b/././index.html").await);
 }
 
 #[actix_web::test]
