@@ -168,9 +168,18 @@ async fn test_directory_page_get() {
     let (_dir, config, app) = init_app().await;
 
     fs::write(config.pages_path.join("index.md"), "index").unwrap();
+    fs::create_dir(config.pages_path.join("dir")).unwrap();
+    fs::write(config.pages_path.join("dir/index.md"), "DIR").unwrap();
 
     check!(Response::page_html("<p>index</p>\n") == get(&app, "/").await);
     check!(Response::redirect("/") == get(&app, "/.").await);
+    check!(Response::redirect("/") == get(&app, "/index").await);
+
+    check!(Response::page_html("<p>DIR</p>\n") == get(&app, "/dir/").await);
+    check!(Response::redirect("/dir/") == get(&app, "/dir").await);
+    check!(Response::redirect("/dir/") == get(&app, "/dir/.").await);
+    check!(Response::redirect("/dir/") == get(&app, "/dir/index").await);
+    check!(Response::redirect("/dir/") == get(&app, "/dir/././index").await);
 }
 
 #[actix_web::test]

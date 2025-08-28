@@ -255,7 +255,15 @@ fn try_read_file_page(
     let path = root.join(format!("{relative_path}.md"));
     let content = fs::read_to_string(&path)?;
 
-    let canonical_path = format!("/{relative_path}");
+    let canonical_path = if relative_path.ends_with("/index") {
+        // This leaves a trailing '/'. relative_path is guaranteed not to start
+        // with '/', so there must be another character before that, too.
+        format!("/{}", relative_path.strip_suffix("index").unwrap())
+    } else if relative_path == "index" {
+        "/".to_owned()
+    } else {
+        format!("/{relative_path}")
+    };
 
     if req.path() == canonical_path {
         Page::from_source(Source::from_path(path), content)
