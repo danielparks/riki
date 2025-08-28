@@ -227,9 +227,14 @@ fn render_page(
     tpls: &Handlebars<'_>,
 ) -> WebResult<HttpResponse> {
     // clean_path() guarantees that relative_path doesn’t start or end with /.
-    let page = match try_read_file_page(req, root, relative_path) {
+    let page = match read_page_file(req, root, relative_path) {
         Err(WebError::NotFound) => {
-            try_read_directory_page(req, root, relative_path)
+            let index_relative_path = if relative_path.is_empty() {
+                "index".to_owned()
+            } else {
+                format!("{relative_path}/index")
+            };
+            read_page_file(req, root, &index_relative_path)
         }
         other => other,
     }?;
@@ -247,7 +252,7 @@ fn render_page(
 /// # Errors
 ///
 ///   * [`WebError`] if the page cannot be read.
-fn try_read_file_page(
+fn read_page_file(
     req: &HttpRequest,
     root: &Path,
     relative_path: &str,
@@ -263,33 +268,6 @@ fn try_read_file_page(
         "/".to_owned()
     } else {
         format!("/{relative_path}")
-    };
-
-    if req.path() == canonical_path {
-        Page::from_source(Source::from_path(path), content)
-            .map_err(WebError::Internal)
-    } else {
-        Err(WebError::RedirectCanonical(canonical_path))
-    }
-}
-
-/// Read a directory page (i.e. `index.md`).
-///
-/// # Errors
-///
-///   * [`WebError`] if the page cannot be read.
-fn try_read_directory_page(
-    req: &HttpRequest,
-    root: &Path,
-    relative_path: &str,
-) -> WebResult<Page> {
-    let path = root.join(relative_path).join("index.md");
-    let content = fs::read_to_string(&path)?;
-
-    let canonical_path = if relative_path.is_empty() {
-        "/".to_owned()
-    } else {
-        format!("/{relative_path}/")
     };
 
     if req.path() == canonical_path {
