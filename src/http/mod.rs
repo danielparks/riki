@@ -263,8 +263,7 @@ fn read_page_file(
     clean_path: &str,
 ) -> WebResult<Page> {
     let path = root.join(format!("{}.md", &clean_path[1..]));
-    // FIXME we don’t have to read the whole file if we are going to redirect.
-    let content = fs::read_to_string(&path)?;
+    let mut file = open_confirmed_file(&path)?;
 
     let canonical_path = if clean_path.ends_with("/index") {
         clean_path.strip_suffix("index").unwrap()
@@ -273,6 +272,12 @@ fn read_page_file(
     };
 
     if req.path() == canonical_path {
+        let mut content = String::new();
+        #[expect(
+            clippy::verbose_file_reads,
+            reason = "need to open file before checking path"
+        )]
+        file.read_to_string(&mut content)?;
         Page::from_source(Source::from_path(path), content)
             .map_err(WebError::Internal)
     } else {
