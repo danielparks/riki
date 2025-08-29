@@ -140,11 +140,11 @@ fn clean_path(path: &str) -> WebResult<String> {
     // TODO? Actix seems to do deal with .. and maybe // for us. Simplify?
     if !path.starts_with('/') {
         Err(WebError::InternalString(format!(
-            "reqest path {path:?} does not start with /"
+            "request path {path:?} does not start with /"
         )))
     } else if path.split('/').any(|v| v == "..") {
         Err(WebError::InternalString(format!(
-            "stripped request path {path:?} contains .."
+            "request path {path:?} contains .."
         )))
     } else {
         // This guarantees the returned path:
@@ -317,4 +317,75 @@ fn open_confirmed_file(path: &Path) -> io::Result<fs::File> {
     _ = file.read(&mut buffer)?;
     file.rewind()?;
     Ok(file)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use assert2::check;
+
+    /// For easier comparisons.
+    fn wrapped_clean_path(path: &str) -> Result<String, String> {
+        clean_path(path).map_err(|error| match error {
+            WebError::InternalString(msg) => msg,
+            other => panic!("unexpected error: {other:?}"),
+        })
+    }
+
+    /// Convenience; for easier comparisons.
+    #[expect(clippy::unnecessary_wraps, reason = "convenient comparisons")]
+    fn ok(value: &str) -> Result<String, String> {
+        Ok(value.to_owned())
+    }
+
+    /// Convenience; for easier comparisons.
+    fn err(value: &str) -> Result<String, String> {
+        Err(value.to_owned())
+    }
+
+    #[test]
+    fn clean_path_file() {
+        check!(wrapped_clean_path("/foo") == ok("/foo"));
+        check!(wrapped_clean_path("/a/b") == ok("/a/b"));
+    }
+
+    #[test]
+    fn clean_path_dir() {
+        check!(wrapped_clean_path("/dir/") == ok("/dir"));
+        check!(wrapped_clean_path("/a/b/") == ok("/a/b"));
+    }
+
+    #[test]
+    fn clean_path_root_self() {
+        check!(wrapped_clean_path("/") == ok("/"));
+        check!(wrapped_clean_path("/.") == ok("/"));
+        check!(wrapped_clean_path("/./") == ok("/"));
+        check!(wrapped_clean_path("/./.") == ok("/"));
+        check!(wrapped_clean_path("/././") == ok("/"));
+    }
+
+    #[test]
+    fn clean_path_root_multi_slash() {
+        check!(wrapped_clean_path("//") == ok("/"));
+        check!(wrapped_clean_path("/.//") == ok("/"));
+        check!(wrapped_clean_path("//./") == ok("/"));
+        check!(wrapped_clean_path("///") == ok("/"));
+    }
+
+    #[test]
+    fn clean_path_errors() {
+        check!(
+            wrapped_clean_path("/../a")
+                == err("request path \"/../a\" contains ..")
+        );
+        check!(
+            wrapped_clean_path("a")
+                == err("request path \"a\" does not start with /")
+        );
+        check!(
+            wrapped_clean_path("")
+                == err("request path \"\" does not start with /")
+        );
+    }
 }
