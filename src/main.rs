@@ -7,6 +7,8 @@ use anyhow::bail;
 use handlebars::Handlebars;
 use params::{Command, Params, Parser};
 use riki::Page;
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 /// Wrapper to handle errors.
@@ -33,12 +35,11 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
 
     match &params.command {
         Command::Render { template, page } => {
-            if !template.exists() {
-                bail!("{template:?} does not exist.");
-            }
-
             let mut tpls = Handlebars::new();
-            tpls.register_template_file("template", template)?;
+            tpls.register_template_file(
+                "template",
+                find_template(template, page)?,
+            )?;
             let page = Page::read_from(page)?;
 
             print!("{}", tpls.render("template", &page)?);
@@ -55,4 +56,35 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
     }
 
     Ok(ExitCode::SUCCESS)
+}
+
+/// Find the correct template path.
+///
+/// If `template_path` doesn’t exist, try looking relative to the “pages”
+/// directory parent of `page_path` (if it exists).
+///
+/// # Errors
+///
+/// Returns [`anyhow::Error`] if it can’t find the template path.
+fn find_template(
+    template_path: &Path,
+    page_path: &Path,
+) -> anyhow::Result<PathBuf> {
+    if template_path.exists() {
+        return Ok(template_path.to_path_buf());
+    }
+
+    if let Some(pages_dir) = page_path
+        .ancestors()
+        .find(|path| path.file_name() == Some(OsStr::new("pages")))
+    {
+        if let Some(parent) = pages_dir.parent() {
+            let new_template_path = parent.join(template_path);
+            if new_template_path.exists() {
+                return Ok(new_template_path);
+            }
+        }
+    }
+
+    bail!("{template_path:?} does not exist.")
 }
