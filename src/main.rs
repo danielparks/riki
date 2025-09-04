@@ -3,6 +3,7 @@
 mod logging;
 mod params;
 
+use anyhow::bail;
 use handlebars::Handlebars;
 use params::{Command, Params, Parser};
 use riki::Page;
@@ -32,11 +33,15 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
 
     match &params.command {
         Command::Render { template, page } => {
+            if !template.exists() {
+                bail!("{template:?} does not exist.");
+            }
+
             let mut tpls = Handlebars::new();
-            tpls.register_template_file("tpl", template)?;
+            tpls.register_template_file("template", template)?;
             let page = Page::read_from(page)?;
 
-            print!("{}", tpls.render("tpl", &page)?);
+            print!("{}", tpls.render("template", &page)?);
         }
         Command::Info { page } => {
             let metadata = Page::read_from(page)?.metadata_as_string()?;
