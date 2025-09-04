@@ -136,6 +136,11 @@ pub async fn path_handler(
 ///
 ///   * [`WebError::InternalString`] if the path doesn’t start with / or if the
 ///     path contains a .. segment.
+///
+/// This will not return [`WebError::RedirectCanonical`] because we want to
+/// check the matching page or static file to ensure there actually is a
+/// canonical path, and to determine what it is (e.g. it might match a directory
+/// and thus end with '/').
 fn clean_path(path: &str) -> WebResult<String> {
     // TODO? Actix seems to do deal with .. and maybe // for us. Simplify?
     if !path.starts_with('/') {
