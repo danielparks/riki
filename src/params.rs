@@ -30,7 +30,7 @@ pub enum Command {
     /// Render a page file
     Render {
         /// Path to template to use
-        #[arg(short, long, default_value = "templates/default.tmpl")]
+        #[arg(short, long, default_value = "templates/default.hbs")]
         template: PathBuf,
         /// Path to page file to render
         page: PathBuf,
