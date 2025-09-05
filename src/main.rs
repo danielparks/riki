@@ -16,7 +16,8 @@ use std::process::ExitCode;
 fn main() -> ExitCode {
     let params = Params::parse();
     cli(&params).unwrap_or_else(|error| {
-        let error = format!("{error:#}\n");
+        tracing::debug!("Exiting with error: {error:#?}");
+        let error = format!("{error}\n");
         if error.to_lowercase().starts_with("error") {
             params.warn(error).unwrap();
         } else {

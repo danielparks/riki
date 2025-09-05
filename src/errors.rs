@@ -10,7 +10,7 @@ use thiserror::Error; // doesn’t conflict with the enum.
 #[derive(Debug, Error)]
 pub enum Error {
     /// Failed to bind to socket
-    #[error("Failed to bind to socket on {address:?}")]
+    #[error("Error binding to socket on {address:?}: {source}")]
     BindError {
         /// The original error
         source: io::Error,
@@ -20,40 +20,45 @@ pub enum Error {
     },
 
     /// IO error
-    #[error("IO error")]
+    #[error("Error in IO: {0}")]
     Io(#[from] io::Error),
 
     /// Failed to render page metadata
-    #[error("Failed to render page metadata")]
+    #[error("Error rendering page metadata: {0}")]
     MetadataRender(serde_yaml::Error),
 
     /// An important directory is missing
     #[error("Missing directory {0:?}")]
     MissingDirectory(PathBuf),
 
-    /// Failed to render page body with [`handlebars`]
-    #[error("Failed to render page body")]
-    PageRender {
+    /// Failed to render page body in a template with [`handlebars`]
+    #[error("{source}")]
+    TemplateRender {
         /// The original error.
         source: handlebars::RenderError,
+
         /// The source of the page.
         ///
         /// Boxed to prevent the error type from getting too big.
         page_source: Box<Source>,
-        /// The template name.
-        template: String,
     },
 
     /// Failed to parse page metadata
-    #[error("Failed to parse page metadata")]
+    #[error("Error parsing page metadata: {0}")]
     ParsePageMetadata(#[from] serde_yaml::Error),
 
     /// Failed to read page file
-    #[error("Failed to read page file")]
-    ReadPageFile(io::Error),
+    #[error("Error reading page file {path:?}: {source}")]
+    ReadPageFile {
+        /// The original error
+        source: io::Error,
+
+        /// The page file
+        path: PathBuf,
+    },
 
     /// Failed to compile template with [`handlebars`]
-    #[error("Failed to compile template at: {0:?}")]
+    #[error(transparent)]
     TemplateCompile(#[from] handlebars::TemplateError),
 }
 

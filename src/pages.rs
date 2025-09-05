@@ -155,11 +155,13 @@ impl Page {
     ///
     /// # Errors
     ///
-    /// This will return [`Error`] if there is a problem loading `path`.
-    /// and
+    ///   * [`Error::ReadPageFile`] for problems reading `path`.
+    ///   * [`Error::ParsePageMetadata`] for errors parsing metadata.
     pub fn read_from<P: Into<PathBuf>>(path: P) -> Result<Self> {
         let path: PathBuf = path.into();
-        let raw = fs::read_to_string(&path).map_err(Error::ReadPageFile)?;
+        let raw = fs::read_to_string(&path).map_err(|error| {
+            Error::ReadPageFile { source: error, path: path.clone() }
+        })?;
 
         Self::from_source(Source::from_path(path), &raw)
     }
@@ -168,7 +170,7 @@ impl Page {
     ///
     /// # Errors
     ///
-    /// This will return [`Error`] if there is a problem parsing `raw`.
+    ///   * [`Error::ParsePageMetadata`] for errors parsing metadata.
     pub fn from_memory<S: AsRef<str>>(raw: S) -> Result<Self> {
         Self::from_source(Source::Memory, raw)
     }
@@ -177,7 +179,7 @@ impl Page {
     ///
     /// # Errors
     ///
-    /// This will return [`Error`] if there is a problem parsing `raw`.
+    ///   * [`Error::ParsePageMetadata`] for errors parsing metadata.
     pub fn from_source<R: AsRef<str>>(source: Source, raw: R) -> Result<Self> {
         let (header, body) = split_raw_page(raw.as_ref());
 
@@ -237,12 +239,12 @@ impl Page {
     /// This will return [`Error`] if there is a problem loading the template or
     /// rendering the page.
     pub fn render_to_string(&self, tpls: &Handlebars) -> Result<String> {
-        tpls.render(&self.template, &self)
-            .map_err(|error| Error::PageRender {
+        tpls.render(&self.template, &self).map_err(|error| {
+            Error::TemplateRender {
                 source: error,
                 page_source: Box::new(self.source.clone()),
-                template: self.template.clone(),
-            })
+            }
+        })
     }
 }
 
