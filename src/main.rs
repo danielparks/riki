@@ -35,14 +35,15 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
 
     match &params.command {
         Command::Render { template, page } => {
+            let template_name = template.to_string_lossy();
             let mut tpls = Handlebars::new();
             tpls.register_template_file(
-                "template",
+                &template_name,
                 find_template(template, page)?,
             )?;
             let page = Page::read_from(page)?;
 
-            print!("{}", tpls.render("template", &page)?);
+            print!("{}", tpls.render(&template_name, &page)?);
         }
         Command::Info { page } => {
             let metadata = Page::read_from(page)?.metadata_as_string()?;
