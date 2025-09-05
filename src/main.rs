@@ -3,10 +3,9 @@
 mod logging;
 mod params;
 
-use anyhow::bail;
-use handlebars::Handlebars;
+use anyhow::anyhow;
 use params::{Command, Params, Parser};
-use riki::Page;
+use riki::{Page, templates_from_directory};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -40,16 +39,15 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
     logging::init(params.verbose)?;
 
     match &params.command {
-        Command::Render { template, page } => {
-            let template_name = template.to_string_lossy();
-            let mut tpls = Handlebars::new();
-            tpls.register_template_file(
-                &template_name,
-                find_template(template, page)?,
-            )?;
+        Command::Render { template_dir, page } => {
+            let template_dir = template_dir
+                .clone()
+                .or_else(|| find_template_dir(page))
+                .ok_or_else(|| anyhow!("Could not find templates directory"))?;
+            let tpls = templates_from_directory(template_dir)?;
             let page = Page::read_from(page)?;
 
-            print!("{}", tpls.render(&template_name, &page)?);
+            print!("{}", page.render_to_string(&tpls)?);
         }
         Command::Info { page } => {
             let metadata = Page::read_from(page)?.metadata_as_string()?;
@@ -65,33 +63,17 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// Find the correct template path.
+/// Find the template directory.
 ///
-/// If `template_path` doesn’t exist, try looking relative to the “pages”
-/// directory parent of `page_path` (if it exists).
-///
-/// # Errors
-///
-/// Returns [`anyhow::Error`] if it can’t find the template path.
-fn find_template(
-    template_path: &Path,
-    page_path: &Path,
-) -> anyhow::Result<PathBuf> {
-    if template_path.exists() {
-        return Ok(template_path.to_path_buf());
-    }
-
-    if let Some(pages_dir) = page_path
-        .ancestors()
-        .find(|path| path.file_name() == Some(OsStr::new("pages")))
-    {
-        if let Some(parent) = pages_dir.parent() {
-            let new_template_path = parent.join(template_path);
-            if new_template_path.exists() {
-                return Ok(new_template_path);
-            }
-        }
-    }
-
-    bail!("{template_path:?} does not exist.")
+/// This looks for a “templates” directory that’s a sibling to a “pages”
+/// directory that’s an ancestor of `page_path`. Returns `None` if it can’t find
+/// the directory.
+fn find_template_dir(page_path: &Path) -> Option<PathBuf> {
+    Some(
+        page_path
+            .ancestors()
+            .find(|path| path.file_name() == Some(OsStr::new("pages")))?
+            .parent()?
+            .join("templates"),
+    )
 }

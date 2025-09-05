@@ -29,9 +29,12 @@ pub struct Params {
 pub enum Command {
     /// Render a page file
     Render {
-        /// Path to template to use
-        #[arg(short, long, default_value = "templates/default.hbs")]
-        template: PathBuf,
+        /// Path to template directory.
+        ///
+        /// If the page file is within a directory called "pages", then the
+        /// default is to look for a sibling directory called "templates".
+        #[arg(short, long, default_value = None)]
+        template_dir: Option<PathBuf>,
         /// Path to page file to render
         page: PathBuf,
     },
