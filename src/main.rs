@@ -17,7 +17,13 @@ use std::process::ExitCode;
 fn main() -> ExitCode {
     let params = Params::parse();
     cli(&params).unwrap_or_else(|error| {
-        params.warn(format!("Error: {error:#}\n")).unwrap();
+        let error = format!("{error:#}\n");
+        if error.to_lowercase().starts_with("error") {
+            params.warn(error).unwrap();
+        } else {
+            params.warn(format!("Error: {error}")).unwrap();
+        }
+
         ExitCode::FAILURE
     })
 }
