@@ -184,9 +184,10 @@ impl Page {
         let (header, body) = split_raw_page(raw.as_ref());
 
         let mut metadata = metadata_from_string(header)?;
-        let fragment = Document::fragment(render_markdown(body));
+        let body = render_markdown(body);
 
         if !metadata.contains_key("title") {
+            let fragment = Document::fragment(body.clone());
             let h1 = fragment.select_single("h1");
             if h1.length() > 0 {
                 metadata.insert("title".into(), h1.text().into());
@@ -198,12 +199,7 @@ impl Page {
             .cloned()
             .unwrap_or_else(|| "default".to_owned());
 
-        Ok(Self {
-            source,
-            metadata,
-            template,
-            body: fragment.html_root().inner_html().to_string(),
-        })
+        Ok(Self { source, metadata, template, body })
     }
 
     /// Serialize the page metadata to a string.
