@@ -1,7 +1,14 @@
 # riki
 
-Generated from template https://github.com/danielparks/danielparks-template.rs
-with [cargo-generate](https://github.com/ashleygwilliams/cargo-generate).
+Simple server for almost-static websites.
+
+## To do
+
+* [ ] Combine page and static directories
+* [ ] Add way to configure hidden files and directories
+* [ ] Add way to configure which files are rendered, e.g. if I want to render
+      some `.html` files as well as `.md`.
+* [ ] Cache headers for rendered pages
 
 ## Installation
 

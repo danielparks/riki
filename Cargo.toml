@@ -2,7 +2,7 @@
 name = "riki"
 version = "0.1.0"
 authors = ["Daniel Parks <oss-riki@demonhorse.org>"]
-description = "Render and serve static files"
+description = "Simple server for almost-static websites"
 homepage = "https://github.com/danielparks/riki"
 repository = "https://github.com/danielparks/riki"
 documentation = "https://github.com/danielparks/riki"
