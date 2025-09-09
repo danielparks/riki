@@ -149,6 +149,15 @@ fn strftime_helper() {
         = tpls.render("la_tz", &page).as_ref().map(AS_STR));
 
     tpls.register_template_string(
+        "chicago_tz",
+        r#"{{ strftime source.File.modified "%Y-%m-%d %H:%M:%S %z"
+            tz="America/Chicago" }}"#,
+    )
+    .unwrap();
+    check!(let Ok("2001-09-08 20:46:40 -0500")
+        = tpls.render("chicago_tz", &page).as_ref().map(AS_STR));
+
+    tpls.register_template_string(
         "local",
         r#"{{ strftime source.File.modified "%Y" }}"#,
     )
