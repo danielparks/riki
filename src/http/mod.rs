@@ -20,6 +20,7 @@
 
 mod errors;
 pub use crate::http::errors::*;
+pub mod util;
 
 use crate::errors::{Error, Result};
 use crate::pages::{Page, Source};
@@ -29,8 +30,7 @@ use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
 use handlebars::Handlebars;
-use std::fs;
-use std::io::{self, Read, Seek};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use tracing;
 use tracing_actix_web::TracingLogger;
@@ -82,10 +82,10 @@ pub async fn serve<P: AsRef<Path>, S: AsRef<str>>(
 ) -> Result<()> {
     let address = address.as_ref();
     let path = path.as_ref();
-    check_dir(path)?;
+    util::check_dir(path)?;
 
     let config = Data::new(Configuration::default_in(path));
-    check_dir(&config.pages_path)?;
+    util::check_dir(&config.pages_path)?;
 
     let tpls = Data::new(templates_from_directory(&config.templates_path)?);
 
@@ -207,7 +207,7 @@ fn open_static_file(
     clean_path: &str,
 ) -> WebResult<NamedFile> {
     let path = root.join(&clean_path[1..]);
-    let file = open_confirmed_file(&path)?;
+    let file = util::open_confirmed_file(&path)?;
 
     let canonical_path = if clean_path.ends_with("/index.html") {
         clean_path.strip_suffix("index.html").unwrap()
@@ -268,7 +268,7 @@ fn read_page_file(
     clean_path: &str,
 ) -> WebResult<Page> {
     let path = root.join(format!("{}.md", &clean_path[1..]));
-    let mut file = open_confirmed_file(&path)?;
+    let mut file = util::open_confirmed_file(&path)?;
 
     let canonical_path = if clean_path.ends_with("/index") {
         clean_path.strip_suffix("index").unwrap()
@@ -288,40 +288,6 @@ fn read_page_file(
     } else {
         Err(WebError::RedirectCanonical(canonical_path.to_owned()))
     }
-}
-
-/// Check that path is a directory or a symlink that resolves to a directory.
-///
-/// # Errors
-///
-///   * [`Error::MissingDirectory`] not a directory or doesn’t exist.
-///   * [`Error::Io`] some other problem getting info about `path`.
-fn check_dir<P: AsRef<Path>>(path: P) -> Result<()> {
-    let path = path.as_ref();
-    match path.metadata().map(|m| m.is_dir()) {
-        Ok(true) => Ok(()),
-        Err(error) if !is_not_found(&error) => Err(Error::Io(error)),
-        _ => Err(Error::MissingDirectory(path.to_path_buf())),
-    }
-}
-
-/// Open a file and confirm that it is a file.
-///
-/// This reads one byte to check if the file is a directory (using `is_dir()`
-/// would create a race condition.)
-///
-/// Returns the opened file (rewound).
-///
-/// # Errors
-///
-///   * [`io::Error`] resulting from opening the file, reading a byte, or
-///     seeking to the start of the file.
-fn open_confirmed_file(path: &Path) -> io::Result<fs::File> {
-    let mut file = fs::File::open(path)?;
-    let mut buffer: [u8; 1] = [0];
-    _ = file.read(&mut buffer)?;
-    file.rewind()?;
-    Ok(file)
 }
 
 #[cfg(test)]
