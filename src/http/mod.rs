@@ -206,10 +206,40 @@ fn open_static_file(
     };
 
     if req.path() == canonical_path {
-        Ok(NamedFile::from_file(file, path)?)
+        fix_charset(NamedFile::from_file(file, path)?)
     } else {
         Err(WebError::RedirectCanonical(canonical_path.to_owned()))
     }
+}
+
+/// Fix the charset of a [`NamedFile`] if appropriate.
+///
+/// This makes all `text/*` files default to having `charset=utf-8`. If the
+/// media type is not `text`, or if it already has a `charset` parameter, then
+/// the media type will be left as-is.
+///
+/// # Errors
+///
+///   * [`WebError::InternalString`] if the contstructed content-type cannot be
+///     be parsed (should never happen).
+fn fix_charset(file: NamedFile) -> WebResult<NamedFile> {
+    let content_type = file.content_type();
+    if content_type.type_() != mime::TEXT
+        || content_type.params().any(|(name, _)| name == mime::CHARSET)
+    {
+        return Ok(file);
+    }
+
+    let new_content_type = format!("{}; charset=utf-8", &content_type);
+
+    Ok(
+        file.set_content_type(new_content_type.parse().map_err(|error| {
+            WebError::InternalString(format!(
+                "Parsing constructed content type {new_content_type:?}: \
+                    {error}"
+            ))
+        })?),
+    )
 }
 
 /// Render a page to be served over HTTP.

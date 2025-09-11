@@ -29,6 +29,7 @@ handlebars = { version = "6.3.2", features = ["dir_source", "rust-embed"] }
 htmlize = "1.0.6"
 jiff = { version = "0.2.15", features = ["serde"] }
 maplit = "1.0.2"
+mime = "0.3.17"
 pulldown-cmark = "0.13.0"
 regex = "1.11.1"
 rust-embed = "8.7.2"
@@ -45,7 +46,6 @@ url = "2.5.7"
 [dev-dependencies]
 actix-http = "3.11.0"
 assert2 = "0.3.16"
-mime = "0.3.17"
 temp-dir = "0.1.16"
 tracing-test = "0.2.5"
 

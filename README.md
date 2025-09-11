@@ -8,6 +8,7 @@ Simple server for almost-static websites.
 
 * [ ] Add way to configure hidden files and directories, particularly raw page
       Markdown files and template files.
+* [ ] Add way to configure charsets of static files, e.g. `.md`.
 * [ ] Add way to configure which files are rendered, e.g. if I want to render
       some `.html` files as well as `.md`.
 

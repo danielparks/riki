@@ -136,7 +136,10 @@ impl Response {
 
     /// An expected response for a static Markdown file.
     fn static_markdown(body: &str) -> Self {
-        Self::static_other(body, "text/markdown".parse().unwrap())
+        Self::static_other(
+            body,
+            "text/markdown; charset=utf-8".parse().unwrap(),
+        )
     }
 
     /// An expected response for a static file of type `content_type`.
