@@ -4,10 +4,21 @@ Simple server for almost-static websites.
 
 ## To do
 
-* [ ] Combine page and static directories
-* [ ] Add way to configure hidden files and directories
+### Configuration
+
+* [ ] Add way to configure hidden files and directories.
 * [ ] Add way to configure which files are rendered, e.g. if I want to render
       some `.html` files as well as `.md`.
+
+### Custom elements
+
+* [ ] Links to static files (or pages?) with cache busting.
+* [ ] Automatically add `div`s with `style="break-inside: avoid"` to work around
+      Safari’s lack of `break-before` support.
+
+### Serving pages
+
+* [ ] Combine page and static directories
 * [ ] Cache headers for rendered pages
 
 ## Installation
