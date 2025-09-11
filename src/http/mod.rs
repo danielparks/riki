@@ -42,10 +42,8 @@ use tracing_actix_web::TracingLogger;
 /// Application configuration.
 #[derive(Debug, Clone)]
 pub struct Configuration {
-    /// The path to the directory containing pages.
-    pub pages_path: PathBuf,
-    /// The path to the directory containing static files.
-    pub static_path: PathBuf,
+    /// The path to the directory containing pages and static assets.
+    pub root_path: PathBuf,
     /// The path to the directory containing templates.
     pub templates_path: PathBuf,
 }
@@ -62,11 +60,7 @@ impl Configuration {
     /// Create a configuration using the default subdirectories under `root`.
     pub fn default_in<P: Into<PathBuf>>(root: P) -> Self {
         let root: PathBuf = root.into();
-        Self {
-            pages_path: root.join("pages"),
-            static_path: root.join("static"),
-            templates_path: root.join("templates"),
-        }
+        Self { templates_path: root.join("templates"), root_path: root }
     }
 }
 
@@ -76,16 +70,14 @@ impl Configuration {
 ///
 /// May return an error if the server could not start correctly.
 #[actix_web::main]
-pub async fn serve<P: AsRef<Path>, S: AsRef<str>>(
-    path: P,
+pub async fn serve<S: AsRef<str>>(
+    config: Configuration,
     address: S,
 ) -> Result<()> {
     let address = address.as_ref();
-    let path = path.as_ref();
-    util::check_dir(path)?;
 
-    let config = Data::new(Configuration::default_in(path));
-    util::check_dir(&config.pages_path)?;
+    let config = Data::new(config);
+    util::check_dir(&config.root_path)?;
 
     let tpls = Data::new(templates_from_directory(&config.templates_path)?);
 
@@ -115,14 +107,12 @@ pub async fn path_handler(
     config: Data<Configuration>,
 ) -> impl Responder {
     clean_path(req.path())
-        .and_then(|path| {
-            match render_static(&req, &config.static_path, &path) {
-                Err(WebError::NotFound) => {
-                    tracing::trace!("static not found, trying page");
-                    render_page(&req, &config.pages_path, &path, &tpls)
-                }
-                other => other,
+        .and_then(|path| match render_static(&req, &config.root_path, &path) {
+            Err(WebError::NotFound) => {
+                tracing::trace!("static not found, trying page");
+                render_page(&req, &config.root_path, &path, &tpls)
             }
+            other => other,
         })
         .unwrap_or_else(|error: WebError| {
             tracing::error!("{}: {error:?}", req.path());

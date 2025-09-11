@@ -35,6 +35,7 @@ pub enum Command {
         /// default is to look for a sibling directory called "templates".
         #[arg(short, long, default_value = None)]
         template_dir: Option<PathBuf>,
+
         /// Path to page file to render
         page: PathBuf,
     },

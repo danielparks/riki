@@ -26,8 +26,6 @@ async fn init_app() -> (
 ) {
     let temp_dir = TempDir::new().unwrap();
     let config = Configuration::default_in(temp_dir.path());
-    fs::create_dir(&config.pages_path).unwrap();
-    fs::create_dir(&config.static_path).unwrap();
 
     let mut tpls = riki::templates();
     tpls.clear_templates();
@@ -131,12 +129,17 @@ impl Response {
         }
     }
 
-    /// An expected response for static HTML file.
+    /// An expected response for a static HTML file.
     fn static_html(body: &str) -> Self {
         Self::static_other(body, mime::TEXT_HTML_UTF_8)
     }
 
-    /// An expected response for static file of `content_type`.
+    /// An expected response for a static Markdown file.
+    fn static_markdown(body: &str) -> Self {
+        Self::static_other(body, "text/markdown".parse().unwrap())
+    }
+
+    /// An expected response for a static file of type `content_type`.
     fn static_other(body: &str, content_type: mime::Mime) -> Self {
         Self {
             status: http::StatusCode::OK,
@@ -167,9 +170,9 @@ where
 async fn test_directory_page_get() {
     let (_dir, config, app) = init_app().await;
 
-    fs::write(config.pages_path.join("index.md"), "index").unwrap();
-    fs::create_dir(config.pages_path.join("dir")).unwrap();
-    fs::write(config.pages_path.join("dir/index.md"), "DIR").unwrap();
+    fs::write(config.root_path.join("index.md"), "index").unwrap();
+    fs::create_dir(config.root_path.join("dir")).unwrap();
+    fs::write(config.root_path.join("dir/index.md"), "DIR").unwrap();
 
     check!(
         Response::page_html(
@@ -178,6 +181,7 @@ async fn test_directory_page_get() {
     );
     check!(Response::redirect("/") == get(&app, "/.").await);
     check!(Response::redirect("/") == get(&app, "/index").await);
+    check!(Response::static_markdown("index") == get(&app, "/index.md").await);
 
     check!(
         Response::page_html(
@@ -188,6 +192,9 @@ async fn test_directory_page_get() {
     check!(Response::redirect("/dir/") == get(&app, "/dir/.").await);
     check!(Response::redirect("/dir/") == get(&app, "/dir/index").await);
     check!(Response::redirect("/dir/") == get(&app, "/dir/././index").await);
+    check!(
+        Response::static_markdown("DIR") == get(&app, "/dir/index.md").await
+    );
 }
 
 #[actix_web::test]
@@ -195,7 +202,7 @@ async fn test_directory_page_get() {
 async fn test_file_page_get() {
     let (_dir, config, app) = init_app().await;
 
-    fs::write(config.pages_path.join("page.md"), "PAGE").unwrap();
+    fs::write(config.root_path.join("page.md"), "PAGE").unwrap();
 
     check!(
         Response::page_html(
@@ -205,6 +212,7 @@ async fn test_file_page_get() {
     check!(Response::redirect("/page") == get(&app, "/page/").await);
     check!(Response::redirect("/page") == get(&app, "/page/.").await);
     check!(Response::redirect("/page") == get(&app, "/page/././").await);
+    check!(Response::static_markdown("PAGE") == get(&app, "/page.md").await);
 }
 
 #[actix_web::test]
@@ -212,7 +220,7 @@ async fn test_file_page_get() {
 async fn test_static_file_get() {
     let (_dir, config, app) = init_app().await;
 
-    fs::write(config.static_path.join("a.txt"), "AAA").unwrap();
+    fs::write(config.root_path.join("a.txt"), "AAA").unwrap();
 
     check!(
         Response::static_other("AAA", mime::TEXT_PLAIN_UTF_8)
@@ -228,9 +236,8 @@ async fn test_static_file_get() {
 async fn test_static_directory_get() {
     let (_dir, config, app) = init_app().await;
 
-    let b_dir = config.static_path.join("b");
-    fs::create_dir(b_dir).unwrap();
-    fs::write(config.static_path.join("b/index.html"), "BBB").unwrap();
+    fs::create_dir(config.root_path.join("b")).unwrap();
+    fs::write(config.root_path.join("b/index.html"), "BBB").unwrap();
 
     check!(Response::static_html("BBB") == get(&app, "/b/").await);
     check!(Response::redirect("/b/") == get(&app, "/b").await);
@@ -240,18 +247,15 @@ async fn test_static_directory_get() {
 
 #[actix_web::test]
 #[traced_test]
-async fn test_fall_through() {
+async fn test_static_index_with_page() {
     let (_dir, config, app) = init_app().await;
 
-    fs::write(config.static_path.join("static"), "STATIC").unwrap();
-    fs::create_dir(config.pages_path.join("static")).unwrap();
-    fs::write(config.pages_path.join("static/page.md"), "PAGE").unwrap();
+    fs::create_dir(config.root_path.join("static")).unwrap();
+    fs::write(config.root_path.join("static/index.html"), "STATIC").unwrap();
+    fs::write(config.root_path.join("static/page.md"), "PAGE").unwrap();
 
-    check!(
-        Response::static_other("STATIC", mime::APPLICATION_OCTET_STREAM)
-            == get(&app, "/static").await
-    );
-    check!(Response::redirect("/static") == get(&app, "/static/").await);
+    check!(Response::redirect("/static/") == get(&app, "/static").await);
+    check!(Response::static_html("STATIC") == get(&app, "/static/").await);
     check!(
         Response::page_html(
             "<html><head></head><body><p>PAGE</p>\n</body></html>"
@@ -260,6 +264,22 @@ async fn test_fall_through() {
     check!(
         Response::redirect("/static/page") == get(&app, "/static/page/").await
     );
+    check!(
+        Response::static_markdown("PAGE") == get(&app, "/static/page.md").await
+    );
+}
+
+#[actix_web::test]
+#[traced_test]
+async fn test_static_hides_page() {
+    let (_dir, config, app) = init_app().await;
+
+    fs::write(config.root_path.join("index.html"), "STATIC").unwrap();
+    fs::write(config.root_path.join("index.md"), "PAGE").unwrap();
+
+    check!(Response::static_html("STATIC") == get(&app, "/").await);
+    check!(Response::redirect("/") == get(&app, "/index.html").await);
+    check!(Response::static_markdown("PAGE") == get(&app, "/index.md").await);
 }
 
 #[actix_web::test]
@@ -286,11 +306,10 @@ async fn test_forbidden_page_get() {
 
     let (_dir, config, app) = init_app().await;
 
-    let path = config.pages_path.join("forbidden.md");
+    let path = config.root_path.join("forbidden.md");
     fs::write(&path, "forbidden").unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).unwrap();
 
-    let received = get(&app, "/forbidden").await;
     let expected = Response {
         status: http::StatusCode::FORBIDDEN,
         content_type: Some(mime::TEXT_HTML_UTF_8),
@@ -298,7 +317,16 @@ async fn test_forbidden_page_get() {
         etag: false,
         body: B(b"403"),
     };
-    check!(expected == received);
+    check!(expected == get(&app, "/forbidden").await);
+
+    let expected = Response {
+        status: http::StatusCode::FORBIDDEN,
+        content_type: Some(mime::TEXT_HTML_UTF_8),
+        last_modified: false,
+        etag: false,
+        body: B(b"403"),
+    };
+    check!(expected == get(&app, "/forbidden.md").await);
 }
 
 #[cfg(all(not(target_os = "hermit"), unix))]
@@ -309,11 +337,10 @@ async fn test_forbidden_static_get() {
 
     let (_dir, config, app) = init_app().await;
 
-    let path = config.static_path.join("forbidden.txt");
+    let path = config.root_path.join("forbidden.txt");
     fs::write(&path, "forbidden").unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).unwrap();
 
-    let received = get(&app, "/forbidden.txt").await;
     let expected = Response {
         status: http::StatusCode::FORBIDDEN,
         content_type: Some(mime::TEXT_HTML_UTF_8),
@@ -321,5 +348,5 @@ async fn test_forbidden_static_get() {
         etag: false,
         body: B(b"403"),
     };
-    check!(expected == received);
+    check!(expected == get(&app, "/forbidden.txt").await);
 }

@@ -5,7 +5,7 @@ mod params;
 
 use anyhow::anyhow;
 use params::{Command, Params, Parser};
-use riki::{Page, templates_from_directory};
+use riki::{Page, http, templates_from_directory};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -57,7 +57,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             }
         }
         Command::Serve { basedir, bind } => {
-            riki::http::serve(basedir, bind)?;
+            http::serve(http::Configuration::default_in(basedir), bind)?;
         }
     }
 
