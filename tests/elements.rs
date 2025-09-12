@@ -3,7 +3,7 @@
 use assert2::{check, let_assert};
 use jiff::Timestamp;
 use regex::Regex;
-use riki::{Page, Result, Source};
+use riki::{Page, Result, Source, render_source_to_string};
 use std::path::PathBuf;
 
 /// Makes error output more legible.
@@ -134,5 +134,52 @@ fn a_email() {
     check!(
         let Ok("<html><head></head><body><p><b>Invalid URL in href attribute on &lt;a-email&gt;</b></p>\n</body></html>")
             = page.render_to_string(&tpls, None).as_ref().map(AS_STR)
+    );
+}
+
+#[test]
+fn a_email_source() {
+    check!(
+        "title: test\n\n---\n\n<b>test</b>\n".to_owned()
+            == render_source_to_string("title: test\n\n---\n\n<b>test</b>\n")
+    );
+
+    check!(
+        r#"<a-email href="mailto:***@*****"></a-email>"#.to_owned()
+            == render_source_to_string(
+                r#"<a-email href="mailto:abc@example.com"></a-email>"#
+            )
+    );
+
+    check!(
+        r#"<a-email href="mailto:***@*****?subject=test"></a-email>"#
+            .to_owned()
+            == render_source_to_string(
+                r#"<a-email href="mailto:abc@example.com?subject=test"></a-email>"#
+            )
+    );
+
+    check!(
+        r#"<a-email href="mailto:***@*****">text</a-email>"#.to_owned()
+            == render_source_to_string(
+                r#"<a-email href="mailto:abc@example.com">text</a-email>"#
+            )
+    );
+
+    check!(
+        r#"<a-email href="*****"></a-email>"#.to_owned()
+            == render_source_to_string(
+                r#"<a-email href="abc@example.com"></a-email>"#
+            )
+    );
+
+    check!(
+        r#"<a-email href="*****"></a-email>"#.to_owned()
+            == render_source_to_string(r#"<a-email href=""></a-email>"#)
+    );
+
+    check!(
+        r"<a-email></a-email>".to_owned()
+            == render_source_to_string(r"<a-email></a-email>")
     );
 }

@@ -1,7 +1,8 @@
 //! Handle rendering a page.
 
 use crate::elements::{
-    self, ElementError, handle_a_email, handle_last_modified,
+    self, ElementError, handle_a_email, handle_a_email_source,
+    handle_last_modified,
 };
 use crate::errors::{Error, Result};
 use actix_web::HttpRequest;
@@ -275,6 +276,24 @@ impl Page {
         }
 
         Ok(document.html().to_string())
+    }
+}
+
+/// Render a page source to a string.
+#[must_use]
+#[expect(clippy::needless_pass_by_value, reason = "ToString accepts borrows")]
+pub fn render_source_to_string<S: ToString>(source: S) -> String {
+    let document = Document::from(source.to_string());
+
+    for node in document.select("a-email").nodes() {
+        handle_a_email_source(node);
+    }
+
+    if let Some(body) = document.body() {
+        body.inner_html().to_string()
+    } else {
+        tracing::warn!("Should be unreachable: no document body element.");
+        String::new()
     }
 }
 

@@ -126,6 +126,26 @@ pub fn handle_a_email(_ctx: &Context, node: &NodeRef) -> Result<()> {
     Ok(())
 }
 
+/// Handle an `a-email` element when outputting the source.
+///
+/// This just redacts the `href`, if present.
+pub fn handle_a_email_source(node: &NodeRef) {
+    let Some(href) = node.attr("href") else {
+        // Nothing to redact.
+        return;
+    };
+
+    match href.parse::<Url>() {
+        Ok(mut url) => {
+            url.set_path("***@*****");
+            node.set_attr("href", url.as_str());
+        }
+        Err(_) => {
+            node.set_attr("href", "*****");
+        }
+    }
+}
+
 /// Handle a `last-modified` element
 ///
 /// # Errors

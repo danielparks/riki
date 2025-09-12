@@ -129,17 +129,20 @@ impl Response {
         }
     }
 
+    /// An expected response for a Markdown file (a page source).
+    fn page_source(body: &str) -> Self {
+        Self {
+            status: http::StatusCode::OK,
+            content_type: Some("text/markdown; charset=utf-8".parse().unwrap()),
+            last_modified: false,
+            etag: false,
+            body: body.to_owned().into(),
+        }
+    }
+
     /// An expected response for a static HTML file.
     fn static_html(body: &str) -> Self {
         Self::static_other(body, mime::TEXT_HTML_UTF_8)
-    }
-
-    /// An expected response for a static Markdown file.
-    fn static_markdown(body: &str) -> Self {
-        Self::static_other(
-            body,
-            "text/markdown; charset=utf-8".parse().unwrap(),
-        )
     }
 
     /// An expected response for a static file of type `content_type`.
@@ -184,7 +187,7 @@ async fn test_directory_page_get() {
     );
     check!(Response::redirect("/") == get(&app, "/.").await);
     check!(Response::redirect("/") == get(&app, "/index").await);
-    check!(Response::static_markdown("index") == get(&app, "/index.md").await);
+    check!(Response::page_source("index") == get(&app, "/index.md").await);
 
     check!(
         Response::page_html(
@@ -195,9 +198,7 @@ async fn test_directory_page_get() {
     check!(Response::redirect("/dir/") == get(&app, "/dir/.").await);
     check!(Response::redirect("/dir/") == get(&app, "/dir/index").await);
     check!(Response::redirect("/dir/") == get(&app, "/dir/././index").await);
-    check!(
-        Response::static_markdown("DIR") == get(&app, "/dir/index.md").await
-    );
+    check!(Response::page_source("DIR") == get(&app, "/dir/index.md").await);
 }
 
 #[actix_web::test]
@@ -215,7 +216,7 @@ async fn test_file_page_get() {
     check!(Response::redirect("/page") == get(&app, "/page/").await);
     check!(Response::redirect("/page") == get(&app, "/page/.").await);
     check!(Response::redirect("/page") == get(&app, "/page/././").await);
-    check!(Response::static_markdown("PAGE") == get(&app, "/page.md").await);
+    check!(Response::page_source("PAGE") == get(&app, "/page.md").await);
 }
 
 #[actix_web::test]
@@ -267,9 +268,7 @@ async fn test_static_index_with_page() {
     check!(
         Response::redirect("/static/page") == get(&app, "/static/page/").await
     );
-    check!(
-        Response::static_markdown("PAGE") == get(&app, "/static/page.md").await
-    );
+    check!(Response::page_source("PAGE") == get(&app, "/static/page.md").await);
 }
 
 #[actix_web::test]
@@ -282,7 +281,7 @@ async fn test_static_hides_page() {
 
     check!(Response::static_html("STATIC") == get(&app, "/").await);
     check!(Response::redirect("/") == get(&app, "/index.html").await);
-    check!(Response::static_markdown("PAGE") == get(&app, "/index.md").await);
+    check!(Response::page_source("PAGE") == get(&app, "/index.md").await);
 }
 
 #[actix_web::test]

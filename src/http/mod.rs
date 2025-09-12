@@ -23,13 +23,14 @@ pub use crate::http::errors::*;
 pub mod util;
 
 use crate::errors::{Error, Result};
-use crate::pages::{Page, Source};
+use crate::pages::{Page, Source, render_source_to_string};
 use crate::templates::templates_from_directory;
 use actix_files::NamedFile;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
 use handlebars::Handlebars;
+use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use tracing;
@@ -107,12 +108,20 @@ pub async fn path_handler(
     config: Data<Configuration>,
 ) -> impl Responder {
     clean_path(req.path())
-        .and_then(|path| match render_static(&req, &config.root_path, &path) {
-            Err(WebError::NotFound) => {
-                tracing::trace!("static not found, trying page");
-                render_page(&req, &config.root_path, &path, &tpls)
+        .and_then(|path| {
+            match render_page_source(&req, &config.root_path, &path) {
+                Err(WebError::NotFound) => {
+                    tracing::trace!("source not found, trying static");
+                    match render_static(&req, &config.root_path, &path) {
+                        Err(WebError::NotFound) => {
+                            tracing::trace!("static not found, trying page");
+                            render_page(&req, &config.root_path, &path, &tpls)
+                        }
+                        other => other,
+                    }
+                }
+                other => other,
             }
-            other => other,
         })
         .unwrap_or_else(|error: WebError| {
             tracing::error!("{}: {error:?}", req.path());
@@ -240,6 +249,33 @@ fn fix_charset(file: NamedFile) -> WebResult<NamedFile> {
             ))
         })?),
     )
+}
+
+/// Render a page source to be served over HTTP.
+///
+/// # Errors
+///
+///   * [`WebError::NotFound`] if the page cannot be read, or if the path
+///     doesn’t end with `.md`.
+fn render_page_source(
+    _req: &HttpRequest,
+    root: &Path,
+    clean_path: &str,
+) -> WebResult<HttpResponse> {
+    // FIXME do this without allocating
+    if !clean_path.to_lowercase().ends_with(".md") {
+        // FIXME? fall through
+        return Err(WebError::NotFound);
+    }
+
+    let path = root.join(&clean_path[1..]);
+
+    // FIXME: caching headers based on template and Page.
+    // FIXME: add cache-busting to href, src, etc. in HTML.
+
+    Ok(HttpResponse::Ok()
+        .content_type("text/markdown; charset=UTF-8")
+        .body(render_source_to_string(fs::read_to_string(&path)?)))
 }
 
 /// Render a page to be served over HTTP.
