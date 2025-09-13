@@ -45,6 +45,42 @@ page][releases]. Just extract the archive and copy the file inside into your
     [Apple silicon](https://github.com/danielparks/riki/releases/latest/download/riki-aarch64-apple-darwin.tar.gz)
   * [Windows on x86-64](https://github.com/danielparks/riki/releases/latest/download/riki-x86_64-pc-windows-msvc.zip)
 
+## Configuration
+
+    @404 {
+      return render(literal("Could not find $path"))
+    }
+
+    iglob **.md {
+      return @403
+    }
+
+    / {
+      directory /srv/website
+      try render(markdown("${path}.md")) $path
+
+      @404 {
+        return render(errors/404.html)
+      }
+
+      news/ {
+        directory /srv/blog
+        # $path is relative to /news/, so a request to /news/2025/entry-1 will
+        # try to render /srv/blog/2025/entry-1.html first.
+        try render(${path}.html) render(${path}/index.html) $path @404
+      }
+    }
+
+Parsed, it should turn into calls:
+
+Statement {
+  first: String("@404"),
+  parameters: [],
+  block: Some(Block([
+    Statement { String("return"), [ Call(String("render"), [ Call ]) ] }
+  ])),
+}
+
 
 ## Rust Crate
 
@@ -58,8 +94,8 @@ This is in active development. I am open to [suggestions][issues].
 
 ## License
 
-This project dual-licensed under the Apache 2 and MIT licenses. You may choose
-to use either.
+Unless otherwise noted, this project is dual-licensed under the Apache 2 and MIT
+licenses. You may choose to use either.
 
   * [Apache License, Version 2.0](LICENSE-APACHE)
   * [MIT license](LICENSE-MIT)
