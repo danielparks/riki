@@ -1,4 +1,5 @@
 //! Test template manager.
+#![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
 use assert2::{check, let_assert};
 use jiff::Timestamp;
