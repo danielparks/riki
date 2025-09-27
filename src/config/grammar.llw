@@ -1,0 +1,37 @@
+token
+  LBrace='{' RBrace='}' LParen='(' RParen=')' Comma=',' Equal='='
+  BareWord='<bareword>'
+  DoubleQuoted='<doublequoted>'
+  SingleQuoted='<singlequoted>'
+  Newlines;
+
+start file;
+
+file: (?1 Newlines line)* [Newlines]
+  | line (?1 Newlines line)* [Newlines];
+context: Newlines (line Newlines)*;
+line: matcher @action [
+  set @set
+  | params @function
+  | block @block
+  | value @rule
+];
+set^: '=' value;
+params^: '(' [value (',' value)*] ')';
+block^: '{' context '}';
+matcher: BareWord | DoubleQuoted | SingleQuoted;
+value: BareWord [ params @function ] | DoubleQuoted | SingleQuoted;
+
+/*
+A line can have:
+
+token = ... // var = value
+token ( ... // id ( possibly more spaces )
+token { // glob {
+token token ( ... // glob id ( possibly more spaces )
+token token // glob action
+token // action
+*/
+
+// FIXME newlines within parens
+// FIXME comment at end of file without newline

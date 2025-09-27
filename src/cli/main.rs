@@ -83,6 +83,13 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
         Command::Serve { base_dir, bind } => {
             http::serve(http::Configuration::default_in(base_dir), bind)?;
         }
+        Command::Dump { path, just_tokens } => {
+            riki::config::dump_config(
+                path,
+                &params.err_stream(),
+                *just_tokens,
+            )?;
+        }
     }
 
     Ok(ExitCode::SUCCESS)
