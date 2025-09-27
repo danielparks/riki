@@ -54,6 +54,15 @@ pub enum Command {
         #[arg(long, default_value = "localhost:8000")]
         bind: String,
     },
+    /// Dump configuration file CST
+    Dump {
+        /// Configuration file to dump
+        path: PathBuf,
+
+        /// Just print list of tokens
+        #[arg(short = 't', long)]
+        just_tokens: bool,
+    },
 }
 
 impl Params {

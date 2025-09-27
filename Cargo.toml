@@ -29,13 +29,16 @@ actix-web = "4.11.0"
 ambassador = "0.5.0"
 anyhow = "1.0.95"
 base64 = "0.22.1"
+bstr = "1.12.0"
 clap = { version = "4.5.27", features = ["derive"] }
+codespan-reporting = "0.12.0"
 derive_more = { version = "2.1.1", features = ["from", "display"] }
 dom_query = "0.24.0"
 globset = "0.4.18"
 handlebars = { version = "6.3.2", features = ["dir_source", "rust-embed"] }
 htmlize = "1.0.6"
 jiff = { version = "0.2.15", features = ["serde"] }
+logos = "0.15.1"
 maplit = "1.0.2"
 mime = "0.3.17"
 os_str_bytes = { version = "7.1.1", features = ["conversions"] }
@@ -55,6 +58,9 @@ tracing = "0.1.41"
 tracing-actix-web = "0.7.19"
 tracing-subscriber = { version = "0.3.20", features = ["chrono", "env-filter"] }
 url = "2.5.7"
+
+[build-dependencies]
+lelwel = "0.9.1"
 
 [dev-dependencies]
 actix-http = "3.11.0"
