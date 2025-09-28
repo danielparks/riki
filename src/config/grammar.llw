@@ -7,19 +7,21 @@ token
 
 start file;
 
-file: (?1 Newlines line)* [Newlines]
+file: context;
+context^: (?1 Newlines line)* [Newlines]
   | line (?1 Newlines line)* [Newlines];
-context: Newlines (line Newlines)*;
-line: matcher @action [
-  set @set
-  | params @function
-  | block @block
-  | value @rule
-];
+line: ?1 BareWord set @set
+  | ?2 BareWord params @function
+  | matcher @action [
+    block @context
+    | value @rule
+  ];
 set^: '=' value;
 params^: '(' [value (',' value)*] ')';
 block^: '{' context '}';
 matcher: BareWord | DoubleQuoted | SingleQuoted;
+// This means that function calls are not within the value rule; the value rule
+// only ever contains a word.
 value: BareWord [ params @function ] | DoubleQuoted | SingleQuoted;
 
 /*
