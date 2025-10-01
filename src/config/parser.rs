@@ -11,15 +11,17 @@
 use super::lexer::{Diagnostic, Token, tokenize};
 use codespan_reporting::diagnostic::Label;
 
-// TODO: add context information to the parser if required
+/// Context required for [`Parser`]. Not needed by our code.
 #[derive(Default)]
 pub struct Context<'a> {
+    /// [`Parser`] requires this struct have a lifetime; this tracks it.
     marker: std::marker::PhantomData<&'a ()>,
 }
 
 include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 
 impl ParserCallbacks for Parser<'_> {
+    /// Hook to produce tokens for the generated [`Parser`].
     fn create_tokens(
         source: &str,
         diags: &mut Vec<Diagnostic>,
@@ -27,6 +29,7 @@ impl ParserCallbacks for Parser<'_> {
         tokenize(source, diags)
     }
 
+    /// Hook to allow the generated [`Parser`] to create a diagnostic.
     fn create_diagnostic(&self, span: Span, message: String) -> Diagnostic {
         Diagnostic::error()
             .with_message(message)
@@ -56,6 +59,7 @@ impl ParserCallbacks for Parser<'_> {
 }
 
 impl<'a> Cst<'a> {
+    /// Iterate all of the descendents of a [`Cst`] node returned by [`Parser`].
     pub fn descendents(&'a self, id: NodeRef) -> CNodeIter<'a> {
         let end_offset = match self.nodes[id.0] {
             Node::Rule(_, i) => usize::from(i),
@@ -71,6 +75,7 @@ impl<'a> Cst<'a> {
     }
 }
 
+/// Iterator for descendents of a [`Cst`] node.
 pub struct CNodeIter<'a> {
     next_index: usize,
     nodes: &'a [Node],
@@ -122,30 +127,19 @@ impl<'a> Iterator for CNodeIter<'a> {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum RuleSide {
-    /// Entering the rule
-    Push,
-    /// Leaving the rule
-    Pop,
-}
-
+/// A node in the [`Cst`] in a more useful format.
 #[derive(Clone, Debug)]
 pub enum CNode {
     Rule(Rule, RuleSide),
     Token(Token, Span),
 }
 
-impl Node {
-    /// Is this node a Rule?
-    #[inline]
-    pub fn is_rule(&self) -> bool {
-        matches!(self, Self::Rule(..))
-    }
-
-    /// Is this node a Token?
-    #[inline]
-    pub fn is_token(&self) -> bool {
-        matches!(self, Self::Token(..))
-    }
+/// When iterating over [`CNode`]s we encounter rule nodes twice — pushing them
+/// on to the stack, or popping them off.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RuleSide {
+    /// Entering the rule
+    Push,
+    /// Leaving the rule
+    Pop,
 }
