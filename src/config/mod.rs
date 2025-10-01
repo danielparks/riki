@@ -1,6 +1,4 @@
 //! Handle configuration files;
-#![expect(dead_code, reason = "wip")]
-#![allow(clippy::missing_docs_in_private_items, reason = "wip")]
 #![allow(clippy::too_many_lines, reason = "wip")]
 
 pub mod lexer;
@@ -11,7 +9,7 @@ use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::{self, Config};
 use lexer::{Diagnostic, Span, Token};
 use logos::Logos;
-use parser::{CNode, CNodeIter, Cst, Node, NodeRef, Parser, Rule, RuleSide};
+use parser::{CNode, CNodeIter, Cst, NodeRef, Parser, Rule, RuleSide};
 use std::fmt;
 use std::fs;
 use std::io;
@@ -217,12 +215,6 @@ fn consume_function_contents(iter: &mut CNodeIter) -> Value {
     panic!("expected value rule, ',', or ')', but the file ended")
 }
 
-/// Consume a value rule.
-fn consume_value<D: fmt::Display>(iter: &mut CNodeIter, context: D) -> Value {
-    expect_rule(iter, Rule::Value, RuleSide::Push, context);
-    consume_value_contents(iter)
-}
-
 /// Consume contents of a value rule.
 fn consume_value_contents(iter: &mut CNodeIter) -> Value {
     let word = consume_word_token(iter, " in value");
@@ -296,19 +288,6 @@ fn expect_token<D: fmt::Display>(
         "expected {expected:?} token{context}, got {token:?}"
     );
     span
-}
-
-fn print_node(prefix: &str, cst: &Cst, node_ref: NodeRef) {
-    match cst.get(node_ref) {
-        Node::Rule(rule, _) => {
-            println!("{prefix}{rule:?}");
-        }
-        Node::Token(token, _) => {
-            // FIXME this seems like a wonky way to access this
-            let (s, span) = cst.match_token(node_ref, token).unwrap();
-            println!("{prefix}{token:?} {s:?} [{span:?}]");
-        }
-    }
 }
 
 /// The type of a word
@@ -391,8 +370,10 @@ pub enum ParseError {
 /// A rule found in the configuration file.
 #[derive(Debug, Clone)]
 pub struct ConfigRule {
-    matcher: MatcherSequence,
-    action: Action,
+    /// Match a request
+    pub matcher: MatcherSequence,
+    /// Action to take in response to a request
+    pub action: Action,
 }
 
 /// A full sequence of matchers.

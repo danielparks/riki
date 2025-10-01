@@ -1,10 +1,9 @@
 //! Configuration file lexer.
 
-//use super::parser::{Diagnostic, Span};
 use codespan_reporting::diagnostic::Label;
 use logos::Logos;
 
-/// Diagnostic FIXME
+/// A diagnostic indicating an error or warning in the configuration file.
 pub type Diagnostic = codespan_reporting::diagnostic::Diagnostic<()>;
 
 /// A range of indices in the source
