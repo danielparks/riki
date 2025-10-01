@@ -76,6 +76,8 @@ fn process_cst(cst: &Cst) {
             CNode::Rule(Rule::Action, Push) => {
                 matcher_stack.push(consume_matcher(&mut iter, ""));
                 // FIXME emit rule
+                println!("RULE {matcher_stack:?}");
+                assert!(matcher_stack.pop().is_some());
                 expect_rule(&mut iter, Rule::Action, Pop, " after action push");
             }
             CNode::Rule(
@@ -92,7 +94,7 @@ fn process_cst(cst: &Cst) {
                 expect_token(&mut iter, Token::LBrace, " in context rule");
             }
             CNode::Rule(Rule::Context, Pop) => {
-                matcher_stack.pop();
+                assert!(matcher_stack.pop().is_some());
             }
             CNode::Rule(
                 rule @ (Rule::Block | Rule::Line | Rule::Params),
@@ -111,8 +113,9 @@ fn process_cst(cst: &Cst) {
                 );
             }
             CNode::Rule(Rule::Function, Push) => {
-                // FIXME emit?
-                let _ = consume_function_contents(&mut iter);
+                let function = consume_function_contents(&mut iter);
+                // FIXME emit rule
+                println!("RULE {matcher_stack:?} {function:?}");
             }
             CNode::Rule(Rule::Matcher, Push) => {
                 panic!("unexpected matcher rule");
@@ -122,18 +125,18 @@ fn process_cst(cst: &Cst) {
                 // Value or function next — let this loop take care of it.
             }
             CNode::Rule(Rule::Rule, Pop) => {
-                matcher_stack.pop();
+                assert!(matcher_stack.pop().is_some());
             }
             CNode::Rule(Rule::Set, Push) => {
-                let _id_span =
-                    consume_bare_word_token(&mut iter, " for set variable");
-                expect_token(&mut iter, Token::Equal, " in set rule");
-                let _value = consume_value(&mut iter, " in set rule");
-                expect_rule(&mut iter, Rule::Set, Pop, " after set push rule");
+                let (id_span, value) = consume_set_contents(&mut iter);
+
+                // FIXME emit set
+                println!("SET {matcher_stack:?} {id_span:?} = {value:?}");
             }
             CNode::Rule(Rule::Value, Push) => {
-                // FIXME emit
-                let _ = consume_value_contents(&mut iter);
+                let value = consume_value_contents(&mut iter);
+                // FIXME emit rule
+                println!("RULE {matcher_stack:?} {value:?}");
             }
             CNode::Token(Token::EOF, _) => {
                 // FIXME remove?
@@ -156,6 +159,28 @@ fn process_cst(cst: &Cst) {
             }
         }
     }
+}
+
+/// Consume contents of a set rule.
+fn consume_set_contents(iter: &mut CNodeIter) -> (Span, (WordType, Span)) {
+    let id_span = consume_bare_word_token(iter, " for set variable");
+    expect_token(iter, Token::Equal, " in set rule");
+
+    let rvalue = match iter.next() {
+        Some(CNode::Rule(Rule::Function, RuleSide::Push)) => {
+            (WordType::Bare, consume_function_contents(iter))
+        }
+        Some(CNode::Rule(Rule::Value, RuleSide::Push)) => {
+            consume_value_contents(iter)
+        }
+        Some(other) => {
+            panic!("expected function or value push rule; got {other:?}");
+        }
+        None => panic!("expected function or value push rule; got end of file"),
+    };
+
+    expect_rule(iter, Rule::Set, RuleSide::Pop, " after set push rule");
+    (id_span, rvalue)
 }
 
 /// Consume contents of a function rule.
