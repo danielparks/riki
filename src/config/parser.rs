@@ -44,7 +44,6 @@ impl ParserCallbacks for Parser<'_> {
     ///   | line (?1 Newlines line)* [Newlines];
     /// ```
     fn predicate_context_1(&self) -> bool {
-        // FIXME Token::EOF? Does this work?
         !matches!(self.peek(1), Token::EOF | Token::RBrace)
     }
 

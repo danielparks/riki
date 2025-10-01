@@ -136,10 +136,6 @@ fn process_cst(cst: &Cst) {
                 // FIXME emit rule
                 println!("RULE {matcher_stack:?} {value:?}");
             }
-            CNode::Token(TokenType::EOF, _) => {
-                // FIXME remove?
-                panic!("EOF???")
-            }
             CNode::Token(
                 token @ (TokenType::BareWord
                 | TokenType::DoubleQuoted
@@ -151,9 +147,11 @@ fn process_cst(cst: &Cst) {
                 | TokenType::Equal),
                 _,
             ) => panic!("unexpected {token:?} token outside of a rule"),
-            CNode::Token(TokenType::Newlines | TokenType::RBrace, _) => {}
-            CNode::Token(TokenType::Error, _) => {
-                panic!("unexpected error token")
+            CNode::Token(token @ (TokenType::Error | TokenType::EOF), _) => {
+                panic!("unexpected {token:?} token")
+            }
+            CNode::Token(TokenType::Newlines | TokenType::RBrace, _) => {
+                // Ignore
             }
         }
     }
