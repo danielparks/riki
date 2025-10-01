@@ -104,30 +104,6 @@ pub enum TokenType {
     Error,
 }
 
-/// Tokenize a string.
-pub fn tokenize(
-    source: &str,
-    diags: &mut Vec<Diagnostic>,
-) -> (Vec<TokenType>, Vec<Span>) {
-    let lexer = TokenType::lexer(source);
-    let mut tokens = vec![];
-    let mut spans = vec![];
-
-    for (token, span) in lexer.spanned() {
-        match token {
-            Ok(token) => {
-                tokens.push(token);
-            }
-            Err(err) => {
-                diags.push(err.into_diagnostic(span.clone()));
-                tokens.push(TokenType::Error);
-            }
-        }
-        spans.push(span);
-    }
-    (tokens, spans)
-}
-
 /// Validate a glob matching a URL path
 ///
 /// URL characters ([RFC 3986 §2.2] and [§2.3]):

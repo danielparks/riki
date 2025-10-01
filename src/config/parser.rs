@@ -8,9 +8,10 @@
     reason = "generated code"
 )]
 
+use super::lexer::Diagnostic;
 use super::lexer::TokenType as Token;
-use super::lexer::{Diagnostic, tokenize};
 use codespan_reporting::diagnostic::Label;
+use logos::Logos;
 
 /// Context required for [`Parser`]. Not needed by our code.
 #[derive(Default)]
@@ -27,7 +28,23 @@ impl ParserCallbacks for Parser<'_> {
         source: &str,
         diags: &mut Vec<Diagnostic>,
     ) -> (Vec<Token>, Vec<Span>) {
-        tokenize(source, diags)
+        let lexer = Token::lexer(source);
+        let mut tokens = Vec::new();
+        let mut spans = Vec::new();
+
+        for (token, span) in lexer.spanned() {
+            match token {
+                Ok(token) => {
+                    tokens.push(token);
+                }
+                Err(err) => {
+                    diags.push(err.into_diagnostic(span.clone()));
+                    tokens.push(Token::Error);
+                }
+            }
+            spans.push(span);
+        }
+        (tokens, spans)
     }
 
     /// Hook to allow the generated [`Parser`] to create a diagnostic.
