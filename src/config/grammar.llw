@@ -17,6 +17,7 @@ line: ?1 BareWord set @set
     | value @rule
   ];
 set^: '=' value;
+// FIXME allow newlines within function parameters
 params^: '(' [value (',' value)*] ')';
 block^: '{' context '}';
 matcher: BareWord | DoubleQuoted | SingleQuoted;
@@ -35,5 +36,3 @@ token token // glob action
 token // action
 */
 
-// FIXME newlines within parens
-// FIXME comment at end of file without newline
