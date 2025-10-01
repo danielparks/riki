@@ -68,7 +68,7 @@ pub fn dump_config(
 /// Process the CST from the parse into rules.
 fn process_cst(cst: &Cst) {
     let mut iter = cst.descendents(NodeRef::ROOT);
-    let mut matcher_stack: Vec<(WordType, Span)> = Vec::with_capacity(5);
+    let mut matcher_stack: Vec<Word> = Vec::with_capacity(5);
     while let Some(node) = iter.next() {
         use RuleSide::{Pop, Push};
         #[expect(clippy::match_same_arms, reason = "clarity")]
@@ -128,10 +128,10 @@ fn process_cst(cst: &Cst) {
                 assert!(matcher_stack.pop().is_some());
             }
             CNode::Rule(Rule::Set, Push) => {
-                let (id_span, value) = consume_set_contents(&mut iter);
+                let setting = consume_set_contents(&mut iter);
 
                 // FIXME emit set
-                println!("SET {matcher_stack:?} {id_span:?} = {value:?}");
+                println!("SET {matcher_stack:?} {setting:?}");
             }
             CNode::Rule(Rule::Value, Push) => {
                 let value = consume_value_contents(&mut iter);
@@ -162,13 +162,13 @@ fn process_cst(cst: &Cst) {
 }
 
 /// Consume contents of a set rule.
-fn consume_set_contents(iter: &mut CNodeIter) -> (Span, (WordType, Span)) {
-    let id_span = consume_bare_word_token(iter, " for set variable");
+fn consume_set_contents(iter: &mut CNodeIter) -> Setting {
+    let variable = consume_bare_word_token(iter, " for set variable");
     expect_token(iter, Token::Equal, " in set rule");
 
-    let rvalue = match iter.next() {
+    let value = match iter.next() {
         Some(CNode::Rule(Rule::Function, RuleSide::Push)) => {
-            (WordType::Bare, consume_function_contents(iter))
+            consume_function_contents(iter)
         }
         Some(CNode::Rule(Rule::Value, RuleSide::Push)) => {
             consume_value_contents(iter)
@@ -180,14 +180,14 @@ fn consume_set_contents(iter: &mut CNodeIter) -> (Span, (WordType, Span)) {
     };
 
     expect_rule(iter, Rule::Set, RuleSide::Pop, " after set push rule");
-    (id_span, rvalue)
+    Setting { variable, value }
 }
 
 /// Consume contents of a function rule.
-fn consume_function_contents(iter: &mut CNodeIter) -> Span {
-    // FIXME
+fn consume_function_contents(iter: &mut CNodeIter) -> Value {
     // Get identifier (name of function)
-    let id_span = consume_bare_word_token(iter, " for function identifier");
+    let identifier = consume_bare_word_token(iter, " for function identifier");
+    let mut parameters = Parameters::new();
     // Get '('
     expect_token(iter, Token::LParen, " in function rule");
 
@@ -195,13 +195,13 @@ fn consume_function_contents(iter: &mut CNodeIter) -> Span {
     while let Some(node) = iter.next() {
         match node {
             CNode::Rule(Rule::Value, RuleSide::Push) => {
-                let _ = consume_value_contents(iter);
+                parameters.push(consume_value_contents(iter));
             }
             CNode::Rule(Rule::Value, RuleSide::Pop) => {
                 panic!("unexpected value rule pop; should have been consumed")
             }
             CNode::Rule(Rule::Function, RuleSide::Push) => {
-                let _ = consume_function_contents(iter);
+                parameters.push(consume_function_contents(iter));
             }
             // Ignore tokens — we rely on the parser grammar to make sure these
             // are in the correct places.
@@ -209,7 +209,7 @@ fn consume_function_contents(iter: &mut CNodeIter) -> Span {
             // Find the end of the function. We always consume both in a pair
             // so we can never get one that corresponds to a different function.
             CNode::Rule(Rule::Function, RuleSide::Pop) => {
-                return id_span; // FIXME
+                return Value::Function(identifier, parameters);
             }
             other => panic!("expected value rule, ',', or ')', got {other:?}"),
         }
@@ -218,58 +218,47 @@ fn consume_function_contents(iter: &mut CNodeIter) -> Span {
 }
 
 /// Consume a value rule.
-fn consume_value<D: fmt::Display>(
-    iter: &mut CNodeIter,
-    context: D,
-) -> (WordType, Span) {
+fn consume_value<D: fmt::Display>(iter: &mut CNodeIter, context: D) -> Value {
     expect_rule(iter, Rule::Value, RuleSide::Push, context);
     consume_value_contents(iter)
 }
 
 /// Consume contents of a value rule.
-fn consume_value_contents(iter: &mut CNodeIter) -> (WordType, Span) {
-    let word_span = consume_word_token(iter, " in value");
+fn consume_value_contents(iter: &mut CNodeIter) -> Value {
+    let word = consume_word_token(iter, " in value");
     expect_rule(iter, Rule::Value, RuleSide::Pop, " after value token");
-    word_span
+    word.into()
 }
 
 /// Check that the next node is a matcher rule, then get the token it contains.
-fn consume_matcher<D: fmt::Display>(
-    iter: &mut CNodeIter,
-    context: D,
-) -> (WordType, Span) {
+fn consume_matcher<D: fmt::Display>(iter: &mut CNodeIter, context: D) -> Word {
     expect_rule(iter, Rule::Matcher, RuleSide::Push, &context);
-    let word_span =
-        consume_word_token(iter, format!(" in matcher rule{context}"));
+    let word = consume_word_token(iter, format!(" in matcher rule{context}"));
     expect_rule(iter, Rule::Matcher, RuleSide::Pop, " after matcher token");
-    word_span
+    word
 }
 
 /// Consume a bare word token.
 fn consume_bare_word_token<D: fmt::Display>(
     iter: &mut CNodeIter,
     context: D,
-) -> Span {
-    let (word_type, span) = consume_word_token(iter, &context);
-    assert_eq!(
-        word_type,
-        WordType::Bare,
-        "expected bare word token{context}"
-    );
-    span
+) -> BareWord {
+    consume_word_token(iter, &context)
+        .try_into()
+        .unwrap_or_else(|_| panic!("expected bare word token{context}"))
 }
 
 /// Check that the next node is a token and return it.
 fn consume_word_token<D: fmt::Display>(
     iter: &mut CNodeIter,
     context: D,
-) -> (WordType, Span) {
+) -> Word {
     let next = iter.next();
     let Some(CNode::Token(token, span)) = next else {
         panic!("expected word token{context}, got {next:?}");
     };
 
-    (token.try_into().unwrap(), span)
+    Word { type_: token.try_into().unwrap(), span }
 }
 
 /// Check that the next node is a certain rule.
@@ -350,6 +339,41 @@ impl TryFrom<Token> for WordType {
     }
 }
 
+impl From<WordType> for Token {
+    fn from(type_: WordType) -> Self {
+        match type_ {
+            WordType::Bare => Self::BareWord,
+            WordType::SingleQuoted => Self::SingleQuoted,
+            WordType::DoubleQuoted => Self::DoubleQuoted,
+        }
+    }
+}
+
+/// A reference to a word in the config file
+#[derive(Clone, Debug)]
+pub struct Word {
+    /// The type of word
+    pub type_: WordType,
+
+    /// The location in the source
+    pub span: Span,
+}
+
+/// A reference to a word in the config file
+#[derive(Clone, Debug)]
+pub struct BareWord(pub Span);
+
+impl TryFrom<Word> for BareWord {
+    type Error = ParseError;
+
+    fn try_from(word: Word) -> Result<Self, Self::Error> {
+        match word.type_ {
+            WordType::Bare => Ok(Self(word.span)),
+            other => Err(ParseError::ExpectedWordToken(other.into())),
+        }
+    }
+}
+
 /// Errors that could be produced from parsing code.
 ///
 /// Does not include lexer errors or errors sent to diagnostics.
@@ -358,42 +382,65 @@ pub enum ParseError {
     /// Found something other than a word token.
     #[error("expected a word token, got {0:?}")]
     ExpectedWordToken(Token),
+
+    /// Found something other than a bare word token.
+    #[error("expected a bare word token, got {0:?}")]
+    ExpectedBareWordToken(Token),
 }
 
 /// A rule found in the configuration file.
 #[derive(Debug, Clone)]
-pub struct ConfigRule<'a> {
-    matcher: MatcherSequence<'a>,
-    action: Action<'a>,
+pub struct ConfigRule {
+    matcher: MatcherSequence,
+    action: Action,
 }
 
 /// A full sequence of matchers.
 #[derive(Debug, Clone)]
-pub struct MatcherSequence<'a>(pub Vec<Matcher<'a>>);
+pub struct MatcherSequence(pub Vec<Matcher>);
 
 /// A matcher for a request.
 #[derive(Debug, Clone)]
-pub struct Matcher<'a>(&'a str);
+pub struct Matcher(pub Word);
 
 /// The action corresponding to a rule.
 #[derive(Debug, Clone)]
-pub enum Action<'a> {
-    /// Configure an option for matching requests.
-    Configure(&'a str, Value<'a>),
+pub enum Action {
+    /// Set an option for matching requests.
+    Setting(Setting),
 
     /// Value to return for matching requests.
-    Value(Value<'a>),
+    Value(Value),
 }
 
-/// A value for a configuration option or to return as a response.
+/// A configuration setting
 #[derive(Debug, Clone)]
-pub enum Value<'a> {
+pub struct Setting {
+    /// The variable being set
+    pub variable: BareWord,
+
+    /// The value
+    pub value: Value,
+}
+
+/// A value for a configuration setting or to return as a response.
+#[derive(Debug, Clone)]
+pub enum Value {
     /// Call a function.
-    Function(&'a str, Vec<Self>),
+    Function(BareWord, Parameters),
 
     /// A string of some kind.
-    Literal(&'a str),
+    Literal(Word),
 }
+
+impl From<Word> for Value {
+    fn from(word: Word) -> Self {
+        Self::Literal(word)
+    }
+}
+
+/// Parameters to a function call.
+pub type Parameters = Vec<Value>;
 
 /// Tokenize
 pub fn tokenize(
