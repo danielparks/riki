@@ -57,38 +57,39 @@ pub fn dump_config(
         }
 
         println!("{cst}");
-        process_cst(&cst);
+        println!();
+
+        for rule in process_cst(&cst) {
+            println!("{}", rule.canonical(&source));
+        }
     }
 
     Ok(())
 }
 
 /// Process the CST from the parse into rules.
-fn process_cst(cst: &Cst) {
+fn process_cst(cst: &Cst) -> Vec<ConfigRule> {
     let mut iter = cst.descendents(NodeRef::ROOT);
-    let mut matcher_stack: Vec<Word> = Vec::with_capacity(5);
+    let mut matcher_stack: Vec<Matcher> = Vec::with_capacity(5);
+    let mut rules: Vec<ConfigRule> = Vec::new();
     while let Some(node) = iter.next() {
         use RuleSide::{Pop, Push};
         #[expect(clippy::match_same_arms, reason = "clarity")]
         match node {
             CNode::Rule(Rule::Action, Push) => {
-                matcher_stack.push(consume_matcher(&mut iter, ""));
-                // FIXME emit rule
-                println!("RULE {matcher_stack:?}");
-                assert!(matcher_stack.pop().is_some());
+                let action =
+                    Action::Value(consume_matcher(&mut iter, "").into());
+                rules.push(ConfigRule {
+                    matcher: matcher_stack.clone(),
+                    action,
+                });
                 expect_rule(&mut iter, Rule::Action, Pop, " after action push");
             }
-            CNode::Rule(
-                rule @ (Rule::Action
-                | Rule::Function
-                | Rule::Matcher
-                | Rule::Set
-                | Rule::Value),
-                Pop,
-            ) => panic!("{rule:?} pop rule should have already been consumed"),
             CNode::Rule(Rule::Context, Push) => {
-                matcher_stack
-                    .push(consume_matcher(&mut iter, " in context rule"));
+                matcher_stack.push(Matcher(consume_matcher(
+                    &mut iter,
+                    " in context rule",
+                )));
                 expect_token(&mut iter, TokenType::LBrace, " in context rule");
             }
             CNode::Rule(Rule::Context, Pop) => {
@@ -111,30 +112,45 @@ fn process_cst(cst: &Cst) {
                 );
             }
             CNode::Rule(Rule::Function, Push) => {
-                let function = consume_function_contents(&mut iter);
-                // FIXME emit rule
-                println!("RULE {matcher_stack:?} {function:?}");
+                let action =
+                    Action::Value(consume_function_contents(&mut iter));
+                rules.push(ConfigRule {
+                    matcher: matcher_stack.clone(),
+                    action,
+                });
             }
             CNode::Rule(Rule::Matcher, Push) => {
                 panic!("unexpected matcher rule");
             }
+            CNode::Rule(
+                rule @ (Rule::Action
+                | Rule::Function
+                | Rule::Matcher
+                | Rule::Set
+                | Rule::Value),
+                Pop,
+            ) => panic!("{rule:?} pop rule should have already been consumed"),
             CNode::Rule(Rule::Rule, Push) => {
-                matcher_stack.push(consume_matcher(&mut iter, " in rule rule"));
+                matcher_stack
+                    .push(Matcher(consume_matcher(&mut iter, " in rule rule")));
                 // Value or function next — let this loop take care of it.
             }
             CNode::Rule(Rule::Rule, Pop) => {
                 assert!(matcher_stack.pop().is_some());
             }
             CNode::Rule(Rule::Set, Push) => {
-                let setting = consume_set_contents(&mut iter);
-
-                // FIXME emit set
-                println!("SET {matcher_stack:?} {setting:?}");
+                let action = Action::Setting(consume_set_contents(&mut iter));
+                rules.push(ConfigRule {
+                    matcher: matcher_stack.clone(),
+                    action,
+                });
             }
             CNode::Rule(Rule::Value, Push) => {
-                let value = consume_value_contents(&mut iter);
-                // FIXME emit rule
-                println!("RULE {matcher_stack:?} {value:?}");
+                let action = Action::Value(consume_value_contents(&mut iter));
+                rules.push(ConfigRule {
+                    matcher: matcher_stack.clone(),
+                    action,
+                });
             }
             CNode::Token(
                 token @ (TokenType::BareWord
@@ -155,6 +171,8 @@ fn process_cst(cst: &Cst) {
             }
         }
     }
+
+    rules
 }
 
 /// Consume contents of a set rule.
@@ -336,9 +354,39 @@ pub struct Word {
     pub span: Span,
 }
 
+impl Word {
+    /// The string this token represents in the source.
+    #[must_use]
+    #[inline]
+    pub fn source_str<'a>(&self, source: &'a str) -> &'a str {
+        &source[self.span.clone()]
+    }
+
+    /// Return the canonical representation of this word
+    #[must_use]
+    pub fn canonical(&self, source: &str) -> String {
+        self.source_str(source).to_owned()
+    }
+}
+
 /// A reference to a word in the config file
 #[derive(Clone, Debug)]
 pub struct BareWord(pub Span);
+
+impl BareWord {
+    /// The string this token represents in the source.
+    #[must_use]
+    #[inline]
+    pub fn source_str<'a>(&self, source: &'a str) -> &'a str {
+        &source[self.0.clone()]
+    }
+
+    /// Return the canonical representation of this word
+    #[must_use]
+    pub fn canonical(&self, source: &str) -> String {
+        self.source_str(source).to_owned()
+    }
+}
 
 impl TryFrom<Word> for BareWord {
     type Error = ParseError;
@@ -369,18 +417,38 @@ pub enum ParseError {
 #[derive(Debug, Clone)]
 pub struct ConfigRule {
     /// Match a request
-    pub matcher: MatcherSequence,
+    pub matcher: Vec<Matcher>,
     /// Action to take in response to a request
     pub action: Action,
 }
 
-/// A full sequence of matchers.
-#[derive(Debug, Clone)]
-pub struct MatcherSequence(pub Vec<Matcher>);
+impl ConfigRule {
+    /// Return the canonical representation of this rule
+    #[must_use]
+    pub fn canonical(&self, source: &str) -> String {
+        format!(
+            "{} {}",
+            self.matcher
+                .iter()
+                .map(|matcher| matcher.canonical(source))
+                .collect::<Vec<_>>()
+                .join(" "),
+            self.action.canonical(source),
+        )
+    }
+}
 
 /// A matcher for a request.
 #[derive(Debug, Clone)]
 pub struct Matcher(pub Word);
+
+impl Matcher {
+    /// Return the canonical representation of this matcher
+    #[must_use]
+    pub fn canonical(&self, source: &str) -> String {
+        self.0.canonical(source)
+    }
+}
 
 /// The action corresponding to a rule.
 #[derive(Debug, Clone)]
@@ -390,6 +458,17 @@ pub enum Action {
 
     /// Value to return for matching requests.
     Value(Value),
+}
+
+impl Action {
+    /// Return the canonical representation of this action
+    #[must_use]
+    pub fn canonical(&self, source: &str) -> String {
+        match self {
+            Self::Setting(setting) => setting.canonical(source),
+            Self::Value(value) => value.canonical(source),
+        }
+    }
 }
 
 /// A configuration setting
@@ -402,6 +481,18 @@ pub struct Setting {
     pub value: Value,
 }
 
+impl Setting {
+    /// Return the canonical representation of this setting
+    #[must_use]
+    pub fn canonical(&self, source: &str) -> String {
+        format!(
+            "{} = {}",
+            self.variable.canonical(source),
+            self.value.canonical(source)
+        )
+    }
+}
+
 /// A value for a configuration setting or to return as a response.
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -410,6 +501,27 @@ pub enum Value {
 
     /// A string of some kind.
     Literal(Word),
+}
+
+impl Value {
+    /// Return the canonical representation of this value
+    #[must_use]
+    pub fn canonical(&self, source: &str) -> String {
+        match self {
+            Self::Function(identifier, parameters) => {
+                format!(
+                    "{}({})",
+                    identifier.canonical(source),
+                    parameters
+                        .iter()
+                        .map(|value| value.canonical(source))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
+            Self::Literal(word) => word.canonical(source),
+        }
+    }
 }
 
 impl From<Word> for Value {
