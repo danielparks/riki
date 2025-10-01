@@ -3,6 +3,7 @@
 
 pub mod lexer;
 pub mod parser;
+mod tests;
 
 use bstr::{BStr, BString, ByteVec};
 use codespan_reporting::files::SimpleFile;
@@ -65,6 +66,21 @@ pub fn dump_config(
     }
 
     Ok(())
+}
+
+/// Parse configuration file contents and return rules or errors.
+///
+/// # Errors
+///
+/// Returns [`Diagnostic`]s that point out problems in `source`.
+pub fn parse(source: &str) -> Result<Vec<ConfigRule>, Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    let cst = Parser::parse(source, &mut diagnostics);
+    if diagnostics.is_empty() {
+        Ok(process_cst(&cst))
+    } else {
+        Err(diagnostics)
+    }
 }
 
 /// Process the CST from the parse into rules.
