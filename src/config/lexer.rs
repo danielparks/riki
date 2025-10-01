@@ -39,7 +39,7 @@ impl LexerError {
 #[logos(subpattern hspace = r"[ \t]+((?&continuation)[ \t]*)*|(?&continuation)+[ \t]+((?&continuation)+[\t ]*)*")] // \t, ' ', '\' + '\n'
 #[logos(skip(r"(?&comment)"))] // For comment right before EOF
 #[logos(skip(r"(?&hspace)"))]
-pub enum Token {
+pub enum TokenType {
     /// End of file
     EOF,
 
@@ -105,12 +105,11 @@ pub enum Token {
 }
 
 /// Tokenize a string.
-// TODO: extend tokenization (e.g. check for mismatched parentheses)
 pub fn tokenize(
     source: &str,
     diags: &mut Vec<Diagnostic>,
-) -> (Vec<Token>, Vec<Span>) {
-    let lexer = Token::lexer(source);
+) -> (Vec<TokenType>, Vec<Span>) {
+    let lexer = TokenType::lexer(source);
     let mut tokens = vec![];
     let mut spans = vec![];
 
@@ -121,7 +120,7 @@ pub fn tokenize(
             }
             Err(err) => {
                 diags.push(err.into_diagnostic(span.clone()));
-                tokens.push(Token::Error);
+                tokens.push(TokenType::Error);
             }
         }
         spans.push(span);
