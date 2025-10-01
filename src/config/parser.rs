@@ -8,7 +8,8 @@
     reason = "generated code"
 )]
 
-use super::lexer::{Diagnostic, Token, tokenize};
+use super::lexer::TokenType as Token;
+use super::lexer::{Diagnostic, tokenize};
 use codespan_reporting::diagnostic::Label;
 
 /// Context required for [`Parser`]. Not needed by our code.

@@ -7,7 +7,7 @@ pub mod parser;
 use bstr::{BStr, BString, ByteVec};
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::{self, Config};
-use lexer::{Diagnostic, Span, Token};
+use lexer::{Diagnostic, Span, TokenType};
 use logos::Logos;
 use parser::{CNode, CNodeIter, Cst, NodeRef, Parser, Rule, RuleSide};
 use std::fmt;
@@ -89,7 +89,7 @@ fn process_cst(cst: &Cst) {
             CNode::Rule(Rule::Context, Push) => {
                 matcher_stack
                     .push(consume_matcher(&mut iter, " in context rule"));
-                expect_token(&mut iter, Token::LBrace, " in context rule");
+                expect_token(&mut iter, TokenType::LBrace, " in context rule");
             }
             CNode::Rule(Rule::Context, Pop) => {
                 assert!(matcher_stack.pop().is_some());
@@ -136,23 +136,23 @@ fn process_cst(cst: &Cst) {
                 // FIXME emit rule
                 println!("RULE {matcher_stack:?} {value:?}");
             }
-            CNode::Token(Token::EOF, _) => {
+            CNode::Token(TokenType::EOF, _) => {
                 // FIXME remove?
                 panic!("EOF???")
             }
             CNode::Token(
-                token @ (Token::BareWord
-                | Token::DoubleQuoted
-                | Token::SingleQuoted
-                | Token::LBrace
-                | Token::LParen
-                | Token::RParen
-                | Token::Comma
-                | Token::Equal),
+                token @ (TokenType::BareWord
+                | TokenType::DoubleQuoted
+                | TokenType::SingleQuoted
+                | TokenType::LBrace
+                | TokenType::LParen
+                | TokenType::RParen
+                | TokenType::Comma
+                | TokenType::Equal),
                 _,
             ) => panic!("unexpected {token:?} token outside of a rule"),
-            CNode::Token(Token::Newlines | Token::RBrace, _) => {}
-            CNode::Token(Token::Error, _) => {
+            CNode::Token(TokenType::Newlines | TokenType::RBrace, _) => {}
+            CNode::Token(TokenType::Error, _) => {
                 panic!("unexpected error token")
             }
         }
@@ -162,7 +162,7 @@ fn process_cst(cst: &Cst) {
 /// Consume contents of a set rule.
 fn consume_set_contents(iter: &mut CNodeIter) -> Setting {
     let variable = consume_bare_word_token(iter, " for set variable");
-    expect_token(iter, Token::Equal, " in set rule");
+    expect_token(iter, TokenType::Equal, " in set rule");
 
     let value = match iter.next() {
         Some(CNode::Rule(Rule::Function, RuleSide::Push)) => {
@@ -187,7 +187,7 @@ fn consume_function_contents(iter: &mut CNodeIter) -> Value {
     let identifier = consume_bare_word_token(iter, " for function identifier");
     let mut parameters = Parameters::new();
     // Get '('
-    expect_token(iter, Token::LParen, " in function rule");
+    expect_token(iter, TokenType::LParen, " in function rule");
 
     // Process all the nodes inside the parentheses.
     while let Some(node) = iter.next() {
@@ -203,7 +203,7 @@ fn consume_function_contents(iter: &mut CNodeIter) -> Value {
             }
             // Ignore tokens — we rely on the parser grammar to make sure these
             // are in the correct places.
-            CNode::Token(Token::Comma | Token::RParen, _) => {}
+            CNode::Token(TokenType::Comma | TokenType::RParen, _) => {}
             // Find the end of the function. We always consume both in a pair
             // so we can never get one that corresponds to a different function.
             CNode::Rule(Rule::Function, RuleSide::Pop) => {
@@ -276,7 +276,7 @@ fn expect_rule<D: fmt::Display>(
 /// Check that the next node is a specific token and return it.
 fn expect_token<D: fmt::Display>(
     iter: &mut CNodeIter,
-    expected: Token,
+    expected: TokenType,
     context: D,
 ) -> Span {
     let next = iter.next();
@@ -305,20 +305,20 @@ pub enum WordType {
     DoubleQuoted,
 }
 
-impl TryFrom<Token> for WordType {
+impl TryFrom<TokenType> for WordType {
     type Error = ParseError;
 
-    fn try_from(value: Token) -> Result<Self, Self::Error> {
+    fn try_from(value: TokenType) -> Result<Self, Self::Error> {
         match value {
-            Token::BareWord => Ok(Self::Bare),
-            Token::SingleQuoted => Ok(Self::SingleQuoted),
-            Token::DoubleQuoted => Ok(Self::DoubleQuoted),
+            TokenType::BareWord => Ok(Self::Bare),
+            TokenType::SingleQuoted => Ok(Self::SingleQuoted),
+            TokenType::DoubleQuoted => Ok(Self::DoubleQuoted),
             other => Err(ParseError::ExpectedWordToken(other)),
         }
     }
 }
 
-impl From<WordType> for Token {
+impl From<WordType> for TokenType {
     fn from(type_: WordType) -> Self {
         match type_ {
             WordType::Bare => Self::BareWord,
@@ -360,11 +360,11 @@ impl TryFrom<Word> for BareWord {
 pub enum ParseError {
     /// Found something other than a word token.
     #[error("expected a word token, got {0:?}")]
-    ExpectedWordToken(Token),
+    ExpectedWordToken(TokenType),
 
     /// Found something other than a bare word token.
     #[error("expected a bare word token, got {0:?}")]
-    ExpectedBareWordToken(Token),
+    ExpectedBareWordToken(TokenType),
 }
 
 /// A rule found in the configuration file.
@@ -427,14 +427,14 @@ pub type Parameters = Vec<Value>;
 pub fn tokenize(
     source: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Vec<(Token, Span)> {
-    let lexer = Token::lexer(source);
+) -> Vec<(TokenType, Span)> {
+    let lexer = TokenType::lexer(source);
     let mut output = vec![];
 
     for (token, span) in lexer.spanned() {
         let token = token.unwrap_or_else(|err| {
             diagnostics.push(err.into_diagnostic(span.clone()));
-            Token::Error
+            TokenType::Error
         });
 
         output.push((token, span));
