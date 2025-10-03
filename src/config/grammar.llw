@@ -1,29 +1,30 @@
 token
   LBrace='{' RBrace='}' LParen='(' RParen=')' Comma=',' Equal='='
-  BareWord='<bareword>'
-  DoubleQuoted='<doublequoted>'
-  SingleQuoted='<singlequoted>'
-  Newlines;
+  Identifier='<identifier>'
+  BareGlob='<bare glob>'
+  DoubleQuoted='<"string">'
+  SingleQuoted='<\'string\'>'
+  Newline='\\n';
 
 start file;
 
 file: context;
-context^: (?1 Newlines+ line)* Newlines*
-  | line (?1 Newlines+ line)* Newlines*;
-line: ?1 BareWord set @set
-  | ?2 BareWord params @function
+context^: (?1 Newline+ line)* Newline*
+  | line (?1 Newline+ line)* Newline*;
+line: ?1 Identifier set @set
+  | ?2 Identifier params @function
   | matcher @action [
     block @context
     | value @rule
   ];
 set^: '=' value;
-// FIXME allow newlines within function parameters
+// FIXME allow Newline within function parameters
 params^: '(' [value (',' value)*] ')';
 block^: '{' context '}';
-matcher: BareWord | DoubleQuoted | SingleQuoted;
+matcher: Identifier | BareGlob | DoubleQuoted | SingleQuoted;
 // This means that function calls are not within the value rule; the value rule
 // only ever contains a word.
-value: BareWord [ params @function ] | DoubleQuoted | SingleQuoted;
+value: Identifier [ params @function ] | DoubleQuoted | SingleQuoted;
 
 /*
 A line can have:

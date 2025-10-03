@@ -48,7 +48,11 @@ pub fn dump_config(
         }
     } else {
         let cst = Parser::parse(&source, &mut diagnostics);
+
+        println!("{cst}");
+
         if !diagnostics.is_empty() {
+            println!();
             for diag in &diagnostics {
                 term::emit(&mut err_stream.lock(), &config, &file, diag)
                     .unwrap();
@@ -56,9 +60,7 @@ pub fn dump_config(
             return Ok(()); // FIXME error?
         }
 
-        println!("{cst}");
         println!();
-
         for rule in process_cst(&cst) {
             println!("{}", rule.canonical(&source));
         }
@@ -168,7 +170,8 @@ fn process_cst(cst: &Cst) -> Vec<ConfigRule> {
                 });
             }
             CNode::Token(
-                token @ (TokenType::BareWord
+                token @ (TokenType::Identifier
+                | TokenType::BareGlob
                 | TokenType::DoubleQuoted
                 | TokenType::SingleQuoted
                 | TokenType::LBrace
@@ -181,7 +184,7 @@ fn process_cst(cst: &Cst) -> Vec<ConfigRule> {
             CNode::Token(token @ (TokenType::Error | TokenType::EOF), _) => {
                 panic!("unexpected {token:?} token")
             }
-            CNode::Token(TokenType::Newlines | TokenType::RBrace, _) => {
+            CNode::Token(TokenType::Newline | TokenType::RBrace, _) => {
                 // Ignore
             }
         }
@@ -192,7 +195,7 @@ fn process_cst(cst: &Cst) -> Vec<ConfigRule> {
 
 /// Consume contents of a set rule.
 fn consume_set_contents(iter: &mut CNodeIter) -> Setting {
-    let variable = consume_bare_word_token(iter, " for set variable");
+    let variable = consume_identifier(iter, " for set variable");
     expect_token(iter, TokenType::Equal, " in set rule");
 
     let value = match iter.next() {
@@ -215,7 +218,7 @@ fn consume_set_contents(iter: &mut CNodeIter) -> Setting {
 /// Consume contents of a function rule.
 fn consume_function_contents(iter: &mut CNodeIter) -> Value {
     // Get identifier (name of function)
-    let identifier = consume_bare_word_token(iter, " for function identifier");
+    let identifier = consume_identifier(iter, " for function identifier");
     let mut parameters = Parameters::new();
     // Get '('
     expect_token(iter, TokenType::LParen, " in function rule");
@@ -262,10 +265,10 @@ fn consume_matcher<D: fmt::Display>(iter: &mut CNodeIter, context: D) -> Word {
 }
 
 /// Consume a bare word token.
-fn consume_bare_word_token<D: fmt::Display>(
+fn consume_identifier<D: fmt::Display>(
     iter: &mut CNodeIter,
     context: D,
-) -> BareWord {
+) -> Identifier {
     consume_word_token(iter, &context)
         .try_into()
         .unwrap_or_else(|_| panic!("expected bare word token{context}"))
@@ -324,15 +327,13 @@ fn expect_token<D: fmt::Display>(
 /// The type of a word
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WordType {
-    /// Bare word
-    Bare,
-    /// Single quoted
-    ///
-    /// Evaluates to a literal path segment as a matcher.
+    /// Identifier
+    Identifier,
+    /// Bare glob
+    BareGlob,
+    /// Single quoted string
     SingleQuoted,
-    /// Double quoted
-    ///
-    /// Evaluated as a glob when used as a matcher.
+    /// Double quoted string
     DoubleQuoted,
 }
 
@@ -341,7 +342,8 @@ impl TryFrom<TokenType> for WordType {
 
     fn try_from(value: TokenType) -> Result<Self, Self::Error> {
         match value {
-            TokenType::BareWord => Ok(Self::Bare),
+            TokenType::Identifier => Ok(Self::Identifier),
+            TokenType::BareGlob => Ok(Self::BareGlob),
             TokenType::SingleQuoted => Ok(Self::SingleQuoted),
             TokenType::DoubleQuoted => Ok(Self::DoubleQuoted),
             other => Err(ParseError::ExpectedWordToken(other)),
@@ -352,7 +354,8 @@ impl TryFrom<TokenType> for WordType {
 impl From<WordType> for TokenType {
     fn from(type_: WordType) -> Self {
         match type_ {
-            WordType::Bare => Self::BareWord,
+            WordType::Identifier => Self::Identifier,
+            WordType::BareGlob => Self::BareGlob,
             WordType::SingleQuoted => Self::SingleQuoted,
             WordType::DoubleQuoted => Self::DoubleQuoted,
         }
@@ -384,11 +387,11 @@ impl Word {
     }
 }
 
-/// A reference to a word in the config file
+/// A reference to an identifier in the config file
 #[derive(Clone, Debug)]
-pub struct BareWord(pub Span);
+pub struct Identifier(pub Span);
 
-impl BareWord {
+impl Identifier {
     /// The string this token represents in the source.
     #[must_use]
     #[inline]
@@ -396,20 +399,20 @@ impl BareWord {
         &source[self.0.clone()]
     }
 
-    /// Return the canonical representation of this word
+    /// Return the canonical representation of this identifier
     #[must_use]
     pub fn canonical(&self, source: &str) -> String {
         self.source_str(source).to_owned()
     }
 }
 
-impl TryFrom<Word> for BareWord {
+impl TryFrom<Word> for Identifier {
     type Error = ParseError;
 
     fn try_from(word: Word) -> Result<Self, Self::Error> {
         match word.type_ {
-            WordType::Bare => Ok(Self(word.span)),
-            other => Err(ParseError::ExpectedWordToken(other.into())),
+            WordType::Identifier => Ok(Self(word.span)),
+            other => Err(ParseError::ExpectedIdentifierToken(other.into())),
         }
     }
 }
@@ -423,9 +426,9 @@ pub enum ParseError {
     #[error("expected a word token, got {0:?}")]
     ExpectedWordToken(TokenType),
 
-    /// Found something other than a bare word token.
-    #[error("expected a bare word token, got {0:?}")]
-    ExpectedBareWordToken(TokenType),
+    /// Found something other than an identifier token.
+    #[error("expected an identifier token, got {0:?}")]
+    ExpectedIdentifierToken(TokenType),
 }
 
 /// A rule found in the configuration file.
@@ -490,7 +493,7 @@ impl Action {
 #[derive(Debug, Clone)]
 pub struct Setting {
     /// The variable being set
-    pub variable: BareWord,
+    pub variable: Identifier,
 
     /// The value
     pub value: Value,
@@ -512,7 +515,7 @@ impl Setting {
 #[derive(Debug, Clone)]
 pub enum Value {
     /// Call a function.
-    Function(BareWord, Parameters),
+    Function(Identifier, Parameters),
 
     /// A string of some kind.
     Literal(Word),

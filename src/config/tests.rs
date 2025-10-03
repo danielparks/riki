@@ -57,13 +57,13 @@ fn bad_char() {
     check!(
         parse("=")
             == err_str(
-                "invalid syntax, expected one of: <bareword>, <doublequoted>, <end of file>, 'Newlines', '}', <singlequoted> 0..1"
+                r#"invalid syntax, expected one of: <bare glob>, <"string">, <end of file>, <identifier>, '\n', '}', <'string'> 0..1"#
             )
     );
     check!(
         parse("{")
             == err_str(
-                "invalid syntax, expected one of: <bareword>, <doublequoted>, <end of file>, 'Newlines', '}', <singlequoted> 0..1"
+                r#"invalid syntax, expected one of: <bare glob>, <"string">, <end of file>, <identifier>, '\n', '}', <'string'> 0..1"#
             )
     );
     check!(
