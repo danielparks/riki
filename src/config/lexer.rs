@@ -104,6 +104,25 @@ pub enum TokenType {
     Error,
 }
 
+/// Tokenize
+pub fn tokenize(
+    source: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<(TokenType, Span)> {
+    let lexer = TokenType::lexer(source);
+    let mut output = vec![];
+
+    for (token, span) in lexer.spanned() {
+        let token = token.unwrap_or_else(|err| {
+            diagnostics.push(err.into_diagnostic(span.clone()));
+            TokenType::Error
+        });
+
+        output.push((token, span));
+    }
+    output
+}
+
 /// Validate a glob matching a URL path
 ///
 /// URL characters ([RFC 3986 §2.2] and [§2.3]):
@@ -134,3 +153,35 @@ pub enum TokenType {
 /// [fast-glob]: https://crates.io/crates/fast-glob#syntax
 #[expect(dead_code, reason = "saving comment")]
 const fn validate_glob() {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use assert2::check;
+
+    fn just_tokens(input: &str) -> Vec<TokenType> {
+        let mut diagnostics = Vec::new();
+        let tokens = tokenize(input, &mut diagnostics);
+        check!(diagnostics.as_slice() == []);
+        tokens.iter().map(|(type_, _span)| *type_).collect()
+    }
+
+    #[test_log::test]
+    fn comment() {
+        check!(just_tokens("#comment").as_slice() == []);
+    }
+
+    #[test_log::test]
+    fn newlines() {
+        check!(just_tokens("\n").as_slice() == [TokenType::Newlines]);
+        check!(just_tokens("\n  ").as_slice() == [TokenType::Newlines]);
+        check!(just_tokens("\n  \n").as_slice() == [TokenType::Newlines]);
+        check!(just_tokens("  \n").as_slice() == [TokenType::Newlines]);
+    }
+
+    #[test_log::test]
+    #[ignore = "FIXME"]
+    fn newline_comment() {
+        check!(just_tokens("\n#comment").as_slice() == [TokenType::Newlines]);
+    }
+}
