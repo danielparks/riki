@@ -98,7 +98,7 @@ braces. So, every rule within `/foo { ... }` effectively has `/foo` prepended.
         error(404)
     }
 
-[glob syntax]: https://crates.io/crates/fast-glob#syntax
+[glob syntax]: https://docs.rs/globset/latest/globset/index.html#syntax
 
 ## Rust Crate
 

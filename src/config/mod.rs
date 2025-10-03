@@ -385,11 +385,106 @@ impl Word {
         &source[self.span.clone()]
     }
 
+    /// Return the contents of this word
+    ///
+    /// FIXME variable interpolation
+    #[must_use]
+    pub fn contents(&self, source: &str) -> String {
+        let src = self.source_str(source);
+        match self.type_ {
+            WordType::Identifier => src.to_owned(),
+            WordType::Path => path_unescape(src),
+            WordType::BareGlob => bare_glob_unescape(src),
+            WordType::QuotedSingle | WordType::QuotedDouble => {
+                string_unescape(src)
+            }
+        }
+    }
+
+    /// Return the contents of this word
+    ///
+    /// FIXME variable interpolation
+    #[must_use]
+    pub fn as_glob_str(&self, source: &str) -> String {
+        let src = self.source_str(source);
+        match self.type_ {
+            WordType::Identifier => globset::escape(src),
+            WordType::Path => globset::escape(&path_unescape(src)),
+            WordType::BareGlob => bare_glob_unescape(src),
+            WordType::QuotedSingle | WordType::QuotedDouble => {
+                globset::escape(&string_unescape(src))
+            }
+        }
+    }
+
     /// Return the canonical representation of this word
     #[must_use]
     pub fn canonical(&self, source: &str) -> String {
         self.source_str(source).to_owned()
     }
+}
+
+/// Get the contents of a bare glob, e.g. `contents`.
+///
+/// FIXME [`globset`] will take care of the unescaping.
+///
+/// FIXME string interpolation
+fn bare_glob_unescape(src: &str) -> String {
+    src.to_owned()
+}
+
+/// Get the contents of a path, e.g. `contents`.
+///
+/// FIXME string interpolation
+/// FIXME other escape sequences
+/// FIXME non-unicode?
+fn path_unescape(src: &str) -> String {
+    let mut out = String::with_capacity(src.len());
+    let mut iter = src.chars();
+    while let Some(c) = iter.next() {
+        out.push(if c == '\\' {
+            match iter.next().expect("character expected after backslash") {
+                'n' => '\n',
+                't' => '\t',
+                c => c,
+            }
+        } else {
+            c
+        });
+    }
+    out
+}
+
+/// Get the contents of a string, e.g. `"contents"`.
+///
+/// Assumes the string has a single byte quote at the start and end.
+///
+/// FIXME string interpolation
+/// FIXME other escape sequences
+/// FIXME non-unicode?
+///
+/// # Panics
+///
+/// Panics if the string isn’t at least 2 bytes long (for the quotes), or of the
+/// last character before the last quote is an unescaped backslash.
+#[expect(clippy::arithmetic_side_effects, reason = "src.len() should be >= 2")]
+fn string_unescape(src: &str) -> String {
+    debug_assert!(src.len() > 2, "expected src to be wrapped in quotes");
+    let mut out = String::with_capacity(src.len() - 2);
+    // Should always have single byte quotes on either end.
+    let mut iter = src[1..src.len() - 1].chars();
+    while let Some(c) = iter.next() {
+        out.push(if c == '\\' {
+            match iter.next().expect("character expected after backslash") {
+                'n' => '\n',
+                't' => '\t',
+                c => c,
+            }
+        } else {
+            c
+        });
+    }
+    out
 }
 
 /// A reference to an identifier in the config file
@@ -469,6 +564,15 @@ impl Matcher {
     /// Return the canonical representation of this matcher
     #[must_use]
     pub fn canonical(&self, source: &str) -> String {
+        self.0.canonical(source)
+    }
+
+    /// Get the matcher stack as a glob
+    ///
+    /// This does not necessarily include every condition in the matcher.
+    /// FIXME: allow other conditions; evaluate them.
+    #[must_use]
+    pub fn as_glob_str(&self, source: &str) -> String {
         self.0.canonical(source)
     }
 }
