@@ -68,10 +68,10 @@ pub enum TokenType {
     BareGlob,
 
     /// A double quoted string
-    DoubleQuoted,
+    QuotedDouble,
 
     /// A single quoted string
-    SingleQuoted,
+    QuotedSingle,
 
     /// At least one newline
     Newline,
@@ -169,11 +169,11 @@ pub enum OuterTokenType {
 
     /// A double quoted string
     #[regex(r#""([\t\n\r[:^cntrl:]--"]|\\[\n\t[:^cntrl:]]|\\\r\n)*""#)]
-    DoubleQuoted,
+    QuotedDouble,
 
     /// A single quoted string
     #[regex(r"'([\t\n\r[:^cntrl:]--']|\\[\n\t[:^cntrl:]]|\\\r\n)*'")]
-    SingleQuoted,
+    QuotedSingle,
 
     /// At least one newline
     #[regex(r"[\n\r]+")]
@@ -217,11 +217,11 @@ pub enum ParameterTokenType {
 
     /// A double quoted string
     #[regex(r#""([\t\n\r[:^cntrl:]--"]|\\[\n\t[:^cntrl:]]|\\\r\n)*""#)]
-    DoubleQuoted,
+    QuotedDouble,
 
     /// A single quoted string
     #[regex(r"'([\t\n\r[:^cntrl:]--']|\\[\n\t[:^cntrl:]]|\\\r\n)*'")]
-    SingleQuoted,
+    QuotedSingle,
 
     /// An error encountered by the lexer
     Error,
@@ -286,8 +286,8 @@ pub fn tokenize(
                             ParameterTokenType::RParen => RParen,
                             ParameterTokenType::Comma => Comma,
                             ParameterTokenType::Identifier => Identifier,
-                            ParameterTokenType::DoubleQuoted => DoubleQuoted,
-                            ParameterTokenType::SingleQuoted => SingleQuoted,
+                            ParameterTokenType::QuotedDouble => QuotedDouble,
+                            ParameterTokenType::QuotedSingle => QuotedSingle,
                             ParameterTokenType::Error => Error,
                         },
                         span,
@@ -299,8 +299,8 @@ pub fn tokenize(
             Ok(OuterTokenType::Equal) => out.push((Equal, span)),
             Ok(OuterTokenType::Identifier) => out.push((Identifier, span)),
             Ok(OuterTokenType::BareGlob) => out.push((BareGlob, span)),
-            Ok(OuterTokenType::DoubleQuoted) => out.push((DoubleQuoted, span)),
-            Ok(OuterTokenType::SingleQuoted) => out.push((SingleQuoted, span)),
+            Ok(OuterTokenType::QuotedDouble) => out.push((QuotedDouble, span)),
+            Ok(OuterTokenType::QuotedSingle) => out.push((QuotedSingle, span)),
             Ok(OuterTokenType::Newline) => out.push((Newline, span)),
             Ok(OuterTokenType::Error) => out.push((Error, span)),
             Err(error) => {
