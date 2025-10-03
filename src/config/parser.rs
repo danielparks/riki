@@ -8,10 +8,9 @@
     reason = "generated code"
 )]
 
-use super::lexer::Diagnostic;
 use super::lexer::TokenType as Token;
+use super::lexer::{Diagnostic, tokenize};
 use codespan_reporting::diagnostic::Label;
-use logos::Logos;
 
 /// Context required for [`Parser`]. Not needed by our code.
 #[derive(Default)]
@@ -28,20 +27,11 @@ impl ParserCallbacks for Parser<'_> {
         source: &str,
         diags: &mut Vec<Diagnostic>,
     ) -> (Vec<Token>, Vec<Span>) {
-        let lexer = Token::lexer(source);
         let mut tokens = Vec::new();
         let mut spans = Vec::new();
 
-        for (token, span) in lexer.spanned() {
-            match token {
-                Ok(token) => {
-                    tokens.push(token);
-                }
-                Err(err) => {
-                    diags.push(err.into_diagnostic(span.clone()));
-                    tokens.push(Token::Error);
-                }
-            }
+        for (token, span) in tokenize(source, diags) {
+            tokens.push(token);
             spans.push(span);
         }
         (tokens, spans)
@@ -54,15 +44,15 @@ impl ParserCallbacks for Parser<'_> {
             .with_label(Label::primary((), span))
     }
 
-    /// Check the token after `Newlines+` isn’t EOF or '}'
+    /// Check the token after `Newline+` isn’t EOF or '}'
     ///
     /// ```lelwel
-    /// context: (?1 Newlines+ line)* Newlines*
-    ///   | line (?1 Newlines+ line)* Newlines*;
+    /// context: (?1 Newline+ line)* Newline*
+    ///   | line (?1 Newline+ line)* Newline*;
     /// ```
     fn predicate_context_1(&self) -> bool {
         let mut i = 1;
-        while self.peek(i) == Token::Newlines {
+        while self.peek(i) == Token::Newline {
             i += 1;
         }
         !matches!(self.peek(i), Token::EOF | Token::RBrace)

@@ -1,7 +1,7 @@
 //! Configuration file lexer.
 
 use codespan_reporting::diagnostic::Label;
-use logos::Logos;
+use logos::{Lexer, Logos};
 
 /// A diagnostic indicating an error or warning in the configuration file.
 pub type Diagnostic = codespan_reporting::diagnostic::Diagnostic<()>;
@@ -30,17 +30,66 @@ impl LexerError {
     }
 }
 
-/// A token returned by the lexer.
-#[derive(Logos, Debug, PartialEq, Eq, Copy, Clone)]
-#[logos(error = LexerError)]
-//#[logos(skip(r"#[^\n\r]*"))] // Comments
-#[logos(subpattern comment = r"#[^\r\n]*")]
-#[logos(subpattern continuation = r"\\\r?\n")] // '\' + '\n'
-#[logos(subpattern hspace = r"[ \t]+")] // \t, ' '
-#[logos(skip(r"(?&comment)"))] // For comment right before EOF
-#[logos(skip(r"(?&hspace)"))]
-#[logos(skip(r"(?&continuation)"))]
+/// A token returned by the tokenizer.
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum TokenType {
+    /// End of file
+    EOF,
+
+    /// Left brace
+    LBrace,
+
+    /// Right brace
+    RBrace,
+
+    /// Left parenthesis
+    LParen,
+
+    /// Right parenthesis
+    ///
+    /// Only returned by the [`ParameterTokenType`] lexer.
+    RParen,
+
+    /// Comma
+    ///
+    /// Used as a separator in function parameter lists. Only returned by
+    /// the [`ParameterTokenType`] lexer.
+    Comma,
+
+    /// Equals sign
+    ///
+    /// Appears between a variable and the value being set.
+    Equal,
+
+    /// An identifier (or a path matcher depending on context).
+    Identifier,
+
+    /// A glob or path literal.
+    BareGlob,
+
+    /// A double quoted string
+    DoubleQuoted,
+
+    /// A single quoted string
+    SingleQuoted,
+
+    /// At least one newline
+    Newline,
+
+    /// An error encountered by the lexer
+    Error,
+}
+
+/// A token returned by the outer lexer.
+#[derive(Logos, Debug, PartialEq, Eq, Clone)]
+#[logos(error = LexerError)]
+#[logos(subpattern escape = r"\\[[:^cntrl:]]")]
+#[logos(subpattern glob_start_char = r#"[^[:cntrl:] #()=\\{}"']|(?&escape)"#)]
+#[logos(subpattern glob_ending_char = r"[^[:cntrl:] #()=\\]|(?&escape)")]
+#[logos(skip(r"#[^\r\n]*"))] // For comment right before EOF
+#[logos(skip(r"[ \t]+"))]
+#[logos(skip(r"\\\r?\n"))] // continuation: '\' + '\n'
+pub enum OuterTokenType {
     /// End of file
     EOF,
 
@@ -56,22 +105,22 @@ pub enum TokenType {
     #[token("}")]
     RBrace,
 
-    /// Right parenthesis
-    ///
-    /// Starts a function parameter list.
-    #[token("(")]
-    LParen,
-
     /// Left parenthesis
     ///
-    /// Ends a function parameter list.
-    #[token(")")]
+    /// Starts a function parameter list. Switches to the inner
+    /// [`ParameterTokenType`] lexer.
+    #[token("(", lex_parameters)]
+    Parameters(Vec<(ParameterTokenType, Span)>),
+
+    /// Right parenthesis
+    ///
+    /// Only returned by the [`ParameterTokenType`] lexer.
     RParen,
 
     /// Comma
     ///
-    /// Separator in function parameter lists.
-    #[token(",")]
+    /// Used as a separator in function parameter lists. Only returned by
+    /// the [`ParameterTokenType`] lexer.
     Comma,
 
     /// Equals sign
@@ -80,7 +129,11 @@ pub enum TokenType {
     #[token("=")]
     Equal,
 
-    /// A glob, path, identifier, etc.
+    /// An identifier (or a path matcher depending on context).
+    #[regex(r"[a-zA-Z0-9_]+", priority = 10)]
+    Identifier,
+
+    /// A glob or path literal.
     ///
     /// All ASCII printable are (mid-alphabet elided):
     ///
@@ -108,11 +161,11 @@ pub enum TokenType {
     /// `'('`, `')'`, and `'='` are illegal in bare words without escaping; they
     /// will be be interpreted as their own token.
     ///
-    /// Quotes are illegal in bare words without escaping, but they will raise
+    /// Quotes are illegal in bare globs without escaping, but they will raise
     /// an error.
-    #[regex(r#"([-!$%&*+./0-9:;<>?@A-Z\[\]^_`a-z|~]|\\[[:^cntrl:]])([,'"]*([-!$%&*+./0-9:;<>?@A-Z\[\]^_`a-z|~{}]|\\[[:^cntrl:]]))*"#)]
-    #[regex(r#"[{}]([,'"]*([-!$%&*+./0-9:;<>?@A-Z\[\]^_`a-z|~{}]|\\[[:^cntrl:]]))+"#)]
-    BareWord,
+    #[regex(r#"(?&glob_start_char)(?&glob_ending_char)*"#)]
+    #[regex(r#"[{}](?&glob_ending_char)+"#)]
+    BareGlob,
 
     /// A double quoted string
     #[regex(r#""([\t\n\r[:^cntrl:]--"]|\\[\n\t[:^cntrl:]]|\\\r\n)*""#)]
@@ -122,31 +175,141 @@ pub enum TokenType {
     #[regex(r"'([\t\n\r[:^cntrl:]--']|\\[\n\t[:^cntrl:]]|\\\r\n)*'")]
     SingleQuoted,
 
-    /// A sequences of newlines
+    /// At least one newline
     #[regex(r"[\n\r]+")]
-    Newlines,
+    Newline,
 
     /// An error encountered by the lexer
     Error,
 }
 
+/// A token returned by the inner parameter lexer.
+#[derive(Logos, Debug, PartialEq, Eq, Copy, Clone)]
+#[logos(error = LexerError)]
+#[logos(skip(r"#[^\r\n]*"))] // For comment right before EOF
+#[logos(skip(r"[ \t\n]+"))] // Skip newlines too
+#[logos(skip(r"\\\r?\n"))] // continuation: '\' + '\n'
+pub enum ParameterTokenType {
+    /// End of file
+    EOF,
+
+    /// Right parenthesis
+    ///
+    /// Starts a function parameter list.
+    #[token("(")]
+    LParen,
+
+    /// Left parenthesis
+    ///
+    /// Ends a function parameter list.
+    #[token(")")]
+    RParen,
+
+    /// Comma
+    ///
+    /// Separator in function parameter lists.
+    #[token(",")]
+    Comma,
+
+    /// An identifier (or a path matcher depending on context).
+    #[regex(r"[a-zA-Z0-9_]+")]
+    Identifier,
+
+    /// A double quoted string
+    #[regex(r#""([\t\n\r[:^cntrl:]--"]|\\[\n\t[:^cntrl:]]|\\\r\n)*""#)]
+    DoubleQuoted,
+
+    /// A single quoted string
+    #[regex(r"'([\t\n\r[:^cntrl:]--']|\\[\n\t[:^cntrl:]]|\\\r\n)*'")]
+    SingleQuoted,
+
+    /// An error encountered by the lexer
+    Error,
+}
+
+/// Switch to [`ParameterTokenType`] and lex a parameter list.
+fn lex_parameters(
+    outer_lexer: &mut Lexer<OuterTokenType>,
+) -> Result<Vec<(ParameterTokenType, Span)>, LexerError> {
+    let mut parameter_lexer =
+        outer_lexer.clone().morph::<ParameterTokenType>().spanned();
+    let mut tokens = Vec::new();
+    let mut depth: usize = 1;
+    for (type_, span) in parameter_lexer.by_ref() {
+        let type_ = type_?;
+        #[expect(clippy::arithmetic_side_effects, reason = "breaks on depth 0")]
+        match &type_ {
+            ParameterTokenType::LParen => {
+                depth += 1;
+            }
+            ParameterTokenType::RParen => {
+                depth -= 1;
+            }
+            _ => {}
+        }
+        tokens.push((type_, span));
+        if depth == 0 {
+            // Found outer ')'.
+            break;
+        }
+    }
+    *outer_lexer = <logos::Lexer<'_, ParameterTokenType> as Clone>::clone(
+        &parameter_lexer,
+    )
+    .morph();
+    Ok(tokens)
+}
+
 /// Tokenize
+#[expect(clippy::allow_attributes, reason = "FIXME bug; expect fails")]
+#[allow(clippy::enum_glob_use, reason = "readability")]
 pub fn tokenize(
     source: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<(TokenType, Span)> {
-    let lexer = TokenType::lexer(source);
-    let mut output = vec![];
+    let lexer = OuterTokenType::lexer(source);
+    let mut out = Vec::new();
 
     for (token, span) in lexer.spanned() {
-        let token = token.unwrap_or_else(|err| {
-            diagnostics.push(err.into_diagnostic(span.clone()));
-            TokenType::Error
-        });
-
-        output.push((token, span));
+        use TokenType::*;
+        match token {
+            Ok(OuterTokenType::EOF) => out.push((EOF, span)),
+            Ok(OuterTokenType::LBrace) => out.push((LBrace, span)),
+            Ok(OuterTokenType::RBrace) => out.push((RBrace, span)),
+            Ok(OuterTokenType::Parameters(items)) => {
+                out.push((LParen, span));
+                for (token, span) in items {
+                    out.push((
+                        match token {
+                            ParameterTokenType::EOF => EOF,
+                            ParameterTokenType::LParen => LParen,
+                            ParameterTokenType::RParen => RParen,
+                            ParameterTokenType::Comma => Comma,
+                            ParameterTokenType::Identifier => Identifier,
+                            ParameterTokenType::DoubleQuoted => DoubleQuoted,
+                            ParameterTokenType::SingleQuoted => SingleQuoted,
+                            ParameterTokenType::Error => Error,
+                        },
+                        span,
+                    ));
+                }
+            }
+            Ok(OuterTokenType::RParen) => out.push((RParen, span)),
+            Ok(OuterTokenType::Comma) => out.push((Comma, span)),
+            Ok(OuterTokenType::Equal) => out.push((Equal, span)),
+            Ok(OuterTokenType::Identifier) => out.push((Identifier, span)),
+            Ok(OuterTokenType::BareGlob) => out.push((BareGlob, span)),
+            Ok(OuterTokenType::DoubleQuoted) => out.push((DoubleQuoted, span)),
+            Ok(OuterTokenType::SingleQuoted) => out.push((SingleQuoted, span)),
+            Ok(OuterTokenType::Newline) => out.push((Newline, span)),
+            Ok(OuterTokenType::Error) => out.push((Error, span)),
+            Err(error) => {
+                diagnostics.push(error.into_diagnostic(span.clone()));
+                out.push((Error, span));
+            }
+        }
     }
-    output
+    out
 }
 
 /// Validate a glob matching a URL path
@@ -206,82 +369,99 @@ mod tests {
     }
 
     #[test_log::test]
-    fn newlines() {
-        check!(just_tokens("\n").as_slice() == [Newlines]);
-        check!(just_tokens("\n  ").as_slice() == [Newlines]);
-        check!(just_tokens("\n  \n").as_slice() == [Newlines, Newlines]);
-        check!(just_tokens("  \n").as_slice() == [Newlines]);
-        check!(just_tokens("\n#comment").as_slice() == [Newlines]);
-        check!(just_tokens("\n  #comment").as_slice() == [Newlines]);
+    fn newline() {
+        check!(just_tokens("\n").as_slice() == [Newline]);
+        check!(just_tokens("\n  ").as_slice() == [Newline]);
+        check!(just_tokens("\n  \n").as_slice() == [Newline, Newline]);
+        check!(just_tokens("  \n").as_slice() == [Newline]);
+        check!(just_tokens("\n#comment").as_slice() == [Newline]);
+        check!(just_tokens("\n  #comment").as_slice() == [Newline]);
         check!(
-            just_tokens("\n  #comment\n  ").as_slice() == [Newlines, Newlines]
+            just_tokens("\n  #comment\n  ").as_slice() == [Newline, Newline]
         );
     }
 
     #[test_log::test]
-    fn bare_word() {
-        check!(just_tokens("bare_word").as_slice() == [BareWord]);
-        check!(just_tokens("*").as_slice() == [BareWord]);
-        check!(just_tokens("?").as_slice() == [BareWord]);
-        check!(just_tokens("/").as_slice() == [BareWord]);
-        check!(just_tokens(".").as_slice() == [BareWord]);
-        check!(just_tokens("bare_word").as_slice() == [BareWord]);
+    fn identifier() {
+        check!(just_tokens("a").as_slice() == [Identifier]);
+        check!(just_tokens("a123").as_slice() == [Identifier]);
+        check!(just_tokens("bare_word").as_slice() == [Identifier]);
+    }
+
+    #[test_log::test]
+    fn bare_glob() {
+        check!(just_tokens("*").as_slice() == [BareGlob]);
+        check!(just_tokens("/*.foo[a-z]").as_slice() == [BareGlob]);
+        check!(just_tokens("?").as_slice() == [BareGlob]);
+        check!(just_tokens("/").as_slice() == [BareGlob]);
+        check!(just_tokens(".").as_slice() == [BareGlob]);
     }
 
     #[test_log::test]
     fn bare_word_escape() {
-        check!(just_tokens(r"bare\ word").as_slice() == [BareWord]);
-        check!(just_tokens(r"bare\\word").as_slice() == [BareWord]);
-        check!(just_tokens(r#"\"abc\""#).as_slice() == [BareWord]);
-        check!(just_tokens(r"\'abc\'").as_slice() == [BareWord]);
-        check!(just_tokens(r#"\""#).as_slice() == [BareWord]);
-        check!(just_tokens(r"\é").as_slice() == [BareWord]);
-        check!(just_tokens("\\😀").as_slice() == [BareWord]);
+        check!(just_tokens(r"bare\ word").as_slice() == [BareGlob]);
+        check!(just_tokens(r"bare\\word").as_slice() == [BareGlob]);
+        check!(just_tokens(r#"\"abc\""#).as_slice() == [BareGlob]);
+        check!(just_tokens(r"\'abc\'").as_slice() == [BareGlob]);
+        check!(just_tokens(r#"\""#).as_slice() == [BareGlob]);
+        check!(just_tokens(r"\é").as_slice() == [BareGlob]);
+        check!(just_tokens("\\😀").as_slice() == [BareGlob]);
     }
 
     #[test_log::test]
+    #[expect(clippy::cognitive_complexity, reason = "tests")]
     fn globs() {
-        check!(just_tokens(" {} ").as_slice() == [BareWord]);
-        check!(just_tokens(" {ab} ").as_slice() == [BareWord]);
-        check!(just_tokens(" {a,b} ").as_slice() == [BareWord]);
-        check!(just_tokens("a{  ").as_slice() == [BareWord]);
-        check!(just_tokens(" {a ").as_slice() == [BareWord]);
-        check!(just_tokens(" a,a ").as_slice() == [BareWord]);
-        check!(just_tokens(r" {\ ").as_slice() == [BareWord]);
+        check!(just_tokens(" {} ").as_slice() == [BareGlob]);
+        check!(just_tokens(" {ab} ").as_slice() == [BareGlob]);
+        check!(just_tokens(" {a,b} ").as_slice() == [BareGlob]);
+        check!(just_tokens(" a{a,b} ").as_slice() == [BareGlob]);
+        check!(just_tokens(" {a,b}b ").as_slice() == [BareGlob]);
+        check!(just_tokens("a{  ").as_slice() == [BareGlob]);
+        check!(just_tokens(" {a ").as_slice() == [BareGlob]);
+        check!(just_tokens(" a,a ").as_slice() == [BareGlob]);
+        check!(just_tokens(r" {\ ").as_slice() == [BareGlob]);
     }
 
     #[test_log::test]
     fn settings() {
-        check!(just_tokens("a=b").as_slice() == [BareWord, Equal, BareWord]);
-        check!(just_tokens("a= b").as_slice() == [BareWord, Equal, BareWord]);
-        check!(just_tokens("a = b").as_slice() == [BareWord, Equal, BareWord]);
-        check!(just_tokens("a =b").as_slice() == [BareWord, Equal, BareWord]);
+        check!(
+            just_tokens("a=b").as_slice() == [Identifier, Equal, Identifier]
+        );
+        check!(
+            just_tokens("a= b").as_slice() == [Identifier, Equal, Identifier]
+        );
+        check!(
+            just_tokens("a = b").as_slice() == [Identifier, Equal, Identifier]
+        );
+        check!(
+            just_tokens("a =b").as_slice() == [Identifier, Equal, Identifier]
+        );
     }
 
     #[test_log::test]
     fn function() {
-        check!(just_tokens("a()").as_slice() == [BareWord, LParen, RParen]);
+        check!(just_tokens("a()").as_slice() == [Identifier, LParen, RParen]);
         check!(
             just_tokens("a(b)").as_slice()
-                == [BareWord, LParen, BareWord, RParen]
+                == [Identifier, LParen, Identifier, RParen]
         );
         check!(
             just_tokens("a(b,b)").as_slice()
-                == [BareWord, LParen, BareWord, RParen]
+                == [Identifier, LParen, Identifier, Comma, Identifier, RParen]
         );
         check!(
             just_tokens("a(b, c)").as_slice()
-                == [BareWord, LParen, BareWord, Comma, BareWord, RParen]
+                == [Identifier, LParen, Identifier, Comma, Identifier, RParen]
         );
         check!(
             just_tokens("a ( b )").as_slice()
-                == [BareWord, LParen, BareWord, RParen]
+                == [Identifier, LParen, Identifier, RParen]
         );
         check!(
             just_tokens("a ( b , c ,d)").as_slice()
                 == [
-                    BareWord, LParen, BareWord, Comma, BareWord, Comma,
-                    BareWord, RParen
+                    Identifier, LParen, Identifier, Comma, Identifier, Comma,
+                    Identifier, RParen
                 ]
         );
     }
