@@ -8,12 +8,14 @@ mod tests;
 use bstr::{BStr, BString, ByteVec};
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::{self, Config};
+use globset::{Glob, GlobBuilder};
 use lexer::{Diagnostic, Span, TokenType, tokenize};
 use parser::{CNode, CNodeIter, Cst, NodeRef, Parser, Rule, RuleSide};
 use std::fmt;
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::slice;
 use termcolor::StandardStream;
 
 /// Dump the CST of a configuration file to stdout.
@@ -87,7 +89,7 @@ pub fn parse(source: &str) -> Result<Vec<ConfigRule>, Vec<Diagnostic>> {
 /// Process the CST from the parse into rules.
 fn process_cst(cst: &Cst) -> Vec<ConfigRule> {
     let mut iter = cst.descendents(NodeRef::ROOT);
-    let mut matcher_stack: Vec<Matcher> = Vec::with_capacity(5);
+    let mut matcher_stack: MatcherStack = MatcherStack::empty();
     let mut rules: Vec<ConfigRule> = Vec::new();
     while let Some(node) = iter.next() {
         use RuleSide::{Pop, Push};
@@ -532,10 +534,10 @@ pub enum ParseError {
 }
 
 /// A rule found in the configuration file.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct ConfigRule {
     /// Match a request
-    pub matcher: Vec<Matcher>,
+    pub matcher: MatcherStack,
     /// Action to take in response to a request
     pub action: Action,
 }
@@ -546,18 +548,112 @@ impl ConfigRule {
     pub fn canonical(&self, source: &str) -> String {
         format!(
             "{} {}",
-            self.matcher
-                .iter()
-                .map(|matcher| matcher.canonical(source))
-                .collect::<Vec<_>>()
-                .join(" "),
+            self.matcher.canonical(source),
             self.action.canonical(source),
         )
     }
 }
 
+/// A stack of matchers for a request.
+#[derive(Clone, Debug, Default)]
+pub struct MatcherStack(pub Vec<Matcher>);
+
+impl MatcherStack {
+    /// Get a new, empty matcher stack
+    #[must_use]
+    pub const fn empty() -> Self {
+        Self(Vec::new())
+    }
+
+    /// Add a matcher to the stack
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Add a matcher to the stack
+    pub fn push(&mut self, matcher: Matcher) {
+        self.0.push(matcher);
+    }
+
+    /// Remove a matcher from the top of the stack
+    pub fn pop(&mut self) -> Option<Matcher> {
+        self.0.pop()
+    }
+
+    /// Get the matcher stack as a glob
+    ///
+    /// This does not necessarily include every condition in the matcher.
+    /// FIXME: allow other conditions; evaluate them.
+    ///
+    /// # Errors
+    ///
+    /// May pass through errors from [`GlobBuilder::build()`].
+    pub fn as_glob(&self, source: &str) -> Result<Glob, globset::Error> {
+        GlobBuilder::new(&self.as_glob_str(source))
+            .literal_separator(true)
+            .backslash_escape(true)
+            .empty_alternates(true)
+            .build()
+    }
+
+    /// Get the matcher stack as a glob string
+    ///
+    /// This does not necessarily include every condition in the matcher.
+    /// FIXME: allow other conditions; evaluate them.
+    #[must_use]
+    #[inline]
+    pub fn as_glob_str(&self, source: &str) -> String {
+        //    / foobar /hey -> /**/foobar/hey{,/**}
+        //    / / /hey -> /hey{,/**}
+        //    / abc / /hey -> /**/abc/hey{,/**}
+        //    / abc def /hey -> /**/abc/**/def/hey{,/**}
+        let mut full_glob = "/".to_owned(); // FIXME capacity?
+        for matcher in &self.0 {
+            let glob_str = matcher.as_glob_str(source);
+            #[expect(clippy::manual_strip, reason = "clarity, simplicity")]
+            if glob_str.starts_with('/') {
+                if full_glob.ends_with('/') {
+                    full_glob.push_str(&glob_str[1..]);
+                } else {
+                    full_glob.push_str(&glob_str);
+                }
+            } else {
+                // Doesn’t start with /
+                full_glob.push_str(if full_glob.ends_with('/') {
+                    "**/"
+                } else {
+                    "/**/"
+                });
+                full_glob.push_str(&glob_str);
+            }
+        }
+        full_glob
+    }
+
+    /// Return the canonical representation of this matcher
+    #[must_use]
+    pub fn canonical(&self, source: &str) -> String {
+        self.as_glob_str(source)
+    }
+
+    /// Return an iterator over the matchers
+    pub fn iter(&self) -> slice::Iter<'_, Matcher> {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a MatcherStack {
+    type Item = &'a Matcher;
+    type IntoIter = slice::Iter<'a, Matcher>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 /// A matcher for a request.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct Matcher(pub Word);
 
 impl Matcher {
@@ -578,7 +674,7 @@ impl Matcher {
 }
 
 /// The action corresponding to a rule.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub enum Action {
     /// Set an option for matching requests.
     Setting(Setting),
@@ -599,7 +695,7 @@ impl Action {
 }
 
 /// A configuration setting
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct Setting {
     /// The variable being set
     pub variable: Identifier,
@@ -621,7 +717,7 @@ impl Setting {
 }
 
 /// A value for a configuration setting or to return as a response.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub enum Value {
     /// Call a function.
     Function(Identifier, Parameters),
