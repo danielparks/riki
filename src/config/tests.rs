@@ -57,13 +57,13 @@ fn bad_char() {
     check!(
         parse("=")
             == err_str(
-                r#"invalid syntax, expected one of: <bare glob>, <end of file>, <identifier>, '\n', <"string">, <'string'>, '}' 0..1"#
+                r#"invalid syntax, expected one of: <bare glob>, <end of file>, <identifier>, '\n', <path>, <"string">, <'string'>, '}' 0..1"#
             )
     );
     check!(
         parse("{")
             == err_str(
-                r#"invalid syntax, expected one of: <bare glob>, <end of file>, <identifier>, '\n', <"string">, <'string'>, '}' 0..1"#
+                r#"invalid syntax, expected one of: <bare glob>, <end of file>, <identifier>, '\n', <path>, <"string">, <'string'>, '}' 0..1"#
             )
     );
     check!(

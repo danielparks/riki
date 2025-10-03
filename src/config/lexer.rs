@@ -64,6 +64,9 @@ pub enum TokenType {
     /// An identifier (or a path matcher depending on context).
     Identifier,
 
+    /// A path.
+    Path,
+
     /// A glob or path literal.
     BareGlob,
 
@@ -86,6 +89,8 @@ pub enum TokenType {
 #[logos(subpattern escape = r"\\[[:^cntrl:]]")]
 #[logos(subpattern glob_start_char = r#"[^[:cntrl:] #()=\\{}"']|(?&escape)"#)]
 #[logos(subpattern glob_ending_char = r"[^[:cntrl:] #()=\\]|(?&escape)")]
+#[logos(subpattern identifier_char = r"[a-zA-Z0-9_]")]
+#[logos(subpattern variable = r"\$(\{(?&identifier_char)+\}|(?&identifier_char)+)")]
 #[logos(skip(r"#[^\r\n]*"))] // For comment right before EOF
 #[logos(skip(r"[ \t]+"))]
 #[logos(skip(r"\\\r?\n"))] // continuation: '\' + '\n'
@@ -130,8 +135,12 @@ pub enum OuterTokenType {
     Equal,
 
     /// An identifier (or a path matcher depending on context).
-    #[regex(r"[a-zA-Z0-9_]+", priority = 10)]
+    #[regex(r"(?&identifier_char)+", priority = 20)]
     Identifier,
+
+    /// A path.
+    #[regex(r"([-%+./0-9:@A-Z_a-z|~]|(?&variable)|(?&escape))+", priority = 10)]
+    Path,
 
     /// A glob or path literal.
     ///
@@ -186,6 +195,9 @@ pub enum OuterTokenType {
 /// A token returned by the inner parameter lexer.
 #[derive(Logos, Debug, PartialEq, Eq, Copy, Clone)]
 #[logos(error = LexerError)]
+#[logos(subpattern escape = r"\\[[:^cntrl:]]")]
+#[logos(subpattern identifier_char = r"[a-zA-Z0-9_]")]
+#[logos(subpattern variable = r"\$(\{(?&identifier_char)+\}|(?&identifier_char)+)")]
 #[logos(skip(r"#[^\r\n]*"))] // For comment right before EOF
 #[logos(skip(r"[ \t\n]+"))] // Skip newlines too
 #[logos(skip(r"\\\r?\n"))] // continuation: '\' + '\n'
@@ -211,9 +223,13 @@ pub enum ParameterTokenType {
     #[token(",")]
     Comma,
 
-    /// An identifier (or a path matcher depending on context).
-    #[regex(r"[a-zA-Z0-9_]+")]
+    /// An identifier (or a path depending on context).
+    #[regex(r"(?&identifier_char)+", priority = 20)]
     Identifier,
+
+    /// A path.
+    #[regex(r"([-%+./0-9:@A-Z_a-z|~]|(?&variable)|(?&escape))+", priority = 10)]
+    Path,
 
     /// A double quoted string
     #[regex(r#""([\t\n\r[:^cntrl:]--"]|\\[\n\t[:^cntrl:]]|\\\r\n)*""#)]
@@ -286,6 +302,7 @@ pub fn tokenize(
                             ParameterTokenType::RParen => RParen,
                             ParameterTokenType::Comma => Comma,
                             ParameterTokenType::Identifier => Identifier,
+                            ParameterTokenType::Path => Path,
                             ParameterTokenType::QuotedDouble => QuotedDouble,
                             ParameterTokenType::QuotedSingle => QuotedSingle,
                             ParameterTokenType::Error => Error,
@@ -298,6 +315,7 @@ pub fn tokenize(
             Ok(OuterTokenType::Comma) => out.push((Comma, span)),
             Ok(OuterTokenType::Equal) => out.push((Equal, span)),
             Ok(OuterTokenType::Identifier) => out.push((Identifier, span)),
+            Ok(OuterTokenType::Path) => out.push((Path, span)),
             Ok(OuterTokenType::BareGlob) => out.push((BareGlob, span)),
             Ok(OuterTokenType::QuotedDouble) => out.push((QuotedDouble, span)),
             Ok(OuterTokenType::QuotedSingle) => out.push((QuotedSingle, span)),
@@ -393,23 +411,42 @@ mod tests {
         check!(just_tokens("*").as_slice() == [BareGlob]);
         check!(just_tokens("/*.foo[a-z]").as_slice() == [BareGlob]);
         check!(just_tokens("?").as_slice() == [BareGlob]);
-        check!(just_tokens("/").as_slice() == [BareGlob]);
-        check!(just_tokens(".").as_slice() == [BareGlob]);
+    }
+
+    #[test_log::test]
+    fn path() {
+        check!(just_tokens("/").as_slice() == [Path]);
+        check!(just_tokens(".").as_slice() == [Path]);
+        check!(just_tokens("abc/").as_slice() == [Path]);
+        check!(just_tokens("/abc").as_slice() == [Path]);
+        check!(just_tokens("/abc/").as_slice() == [Path]);
+        check!(just_tokens("a/abc/c").as_slice() == [Path]);
+    }
+
+    #[test_log::test]
+    fn path_escape() {
+        check!(just_tokens(r"bare\ word").as_slice() == [Path]);
+        check!(just_tokens(r"bare\\word").as_slice() == [Path]);
+        check!(just_tokens(r#"\"abc\""#).as_slice() == [Path]);
+        check!(just_tokens(r"\'abc\'").as_slice() == [Path]);
+        check!(just_tokens(r#"\""#).as_slice() == [Path]);
+        check!(just_tokens(r"\é").as_slice() == [Path]);
+        check!(just_tokens(r"\😀").as_slice() == [Path]);
+        check!(just_tokens(r"\*").as_slice() == [Path]);
     }
 
     #[test_log::test]
     fn bare_word_escape() {
-        check!(just_tokens(r"bare\ word").as_slice() == [BareGlob]);
-        check!(just_tokens(r"bare\\word").as_slice() == [BareGlob]);
-        check!(just_tokens(r#"\"abc\""#).as_slice() == [BareGlob]);
-        check!(just_tokens(r"\'abc\'").as_slice() == [BareGlob]);
-        check!(just_tokens(r#"\""#).as_slice() == [BareGlob]);
-        check!(just_tokens(r"\é").as_slice() == [BareGlob]);
-        check!(just_tokens("\\😀").as_slice() == [BareGlob]);
+        check!(just_tokens(r"bare\ word?").as_slice() == [BareGlob]);
+        check!(just_tokens(r"bare\\word*").as_slice() == [BareGlob]);
+        check!(just_tokens(r#"\"ab[e-x]c\""#).as_slice() == [BareGlob]);
+        check!(just_tokens(r"\'ab{a,b}c\'").as_slice() == [BareGlob]);
+        check!(just_tokens(r#"\"*"#).as_slice() == [BareGlob]);
+        check!(just_tokens(r"\é*").as_slice() == [BareGlob]);
+        check!(just_tokens("*\\😀").as_slice() == [BareGlob]);
     }
 
     #[test_log::test]
-    #[expect(clippy::cognitive_complexity, reason = "tests")]
     fn globs() {
         check!(just_tokens(" {} ").as_slice() == [BareGlob]);
         check!(just_tokens(" {ab} ").as_slice() == [BareGlob]);
