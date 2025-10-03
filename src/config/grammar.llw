@@ -2,6 +2,7 @@ token
   LBrace='{' RBrace='}' LParen='(' RParen=')' Comma=',' Equal='='
   Identifier='<identifier>'
   BareGlob='<bare glob>'
+  Path='<path>'
   QuotedDouble='<"string">'
   QuotedSingle='<\'string\'>'
   Newline='\\n';
@@ -21,10 +22,10 @@ set^: '=' value;
 // FIXME allow Newline within function parameters
 params^: '(' [value (',' value)*] ')';
 block^: '{' context '}';
-matcher: Identifier | BareGlob | QuotedDouble | QuotedSingle;
+matcher: Identifier | Path | BareGlob | QuotedDouble | QuotedSingle;
 // This means that function calls are not within the value rule; the value rule
 // only ever contains a word.
-value: Identifier [ params @function ] | QuotedDouble | QuotedSingle;
+value: Identifier [ params @function ] | Path | QuotedDouble | QuotedSingle;
 
 /*
 A line can have:

@@ -171,6 +171,7 @@ fn process_cst(cst: &Cst) -> Vec<ConfigRule> {
             }
             CNode::Token(
                 token @ (TokenType::Identifier
+                | TokenType::Path
                 | TokenType::BareGlob
                 | TokenType::QuotedDouble
                 | TokenType::QuotedSingle
@@ -271,7 +272,7 @@ fn consume_identifier<D: fmt::Display>(
 ) -> Identifier {
     consume_word_token(iter, &context)
         .try_into()
-        .unwrap_or_else(|_| panic!("expected bare word token{context}"))
+        .unwrap_or_else(|_| panic!("expected identifier token{context}"))
 }
 
 /// Check that the next node is a token and return it.
@@ -329,6 +330,8 @@ fn expect_token<D: fmt::Display>(
 pub enum WordType {
     /// Identifier
     Identifier,
+    /// Path,
+    Path,
     /// Bare glob
     BareGlob,
     /// Single quoted string
@@ -343,6 +346,7 @@ impl TryFrom<TokenType> for WordType {
     fn try_from(value: TokenType) -> Result<Self, Self::Error> {
         match value {
             TokenType::Identifier => Ok(Self::Identifier),
+            TokenType::Path => Ok(Self::Path),
             TokenType::BareGlob => Ok(Self::BareGlob),
             TokenType::QuotedSingle => Ok(Self::QuotedSingle),
             TokenType::QuotedDouble => Ok(Self::QuotedDouble),
@@ -355,6 +359,7 @@ impl From<WordType> for TokenType {
     fn from(type_: WordType) -> Self {
         match type_ {
             WordType::Identifier => Self::Identifier,
+            WordType::Path => Self::Path,
             WordType::BareGlob => Self::BareGlob,
             WordType::QuotedSingle => Self::QuotedSingle,
             WordType::QuotedDouble => Self::QuotedDouble,
