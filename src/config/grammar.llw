@@ -8,8 +8,8 @@ token
 start file;
 
 file: context;
-context^: (?1 Newlines line)* [Newlines]
-  | line (?1 Newlines line)* [Newlines];
+context^: (?1 Newlines+ line)* Newlines*
+  | line (?1 Newlines+ line)* Newlines*;
 line: ?1 BareWord set @set
   | ?2 BareWord params @function
   | matcher @action [

@@ -47,19 +47,34 @@ fn empty() {
     check!(parse("# comment") == ok_str(""));
     check!(parse("   ") == ok_str(""));
     check!(parse("   # comment") == ok_str(""));
-    // check!(parse("\n# comment") == ok_str("")); // FIXME
+    check!(parse("\n# comment") == ok_str("")); // FIXME
     check!(parse("# comment\n") == ok_str(""));
 }
 
 #[test_log::test]
 fn bad_char() {
-    check!(parse("$") == err_str("invalid token 0..1"));
+    // FIXME these errors seem wrong
+    check!(
+        parse("=")
+            == err_str(
+                "invalid syntax, expected one of: <bareword>, <doublequoted>, <end of file>, 'Newlines', '}', <singlequoted> 0..1"
+            )
+    );
+    check!(
+        parse("{")
+            == err_str(
+                "invalid syntax, expected one of: <bareword>, <doublequoted>, <end of file>, 'Newlines', '}', <singlequoted> 0..1"
+            )
+    );
+    check!(
+        parse("}") == err_str("invalid syntax, expected: <end of file> 0..1")
+    );
 }
 
 #[test_log::test]
 #[ignore = "FIXME"]
 fn one_token() {
-    check!(parse("foo") == err_str("invalid token 0..1"));
+    check!(parse("foo") == err_str("invalid token 0..1")); // requires 2 words
 }
 
 #[test_log::test]

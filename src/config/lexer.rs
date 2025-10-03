@@ -36,9 +36,10 @@ impl LexerError {
 //#[logos(skip(r"#[^\n\r]*"))] // Comments
 #[logos(subpattern comment = r"#[^\r\n]*")]
 #[logos(subpattern continuation = r"\\\r?\n")] // '\' + '\n'
-#[logos(subpattern hspace = r"[ \t]+((?&continuation)[ \t]*)*|(?&continuation)+[ \t]+((?&continuation)+[\t ]*)*")] // \t, ' ', '\' + '\n'
+#[logos(subpattern hspace = r"[ \t]+")] // \t, ' '
 #[logos(skip(r"(?&comment)"))] // For comment right before EOF
 #[logos(skip(r"(?&hspace)"))]
+#[logos(skip(r"(?&continuation)"))]
 pub enum TokenType {
     /// End of file
     EOF,
@@ -80,24 +81,49 @@ pub enum TokenType {
     Equal,
 
     /// A glob, path, identifier, etc.
-    // FIXME xtended regex?
-    #[regex(r#"[./0-9A-Z_a-z~*]"#)]
-    #[regex(r#"([./0-9A-Z_a-z~*$%\[{]|\\[ -~])([./0-9A-Z_a-z~*$%&+,\-:;<>?@\[\]^{|}]|\\[ -~])+"#)]
+    ///
+    /// All ASCII printable are (mid-alphabet elided):
+    ///
+    /// ```text
+    /// !"#$%&'()*+,-./0123456789:;<=>?@A...Z[\]^_`a...z{|}~
+    /// ```
+    ///
+    /// Special characters:
+    ///
+    ///   * `' '`, `'\t'`, `'\n'` — word separators
+    ///   * `'{'`, `'}'` — block start or end
+    ///   * `'('`, `')'` — params start or end
+    ///   * `','` — params separator
+    ///   * `'='` — setting operator
+    ///   * `'"'` — double-quoted word
+    ///   * `'\''` — single-quoted word
+    ///   * `'#'` — comment
+    ///   * `'$'` — variable
+    ///   * `'\\'` — escaping
+    ///
+    /// We want to be able to use `{abc,def}` syntax, so this requires that
+    /// block-delimiting braces be surrounded by whitespace. Commas in
+    /// parameters must be followed (or preceded) by whitespace.
+    ///
+    /// `'('`, `')'`, and `'='` are illegal in bare words without escaping; they
+    /// will be be interpreted as their own token.
+    ///
+    /// Quotes are illegal in bare words without escaping, but they will raise
+    /// an error.
+    #[regex(r#"([-!$%&*+./0-9:;<>?@A-Z\[\]^_`a-z|~]|\\[[:^cntrl:]])([,'"]*([-!$%&*+./0-9:;<>?@A-Z\[\]^_`a-z|~{}]|\\[[:^cntrl:]]))*"#)]
+    #[regex(r#"[{}]([,'"]*([-!$%&*+./0-9:;<>?@A-Z\[\]^_`a-z|~{}]|\\[[:^cntrl:]]))+"#)]
     BareWord,
 
-    /// A glob, a path, some other value
-    #[regex(r#""([ !#-~]|\\[ -~])*""#)]
+    /// A double quoted string
+    #[regex(r#""([\t\n\r[:^cntrl:]--"]|\\[\n\t[:^cntrl:]]|\\\r\n)*""#)]
     DoubleQuoted,
 
-    /// A path, some other value (not a glob)
-    #[regex(r#"'([ -&(-~]|\\[ -~])*'"#)]
+    /// A single quoted string
+    #[regex(r"'([\t\n\r[:^cntrl:]--']|\\[\n\t[:^cntrl:]]|\\\r\n)*'")]
     SingleQuoted,
 
     /// A sequences of newlines
-    ///
-    /// Possibly containing comments and horizontal whitespace — this means
-    /// there should never be more than one Newlines token in a row.
-    #[regex(r"[\n\r]+(?&hspace)?((?&comment)?[\n\r]+(?&hspace)?)*")]
+    #[regex(r"[\n\r]+")]
     Newlines,
 
     /// An error encountered by the lexer
@@ -157,12 +183,20 @@ const fn validate_glob() {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use TokenType::*;
     use assert2::check;
 
     fn just_tokens(input: &str) -> Vec<TokenType> {
         let mut diagnostics = Vec::new();
         let tokens = tokenize(input, &mut diagnostics);
-        check!(diagnostics.as_slice() == []);
+        check!(
+            tokens
+                .iter()
+                .any(|(type_, _span)| *type_ == TokenType::Error)
+                == !diagnostics.is_empty(),
+            "Diagnostics should only be present iff there is an Error token",
+        );
+
         tokens.iter().map(|(type_, _span)| *type_).collect()
     }
 
@@ -173,15 +207,87 @@ mod tests {
 
     #[test_log::test]
     fn newlines() {
-        check!(just_tokens("\n").as_slice() == [TokenType::Newlines]);
-        check!(just_tokens("\n  ").as_slice() == [TokenType::Newlines]);
-        check!(just_tokens("\n  \n").as_slice() == [TokenType::Newlines]);
-        check!(just_tokens("  \n").as_slice() == [TokenType::Newlines]);
+        check!(just_tokens("\n").as_slice() == [Newlines]);
+        check!(just_tokens("\n  ").as_slice() == [Newlines]);
+        check!(just_tokens("\n  \n").as_slice() == [Newlines, Newlines]);
+        check!(just_tokens("  \n").as_slice() == [Newlines]);
+        check!(just_tokens("\n#comment").as_slice() == [Newlines]);
+        check!(just_tokens("\n  #comment").as_slice() == [Newlines]);
+        check!(
+            just_tokens("\n  #comment\n  ").as_slice() == [Newlines, Newlines]
+        );
     }
 
     #[test_log::test]
-    #[ignore = "FIXME"]
-    fn newline_comment() {
-        check!(just_tokens("\n#comment").as_slice() == [TokenType::Newlines]);
+    fn bare_word() {
+        check!(just_tokens("bare_word").as_slice() == [BareWord]);
+        check!(just_tokens("*").as_slice() == [BareWord]);
+        check!(just_tokens("?").as_slice() == [BareWord]);
+        check!(just_tokens("/").as_slice() == [BareWord]);
+        check!(just_tokens(".").as_slice() == [BareWord]);
+        check!(just_tokens("bare_word").as_slice() == [BareWord]);
+    }
+
+    #[test_log::test]
+    fn bare_word_escape() {
+        check!(just_tokens(r"bare\ word").as_slice() == [BareWord]);
+        check!(just_tokens(r"bare\\word").as_slice() == [BareWord]);
+        check!(just_tokens(r#"\"abc\""#).as_slice() == [BareWord]);
+        check!(just_tokens(r"\'abc\'").as_slice() == [BareWord]);
+        check!(just_tokens(r#"\""#).as_slice() == [BareWord]);
+        check!(just_tokens(r"\é").as_slice() == [BareWord]);
+        check!(just_tokens("\\😀").as_slice() == [BareWord]);
+    }
+
+    #[test_log::test]
+    fn globs() {
+        check!(just_tokens(" {} ").as_slice() == [BareWord]);
+        check!(just_tokens(" {ab} ").as_slice() == [BareWord]);
+        check!(just_tokens(" {a,b} ").as_slice() == [BareWord]);
+        check!(just_tokens("a{  ").as_slice() == [BareWord]);
+        check!(just_tokens(" {a ").as_slice() == [BareWord]);
+        check!(just_tokens(" a,a ").as_slice() == [BareWord]);
+        check!(just_tokens(r" {\ ").as_slice() == [BareWord]);
+    }
+
+    #[test_log::test]
+    fn settings() {
+        check!(just_tokens("a=b").as_slice() == [BareWord, Equal, BareWord]);
+        check!(just_tokens("a= b").as_slice() == [BareWord, Equal, BareWord]);
+        check!(just_tokens("a = b").as_slice() == [BareWord, Equal, BareWord]);
+        check!(just_tokens("a =b").as_slice() == [BareWord, Equal, BareWord]);
+    }
+
+    #[test_log::test]
+    fn function() {
+        check!(just_tokens("a()").as_slice() == [BareWord, LParen, RParen]);
+        check!(
+            just_tokens("a(b)").as_slice()
+                == [BareWord, LParen, BareWord, RParen]
+        );
+        check!(
+            just_tokens("a(b,b)").as_slice()
+                == [BareWord, LParen, BareWord, RParen]
+        );
+        check!(
+            just_tokens("a(b, c)").as_slice()
+                == [BareWord, LParen, BareWord, Comma, BareWord, RParen]
+        );
+        check!(
+            just_tokens("a ( b )").as_slice()
+                == [BareWord, LParen, BareWord, RParen]
+        );
+        check!(
+            just_tokens("a ( b , c ,d)").as_slice()
+                == [
+                    BareWord, LParen, BareWord, Comma, BareWord, Comma,
+                    BareWord, RParen
+                ]
+        );
+    }
+
+    #[test_log::test]
+    fn errors() {
+        check!(just_tokens("\\\t").as_slice() == [Error]);
     }
 }
