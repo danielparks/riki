@@ -8,8 +8,7 @@ mod tests;
 use bstr::{BStr, BString, ByteVec};
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::{self, Config};
-use lexer::{Diagnostic, Span, TokenType};
-use logos::Logos;
+use lexer::{Diagnostic, Span, TokenType, tokenize};
 use parser::{CNode, CNodeIter, Cst, NodeRef, Parser, Rule, RuleSide};
 use std::fmt;
 use std::fs;
@@ -548,22 +547,3 @@ impl From<Word> for Value {
 
 /// Parameters to a function call.
 pub type Parameters = Vec<Value>;
-
-/// Tokenize
-pub fn tokenize(
-    source: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Vec<(TokenType, Span)> {
-    let lexer = TokenType::lexer(source);
-    let mut output = vec![];
-
-    for (token, span) in lexer.spanned() {
-        let token = token.unwrap_or_else(|err| {
-            diagnostics.push(err.into_diagnostic(span.clone()));
-            TokenType::Error
-        });
-
-        output.push((token, span));
-    }
-    output
-}
