@@ -348,16 +348,16 @@ pub fn tokenize(
 /// Note that "#" will never be passed to the server. We match it anyway
 /// so that we can throw a good error.
 ///
-/// There is also the special escape character, "%" [§2.1].
+/// There is also the special escape character, "%" ([§2.1]).
 ///
-/// Glob characters (from [fast-glob]) already covered above: `?*[],!`
+/// Glob characters (from [globset][globset#syntax]) already covered above:
+/// `?*[],!`
 ///
 /// Glob characters not covered above: `{}\`
 ///
 /// [RFC 3986 §2.2]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.2
 /// [§2.3]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.3
 /// [§2.1]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.1
-/// [fast-glob]: https://crates.io/crates/fast-glob#syntax
 #[expect(dead_code, reason = "saving comment")]
 const fn validate_glob() {}
 
