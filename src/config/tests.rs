@@ -73,7 +73,7 @@ fn bad_char() {
 
 #[test_log::test]
 fn one_token() {
-    check!(parse("foo") == ok_str(" foo")); // No matchers, just action
+    check!(parse("foo") == ok_str("/ foo"));
 }
 
 #[test_log::test]
