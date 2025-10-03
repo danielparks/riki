@@ -172,8 +172,8 @@ fn process_cst(cst: &Cst) -> Vec<ConfigRule> {
             CNode::Token(
                 token @ (TokenType::Identifier
                 | TokenType::BareGlob
-                | TokenType::DoubleQuoted
-                | TokenType::SingleQuoted
+                | TokenType::QuotedDouble
+                | TokenType::QuotedSingle
                 | TokenType::LBrace
                 | TokenType::LParen
                 | TokenType::RParen
@@ -332,9 +332,9 @@ pub enum WordType {
     /// Bare glob
     BareGlob,
     /// Single quoted string
-    SingleQuoted,
+    QuotedSingle,
     /// Double quoted string
-    DoubleQuoted,
+    QuotedDouble,
 }
 
 impl TryFrom<TokenType> for WordType {
@@ -344,8 +344,8 @@ impl TryFrom<TokenType> for WordType {
         match value {
             TokenType::Identifier => Ok(Self::Identifier),
             TokenType::BareGlob => Ok(Self::BareGlob),
-            TokenType::SingleQuoted => Ok(Self::SingleQuoted),
-            TokenType::DoubleQuoted => Ok(Self::DoubleQuoted),
+            TokenType::QuotedSingle => Ok(Self::QuotedSingle),
+            TokenType::QuotedDouble => Ok(Self::QuotedDouble),
             other => Err(ParseError::ExpectedWordToken(other)),
         }
     }
@@ -356,8 +356,8 @@ impl From<WordType> for TokenType {
         match type_ {
             WordType::Identifier => Self::Identifier,
             WordType::BareGlob => Self::BareGlob,
-            WordType::SingleQuoted => Self::SingleQuoted,
-            WordType::DoubleQuoted => Self::DoubleQuoted,
+            WordType::QuotedSingle => Self::QuotedSingle,
+            WordType::QuotedDouble => Self::QuotedDouble,
         }
     }
 }
