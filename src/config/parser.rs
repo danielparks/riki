@@ -54,14 +54,18 @@ impl ParserCallbacks for Parser<'_> {
             .with_label(Label::primary((), span))
     }
 
-    /// Check second token isn’t EOF or '}'
+    /// Check the token after `Newlines+` isn’t EOF or '}'
     ///
     /// ```lelwel
-    /// context: (?1 Newlines line)* [Newlines]
-    ///   | line (?1 Newlines line)* [Newlines];
+    /// context: (?1 Newlines+ line)* Newlines*
+    ///   | line (?1 Newlines+ line)* Newlines*;
     /// ```
     fn predicate_context_1(&self) -> bool {
-        !matches!(self.peek(1), Token::EOF | Token::RBrace)
+        let mut i = 1;
+        while self.peek(i) == Token::Newlines {
+            i += 1;
+        }
+        !matches!(self.peek(i), Token::EOF | Token::RBrace)
     }
 
     /// Check second token is '='
