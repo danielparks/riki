@@ -47,7 +47,7 @@ fn empty() {
     check!(parse("# comment") == ok_str(""));
     check!(parse("   ") == ok_str(""));
     check!(parse("   # comment") == ok_str(""));
-    check!(parse("\n# comment") == ok_str("")); // FIXME
+    check!(parse("\n# comment") == ok_str(""));
     check!(parse("# comment\n") == ok_str(""));
 }
 
@@ -72,9 +72,8 @@ fn bad_char() {
 }
 
 #[test_log::test]
-#[ignore = "FIXME"]
 fn one_token() {
-    check!(parse("foo") == err_str("invalid token 0..1")); // requires 2 words
+    check!(parse("foo") == ok_str(" foo")); // No matchers, just action
 }
 
 #[test_log::test]
