@@ -80,7 +80,7 @@ impl<'a> Cst<'a> {
         CNodeIter {
             next_index: 0,
             nodes: &self.nodes[id.0 + 1..id.0 + 1 + end_offset],
-            spans: &self.spans[..],
+            cst: self,
             stack: Vec::new(), // FIXME capacity from end_offset
         }
     }
@@ -90,7 +90,7 @@ impl<'a> Cst<'a> {
 pub struct CNodeIter<'a> {
     next_index: usize,
     nodes: &'a [Node],
-    spans: &'a [Span],
+    cst: &'a Cst<'a>,
 
     /// `Vec` of tuples:
     ///
@@ -132,7 +132,10 @@ impl<'a> Iterator for CNodeIter<'a> {
             }
             Node::Token(token, i) => {
                 self.next_index += 1;
-                Some(CNode::Token(*token, self.spans[usize::from(*i)].clone()))
+                Some(CNode::Token(
+                    *token,
+                    self.cst.spans[usize::from(*i)].clone(),
+                ))
             }
         }
     }
