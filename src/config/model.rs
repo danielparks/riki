@@ -59,7 +59,13 @@ pub struct Word<'src> {
     pub src: &'src str,
 }
 
-impl Word<'_> {
+impl<'src> Word<'src> {
+    /// Create from a glob string
+    #[must_use]
+    pub const fn from_glob_str(src: &'src str) -> Self {
+        Self { type_: WordType::BareGlob, src }
+    }
+
     /// Return the contents of this word
     ///
     /// FIXME variable interpolation
@@ -211,6 +217,18 @@ impl<'src> MatcherStack<'src> {
         Self(Vec::new())
     }
 
+    /// Create a matcher stack from a slice of bare glob strings
+    #[must_use]
+    pub fn from_glob_strs<I: IntoIterator<Item = &'src str>>(globs: I) -> Self {
+        Self(
+            globs
+                .into_iter()
+                .map(Word::from_glob_str)
+                .map(Matcher)
+                .collect(),
+        )
+    }
+
     /// Add a matcher to the stack
     #[must_use]
     pub const fn is_empty(&self) -> bool {
@@ -246,14 +264,39 @@ impl<'src> MatcherStack<'src> {
     /// Get the matcher stack as a glob string
     ///
     /// This does not necessarily include every condition in the matcher.
-    /// FIXME: allow other conditions; evaluate them.
+    ///
+    ///   * FIXME: allow other conditions; evaluate them.
+    ///   * FIXME: Treat "*", "*" specially?
+    ///
+    /// ```
+    /// use assert2::check;
+    /// use riki::config::model::MatcherStack;
+    ///
+    /// fn combine<'a, I: IntoIterator<Item=&'a str>>(globs: I) -> String {
+    ///     MatcherStack::from_glob_strs(globs).as_glob_str()
+    /// }
+    ///
+    /// check!(combine([]) == "/");
+    /// check!(combine(["/"]) == "/");
+    /// check!(combine(["/", "/"]) == "/");
+    /// check!(combine(["/", "foobar", "/zz/"]) == "/**/foobar/zz/");
+    /// check!(combine(["/", "/", "/zz"]) == "/zz");
+    /// check!(combine(["abc", "/", "/zz"]) == "/**/abc/zz");
+    /// check!(combine(["abc", "def", "/zz"]) == "/**/abc/**/def/zz");
+    ///
+    /// check!(combine(["*"]) == "/**/*");
+    /// check!(combine(["**/foo"]) == "/**/foo");
+    /// check!(combine(["**", "**", "foo"]) == "/**/**/foo");
+    /// check!(combine(["**", "a"]) == "/**/a");
+    /// check!(combine(["**", "/a"]) == "/**/a");
+    /// check!(combine(["**/", "a"]) == "/**/**/a");
+    /// check!(combine(["**/", "/a"]) == "/**/a");
+    /// check!(combine(["**/**", "foobar"]) == "/**/**/foobar");
+    /// check!(combine(["/", "[abc]?", "/zz"]) == "/**/[abc]?/zz");
+    /// ```
     #[must_use]
     #[inline]
     pub fn as_glob_str(&self) -> String {
-        //    / foobar /hey -> /**/foobar/hey{,/**}
-        //    / / /hey -> /hey{,/**}
-        //    / abc / /hey -> /**/abc/hey{,/**}
-        //    / abc def /hey -> /**/abc/**/def/hey{,/**}
         let mut full_glob = "/".to_owned(); // FIXME capacity?
         for matcher in &self.0 {
             let glob_str = matcher.as_glob_str();
@@ -264,9 +307,16 @@ impl<'src> MatcherStack<'src> {
                 } else {
                     full_glob.push_str(&glob_str);
                 }
+            } else if glob_str.starts_with("**/") || glob_str == "**" {
+                if !full_glob.ends_with('/') {
+                    full_glob.push('/');
+                }
+                full_glob.push_str(&glob_str);
             } else {
-                // Doesn’t start with /
-                full_glob.push_str(if full_glob.ends_with('/') {
+                // Doesn’t start with / or **/
+                full_glob.push_str(if full_glob.ends_with("/**") {
+                    "/"
+                } else if full_glob.ends_with('/') {
                     "**/"
                 } else {
                     "/**/"
@@ -413,4 +463,35 @@ pub enum ParseError {
     /// Found something other than an identifier token.
     #[error("expected an identifier token, got {0:?}")]
     ExpectedIdentifierToken(TokenType),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use assert2::check;
+
+    fn into_glob<'a, I: IntoIterator<Item = &'a str>>(
+        globs: I,
+    ) -> Result<Glob, globset::Error> {
+        MatcherStack::from_glob_strs(globs).as_glob()
+    }
+
+    #[test_log::test]
+    fn matcher_stack_paths_makes_valid_globs() {
+        check!(into_glob([]).is_ok());
+        check!(into_glob(["/"]).is_ok());
+        check!(into_glob(["/", "/"]).is_ok());
+        check!(into_glob(["/", "foobar", "/zz/"]).is_ok());
+        check!(into_glob(["/", "/", "/zz"]).is_ok());
+        check!(into_glob(["abc", "/", "/zz"]).is_ok());
+        check!(into_glob(["abc", "def", "/zz"]).is_ok());
+    }
+
+    #[test_log::test]
+    fn matcher_stack_globs_makes_valid_globs() {
+        check!(into_glob(["*"]).is_ok());
+        check!(into_glob(["**/foo"]).is_ok());
+        check!(into_glob(["**/**", "foobar"]).is_ok());
+        check!(into_glob(["/", "[abc]?", "/zz"]).is_ok());
+    }
 }
