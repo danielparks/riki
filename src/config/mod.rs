@@ -9,7 +9,7 @@ use bstr::{BStr, BString, ByteVec};
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::{self, Config};
 use globset::{Glob, GlobBuilder};
-use lexer::{Diagnostic, Span, TokenType, tokenize};
+use lexer::{Diagnostic, TokenType, tokenize};
 use parser::{CNode, CNodeIter, Cst, NodeRef, Parser, Rule, RuleSide};
 use std::fmt;
 use std::fs;
@@ -64,7 +64,7 @@ pub fn dump_config(
 
         println!();
         for rule in process_cst(&cst) {
-            println!("{}", rule.canonical(&source));
+            println!("{}", rule.canonical());
         }
     }
 
@@ -76,7 +76,7 @@ pub fn dump_config(
 /// # Errors
 ///
 /// Returns [`Diagnostic`]s that point out problems in `source`.
-pub fn parse(source: &str) -> Result<Vec<ConfigRule>, Vec<Diagnostic>> {
+pub fn parse(source: &str) -> Result<Vec<ConfigRule<'_>>, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let cst = Parser::parse(source, &mut diagnostics);
     if diagnostics.is_empty() {
@@ -87,7 +87,7 @@ pub fn parse(source: &str) -> Result<Vec<ConfigRule>, Vec<Diagnostic>> {
 }
 
 /// Process the CST from the parse into rules.
-fn process_cst(cst: &Cst) -> Vec<ConfigRule> {
+fn process_cst<'src>(cst: &Cst<'src>) -> Vec<ConfigRule<'src>> {
     let mut iter = cst.descendents(NodeRef::ROOT);
     let mut matcher_stack: MatcherStack = MatcherStack::empty();
     let mut rules: Vec<ConfigRule> = Vec::new();
@@ -197,7 +197,7 @@ fn process_cst(cst: &Cst) -> Vec<ConfigRule> {
 }
 
 /// Consume contents of a set rule.
-fn consume_set_contents(iter: &mut CNodeIter) -> Setting {
+fn consume_set_contents<'src>(iter: &mut CNodeIter<'_, 'src>) -> Setting<'src> {
     let variable = consume_identifier(iter, " for set variable");
     expect_token(iter, TokenType::Equal, " in set rule");
 
@@ -219,7 +219,9 @@ fn consume_set_contents(iter: &mut CNodeIter) -> Setting {
 }
 
 /// Consume contents of a function rule.
-fn consume_function_contents(iter: &mut CNodeIter) -> Value {
+fn consume_function_contents<'src>(
+    iter: &mut CNodeIter<'_, 'src>,
+) -> Value<'src> {
     // Get identifier (name of function)
     let identifier = consume_identifier(iter, " for function identifier");
     let mut parameters = Parameters::new();
@@ -253,14 +255,17 @@ fn consume_function_contents(iter: &mut CNodeIter) -> Value {
 }
 
 /// Consume contents of a value rule.
-fn consume_value_contents(iter: &mut CNodeIter) -> Value {
+fn consume_value_contents<'src>(iter: &mut CNodeIter<'_, 'src>) -> Value<'src> {
     let word = consume_word_token(iter, " in value");
     expect_rule(iter, Rule::Value, RuleSide::Pop, " after value token");
     word.into()
 }
 
 /// Check that the next node is a matcher rule, then get the token it contains.
-fn consume_matcher<D: fmt::Display>(iter: &mut CNodeIter, context: D) -> Word {
+fn consume_matcher<'src, D: fmt::Display>(
+    iter: &mut CNodeIter<'_, 'src>,
+    context: D,
+) -> Word<'src> {
     expect_rule(iter, Rule::Matcher, RuleSide::Push, &context);
     let word = consume_word_token(iter, format!(" in matcher rule{context}"));
     expect_rule(iter, Rule::Matcher, RuleSide::Pop, " after matcher token");
@@ -268,31 +273,31 @@ fn consume_matcher<D: fmt::Display>(iter: &mut CNodeIter, context: D) -> Word {
 }
 
 /// Consume a bare word token.
-fn consume_identifier<D: fmt::Display>(
-    iter: &mut CNodeIter,
+fn consume_identifier<'src, D: fmt::Display>(
+    iter: &mut CNodeIter<'_, 'src>,
     context: D,
-) -> Identifier {
+) -> Identifier<'src> {
     consume_word_token(iter, &context)
         .try_into()
         .unwrap_or_else(|_| panic!("expected identifier token{context}"))
 }
 
 /// Check that the next node is a token and return it.
-fn consume_word_token<D: fmt::Display>(
-    iter: &mut CNodeIter,
+fn consume_word_token<'src, D: fmt::Display>(
+    iter: &mut CNodeIter<'_, 'src>,
     context: D,
-) -> Word {
+) -> Word<'src> {
     let next = iter.next();
-    let Some(CNode::Token(token, span)) = next else {
+    let Some(CNode::Token(token, src)) = next else {
         panic!("expected word token{context}, got {next:?}");
     };
 
-    Word { type_: token.try_into().unwrap(), span }
+    Word { type_: token.try_into().unwrap(), src }
 }
 
 /// Check that the next node is a certain rule.
 fn expect_rule<D: fmt::Display>(
-    iter: &mut CNodeIter,
+    iter: &mut CNodeIter<'_, '_>,
     expected: Rule,
     expected_side: RuleSide,
     context: D,
@@ -311,20 +316,20 @@ fn expect_rule<D: fmt::Display>(
 }
 
 /// Check that the next node is a specific token and return it.
-fn expect_token<D: fmt::Display>(
-    iter: &mut CNodeIter,
+fn expect_token<'src, D: fmt::Display>(
+    iter: &mut CNodeIter<'_, 'src>,
     expected: TokenType,
     context: D,
-) -> Span {
+) -> &'src str {
     let next = iter.next();
-    let Some(CNode::Token(token, span)) = next else {
+    let Some(CNode::Token(token, src)) = next else {
         panic!("expected token{context}, got {next:?}");
     };
     assert_eq!(
         expected, token,
         "expected {expected:?} token{context}, got {token:?}"
     );
-    span
+    src
 }
 
 /// The type of a word
@@ -371,34 +376,26 @@ impl From<WordType> for TokenType {
 
 /// A reference to a word in the config file
 #[derive(Clone, Debug)]
-pub struct Word {
+pub struct Word<'src> {
     /// The type of word
     pub type_: WordType,
 
-    /// The location in the source
-    pub span: Span,
+    /// The slice of the source representing this word
+    pub src: &'src str,
 }
 
-impl Word {
-    /// The string this token represents in the source.
-    #[must_use]
-    #[inline]
-    pub fn source_str<'a>(&self, source: &'a str) -> &'a str {
-        &source[self.span.clone()]
-    }
-
+impl Word<'_> {
     /// Return the contents of this word
     ///
     /// FIXME variable interpolation
     #[must_use]
-    pub fn contents(&self, source: &str) -> String {
-        let src = self.source_str(source);
+    pub fn contents(&self) -> String {
         match self.type_ {
-            WordType::Identifier => src.to_owned(),
-            WordType::Path => path_unescape(src),
-            WordType::BareGlob => bare_glob_unescape(src),
+            WordType::Identifier => self.src.to_owned(),
+            WordType::Path => path_unescape(self.src),
+            WordType::BareGlob => bare_glob_unescape(self.src),
             WordType::QuotedSingle | WordType::QuotedDouble => {
-                string_unescape(src)
+                string_unescape(self.src)
             }
         }
     }
@@ -407,22 +404,21 @@ impl Word {
     ///
     /// FIXME variable interpolation
     #[must_use]
-    pub fn as_glob_str(&self, source: &str) -> String {
-        let src = self.source_str(source);
+    pub fn as_glob_str(&self) -> String {
         match self.type_ {
-            WordType::Identifier => globset::escape(src),
-            WordType::Path => globset::escape(&path_unescape(src)),
-            WordType::BareGlob => bare_glob_unescape(src),
+            WordType::Identifier => globset::escape(self.src),
+            WordType::Path => globset::escape(&path_unescape(self.src)),
+            WordType::BareGlob => bare_glob_unescape(self.src),
             WordType::QuotedSingle | WordType::QuotedDouble => {
-                globset::escape(&string_unescape(src))
+                globset::escape(&string_unescape(self.src))
             }
         }
     }
 
     /// Return the canonical representation of this word
     #[must_use]
-    pub fn canonical(&self, source: &str) -> String {
-        self.source_str(source).to_owned()
+    pub fn canonical(&self) -> String {
+        self.src.to_owned()
     }
 }
 
@@ -491,29 +487,22 @@ fn string_unescape(src: &str) -> String {
 
 /// A reference to an identifier in the config file
 #[derive(Clone, Debug)]
-pub struct Identifier(pub Span);
+pub struct Identifier<'src>(pub &'src str);
 
-impl Identifier {
-    /// The string this token represents in the source.
-    #[must_use]
-    #[inline]
-    pub fn source_str<'a>(&self, source: &'a str) -> &'a str {
-        &source[self.0.clone()]
-    }
-
+impl Identifier<'_> {
     /// Return the canonical representation of this identifier
     #[must_use]
-    pub fn canonical(&self, source: &str) -> String {
-        self.source_str(source).to_owned()
+    pub fn canonical(&self) -> String {
+        self.0.to_owned()
     }
 }
 
-impl TryFrom<Word> for Identifier {
+impl<'src> TryFrom<Word<'src>> for Identifier<'src> {
     type Error = ParseError;
 
-    fn try_from(word: Word) -> Result<Self, Self::Error> {
+    fn try_from(word: Word<'src>) -> Result<Self, Self::Error> {
         match word.type_ {
-            WordType::Identifier => Ok(Self(word.span)),
+            WordType::Identifier => Ok(Self(word.src)),
             other => Err(ParseError::ExpectedIdentifierToken(other.into())),
         }
     }
@@ -535,30 +524,26 @@ pub enum ParseError {
 
 /// A rule found in the configuration file.
 #[derive(Clone, Debug)]
-pub struct ConfigRule {
+pub struct ConfigRule<'src> {
     /// Match a request
-    pub matcher: MatcherStack,
+    pub matcher: MatcherStack<'src>,
     /// Action to take in response to a request
-    pub action: Action,
+    pub action: Action<'src>,
 }
 
-impl ConfigRule {
+impl ConfigRule<'_> {
     /// Return the canonical representation of this rule
     #[must_use]
-    pub fn canonical(&self, source: &str) -> String {
-        format!(
-            "{} {}",
-            self.matcher.canonical(source),
-            self.action.canonical(source),
-        )
+    pub fn canonical(&self) -> String {
+        format!("{} {}", self.matcher.canonical(), self.action.canonical())
     }
 }
 
 /// A stack of matchers for a request.
 #[derive(Clone, Debug, Default)]
-pub struct MatcherStack(pub Vec<Matcher>);
+pub struct MatcherStack<'src>(pub Vec<Matcher<'src>>);
 
-impl MatcherStack {
+impl<'src> MatcherStack<'src> {
     /// Get a new, empty matcher stack
     #[must_use]
     pub const fn empty() -> Self {
@@ -572,12 +557,12 @@ impl MatcherStack {
     }
 
     /// Add a matcher to the stack
-    pub fn push(&mut self, matcher: Matcher) {
+    pub fn push(&mut self, matcher: Matcher<'src>) {
         self.0.push(matcher);
     }
 
     /// Remove a matcher from the top of the stack
-    pub fn pop(&mut self) -> Option<Matcher> {
+    pub fn pop(&mut self) -> Option<Matcher<'src>> {
         self.0.pop()
     }
 
@@ -589,8 +574,8 @@ impl MatcherStack {
     /// # Errors
     ///
     /// May pass through errors from [`GlobBuilder::build()`].
-    pub fn as_glob(&self, source: &str) -> Result<Glob, globset::Error> {
-        GlobBuilder::new(&self.as_glob_str(source))
+    pub fn as_glob(&self) -> Result<Glob, globset::Error> {
+        GlobBuilder::new(&self.as_glob_str())
             .literal_separator(true)
             .backslash_escape(true)
             .empty_alternates(true)
@@ -603,14 +588,14 @@ impl MatcherStack {
     /// FIXME: allow other conditions; evaluate them.
     #[must_use]
     #[inline]
-    pub fn as_glob_str(&self, source: &str) -> String {
+    pub fn as_glob_str(&self) -> String {
         //    / foobar /hey -> /**/foobar/hey{,/**}
         //    / / /hey -> /hey{,/**}
         //    / abc / /hey -> /**/abc/hey{,/**}
         //    / abc def /hey -> /**/abc/**/def/hey{,/**}
         let mut full_glob = "/".to_owned(); // FIXME capacity?
         for matcher in &self.0 {
-            let glob_str = matcher.as_glob_str(source);
+            let glob_str = matcher.as_glob_str();
             #[expect(clippy::manual_strip, reason = "clarity, simplicity")]
             if glob_str.starts_with('/') {
                 if full_glob.ends_with('/') {
@@ -633,19 +618,22 @@ impl MatcherStack {
 
     /// Return the canonical representation of this matcher
     #[must_use]
-    pub fn canonical(&self, source: &str) -> String {
-        self.as_glob_str(source)
+    pub fn canonical(&self) -> String {
+        self.as_glob_str()
     }
 
     /// Return an iterator over the matchers
-    pub fn iter(&self) -> slice::Iter<'_, Matcher> {
+    pub fn iter(&self) -> slice::Iter<'_, Matcher<'src>> {
         self.0.iter()
     }
 }
 
-impl<'a> IntoIterator for &'a MatcherStack {
-    type Item = &'a Matcher;
-    type IntoIter = slice::Iter<'a, Matcher>;
+impl<'a, 'src> IntoIterator for &'a MatcherStack<'src>
+where
+    'src: 'a,
+{
+    type Item = &'a Matcher<'src>;
+    type IntoIter = slice::Iter<'a, Matcher<'src>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -654,13 +642,13 @@ impl<'a> IntoIterator for &'a MatcherStack {
 
 /// A matcher for a request.
 #[derive(Clone, Debug)]
-pub struct Matcher(pub Word);
+pub struct Matcher<'src>(pub Word<'src>);
 
-impl Matcher {
+impl Matcher<'_> {
     /// Return the canonical representation of this matcher
     #[must_use]
-    pub fn canonical(&self, source: &str) -> String {
-        self.0.canonical(source)
+    pub fn canonical(&self) -> String {
+        self.0.canonical()
     }
 
     /// Get the matcher stack as a glob
@@ -668,90 +656,86 @@ impl Matcher {
     /// This does not necessarily include every condition in the matcher.
     /// FIXME: allow other conditions; evaluate them.
     #[must_use]
-    pub fn as_glob_str(&self, source: &str) -> String {
-        self.0.canonical(source)
+    pub fn as_glob_str(&self) -> String {
+        self.0.canonical()
     }
 }
 
 /// The action corresponding to a rule.
 #[derive(Clone, Debug)]
-pub enum Action {
+pub enum Action<'src> {
     /// Set an option for matching requests.
-    Setting(Setting),
+    Setting(Setting<'src>),
 
     /// Value to return for matching requests.
-    Value(Value),
+    Value(Value<'src>),
 }
 
-impl Action {
+impl Action<'_> {
     /// Return the canonical representation of this action
     #[must_use]
-    pub fn canonical(&self, source: &str) -> String {
+    pub fn canonical(&self) -> String {
         match self {
-            Self::Setting(setting) => setting.canonical(source),
-            Self::Value(value) => value.canonical(source),
+            Self::Setting(setting) => setting.canonical(),
+            Self::Value(value) => value.canonical(),
         }
     }
 }
 
 /// A configuration setting
 #[derive(Clone, Debug)]
-pub struct Setting {
+pub struct Setting<'src> {
     /// The variable being set
-    pub variable: Identifier,
+    pub variable: Identifier<'src>,
 
     /// The value
-    pub value: Value,
+    pub value: Value<'src>,
 }
 
-impl Setting {
+impl Setting<'_> {
     /// Return the canonical representation of this setting
     #[must_use]
-    pub fn canonical(&self, source: &str) -> String {
-        format!(
-            "{} = {}",
-            self.variable.canonical(source),
-            self.value.canonical(source)
-        )
+    pub fn canonical(&self) -> String {
+        format!("{} = {}", self.variable.canonical(), self.value.canonical())
     }
 }
 
 /// A value for a configuration setting or to return as a response.
 #[derive(Clone, Debug)]
-pub enum Value {
+pub enum Value<'src> {
     /// Call a function.
-    Function(Identifier, Parameters),
+    Function(Identifier<'src>, Parameters<'src>),
 
     /// A string of some kind.
-    Literal(Word),
+    Literal(Word<'src>),
 }
 
-impl Value {
+impl Value<'_> {
     /// Return the canonical representation of this value
     #[must_use]
-    pub fn canonical(&self, source: &str) -> String {
+    pub fn canonical(&self) -> String {
         match self {
             Self::Function(identifier, parameters) => {
                 format!(
                     "{}({})",
-                    identifier.canonical(source),
+                    identifier.canonical(),
                     parameters
                         .iter()
-                        .map(|value| value.canonical(source))
+                        .map(Value::canonical)
                         .collect::<Vec<_>>()
                         .join(", ")
                 )
             }
-            Self::Literal(word) => word.canonical(source),
+            Self::Literal(word) => word.canonical(),
         }
     }
 }
 
-impl From<Word> for Value {
-    fn from(word: Word) -> Self {
+impl<'src> From<Word<'src>> for Value<'src> {
+    fn from(word: Word<'src>) -> Self {
         Self::Literal(word)
     }
 }
 
 /// Parameters to a function call.
-pub type Parameters = Vec<Value>;
+pub type Parameters<'src> = Vec<Value<'src>>;

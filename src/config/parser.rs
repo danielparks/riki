@@ -69,9 +69,12 @@ impl ParserCallbacks for Parser<'_> {
     }
 }
 
-impl<'a> Cst<'a> {
+impl<'src> Cst<'src> {
     /// Iterate all of the descendents of a [`Cst`] node returned by [`Parser`].
-    pub fn descendents(&'a self, id: NodeRef) -> CNodeIter<'a> {
+    pub fn descendents<'a>(&'a self, id: NodeRef) -> CNodeIter<'a, 'src>
+    where
+        'src: 'a,
+    {
         let end_offset = match self.nodes[id.0] {
             Node::Rule(_, i) => usize::from(i),
             _ => 0,
@@ -80,17 +83,19 @@ impl<'a> Cst<'a> {
         CNodeIter {
             next_index: 0,
             nodes: &self.nodes[id.0 + 1..id.0 + 1 + end_offset],
-            cst: self,
+            spans: &self.spans[..],
+            source: self.source,
             stack: Vec::new(), // FIXME capacity from end_offset
         }
     }
 }
 
 /// Iterator for descendents of a [`Cst`] node.
-pub struct CNodeIter<'a> {
+pub struct CNodeIter<'a, 'src> {
     next_index: usize,
     nodes: &'a [Node],
-    cst: &'a Cst<'a>,
+    spans: &'a [Span],
+    source: &'src str,
 
     /// `Vec` of tuples:
     ///
@@ -99,8 +104,8 @@ pub struct CNodeIter<'a> {
     stack: Vec<(usize, usize)>,
 }
 
-impl<'a> Iterator for CNodeIter<'a> {
-    type Item = CNode;
+impl<'a, 'src> Iterator for CNodeIter<'a, 'src> {
+    type Item = CNode<'src>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // Check if the next node is outside the top rule on the stack.
@@ -134,7 +139,7 @@ impl<'a> Iterator for CNodeIter<'a> {
                 self.next_index += 1;
                 Some(CNode::Token(
                     *token,
-                    self.cst.spans[usize::from(*i)].clone(),
+                    &self.source[self.spans[usize::from(*i)].clone()],
                 ))
             }
         }
@@ -143,9 +148,9 @@ impl<'a> Iterator for CNodeIter<'a> {
 
 /// A node in the [`Cst`] in a more useful format.
 #[derive(Clone, Debug)]
-pub enum CNode {
+pub enum CNode<'a> {
     Rule(Rule, RuleSide),
-    Token(Token, Span),
+    Token(Token, &'a str),
 }
 
 /// When iterating over [`CNode`]s we encounter rule nodes twice — pushing them

@@ -11,7 +11,7 @@ fn parse(source: &str) -> Result<String, String> {
         .map(|rules| {
             rules
                 .iter()
-                .map(|rule| rule.canonical(source))
+                .map(config::ConfigRule::canonical)
                 .collect::<Vec<_>>()
                 .join("\n")
         })
