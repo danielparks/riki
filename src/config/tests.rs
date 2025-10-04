@@ -2,16 +2,17 @@
 #![cfg(test)]
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
-use crate::config;
+use super::model::ConfigRule;
+use super::parser2;
 use assert2::check;
 
 /// Convenience function to easily compare parse results
 fn parse(source: &str) -> Result<String, String> {
-    config::parse(source)
+    parser2::parse(source)
         .map(|rules| {
             rules
                 .iter()
-                .map(config::ConfigRule::canonical)
+                .map(ConfigRule::canonical)
                 .collect::<Vec<_>>()
                 .join("\n")
         })
