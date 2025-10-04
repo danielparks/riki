@@ -65,8 +65,13 @@ lelwel = "0.9.1"
 [dev-dependencies]
 actix-http = "3.11.0"
 assert2 = "0.3.16"
+criterion = "0.8.1"
 temp-dir = "0.1.16"
 test-log = { version = "0.2.19", default-features = false, features = ["color", "trace"] }
+
+[[bench]]
+name = "config_parse"
+harness = false
 
 [lints]
 workspace = true
