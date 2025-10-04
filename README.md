@@ -86,17 +86,25 @@ braces. So, every rule within `/foo { ... }` effectively has `/foo` prepended.
 
 ### Example
 
-    / {
-        root=/srv/website
-        templates=templates
+    root=/srv/website
+    templates=templates
 
-        *.md error(403)
-        /templates error(403)
+    /blog {
+      root=/srv/blog
+      # Use the same templates
 
-        render(markdown("$path.md"))
-        $path
-        error(404)
+      *.html error(403)
+      render("$path.html")
+      # *.md files will be served with status 200
+      $path
     }
+
+    *.md error(403)
+    /templates error(403)
+
+    render(markdown("$path.md"))
+    $path
+    error(404)
 
 [glob syntax]: https://docs.rs/globset/latest/globset/index.html#syntax
 
