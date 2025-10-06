@@ -229,8 +229,8 @@ fn open_static_file(
 ///
 /// # Errors
 ///
-///   * [`WebError::InternalString`] if the contstructed content-type cannot be
-///     be parsed (should never happen).
+///   * [`WebError::InternalString`] if the constructed content-type cannot be
+///     parsed (should never happen).
 fn fix_charset(file: NamedFile) -> WebResult<NamedFile> {
     let content_type = file.content_type();
     if content_type.type_() != mime::TEXT

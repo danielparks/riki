@@ -1,8 +1,5 @@
 //! Embedded assets.
-#![expect(
-    clippy::same_name_method,
-    reason = "triggered by RustEmbedtriggered by RustEmbed"
-)]
+#![expect(clippy::same_name_method, reason = "triggered by RustEmbed")]
 
 use rust_embed::RustEmbed;
 
