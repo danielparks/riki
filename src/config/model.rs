@@ -266,7 +266,7 @@ impl<'src> MatcherStack<'src> {
     /// This does not necessarily include every condition in the matcher.
     ///
     ///   * FIXME: allow other conditions; evaluate them.
-    ///   * FIXME: Treat "*", "*" specially?
+    ///   * FIXME: Treat `"*", "*"` specially?
     ///
     /// ```
     /// use assert2::check;
@@ -276,23 +276,24 @@ impl<'src> MatcherStack<'src> {
     ///     MatcherStack::from_glob_strs(globs).as_glob_str()
     /// }
     ///
-    /// check!(combine([]) == "/");
-    /// check!(combine(["/"]) == "/");
-    /// check!(combine(["/", "/"]) == "/");
-    /// check!(combine(["/", "foobar", "/zz/"]) == "/**/foobar/zz/");
-    /// check!(combine(["/", "/", "/zz"]) == "/zz");
-    /// check!(combine(["abc", "/", "/zz"]) == "/**/abc/zz");
-    /// check!(combine(["abc", "def", "/zz"]) == "/**/abc/**/def/zz");
+    /// check!(combine([]) == "/**");
+    /// check!(combine(["/"]) == "/**");
+    /// check!(combine(["/", "/"]) == "/**");
+    /// check!(combine(["/", "foobar", "/zz/"]) == "/**/foobar/zz/**");
+    /// check!(combine(["/", "/", "/zz"]) == "/zz{,/**}");
+    /// check!(combine(["abc", "/", "/zz"]) == "/**/abc/zz{,/**}");
+    /// check!(combine(["abc", "def", "/zz"]) == "/**/abc/**/def/zz{,/**}");
     ///
-    /// check!(combine(["*"]) == "/**/*");
-    /// check!(combine(["**/foo"]) == "/**/foo");
-    /// check!(combine(["**", "**", "foo"]) == "/**/**/foo");
-    /// check!(combine(["**", "a"]) == "/**/a");
-    /// check!(combine(["**", "/a"]) == "/**/a");
-    /// check!(combine(["**/", "a"]) == "/**/**/a");
-    /// check!(combine(["**/", "/a"]) == "/**/a");
-    /// check!(combine(["**/**", "foobar"]) == "/**/**/foobar");
-    /// check!(combine(["/", "[abc]?", "/zz"]) == "/**/[abc]?/zz");
+    /// check!(combine(["*"]) == "/**/*{,/**}");
+    /// check!(combine(["**/foo"]) == "/**/foo{,/**}");
+    /// check!(combine(["**", "**", "foo"]) == "/**/**/foo{,/**}");
+    /// check!(combine(["**", "a"]) == "/**/a{,/**}");
+    /// check!(combine(["**", "/a"]) == "/**/a{,/**}");
+    /// check!(combine(["**/", "a"]) == "/**/**/a{,/**}");
+    /// check!(combine(["**/", "/a"]) == "/**/a{,/**}");
+    /// check!(combine(["**/**", "foobar"]) == "/**/**/foobar{,/**}");
+    /// check!(combine(["/", "[abc]?", "/zz"]) == "/**/[abc]?/zz{,/**}");
+    /// check!(combine(["abc", "/{foo,**}"]) == "/**/abc/{foo,**}{,/**}");
     /// ```
     #[must_use]
     #[inline]
@@ -324,6 +325,16 @@ impl<'src> MatcherStack<'src> {
                 full_glob.push_str(&glob_str);
             }
         }
+
+        // Match a path prefix, not just and exact path.
+        if full_glob.ends_with('/') {
+            full_glob.push_str("**");
+        } else if !full_glob.ends_with("/**") {
+            // It doesn’t actually matter if the full glob ends with `/**`,
+            // since `{,/**}` can match nothing.
+            full_glob.push_str("{,/**}");
+        }
+
         full_glob
     }
 
@@ -473,7 +484,9 @@ mod tests {
     fn into_glob<'a, I: IntoIterator<Item = &'a str>>(
         globs: I,
     ) -> Result<Glob, globset::Error> {
-        MatcherStack::from_glob_strs(globs).as_glob()
+        let stack = MatcherStack::from_glob_strs(globs);
+        println!("glob str: {}", stack.as_glob_str());
+        stack.as_glob()
     }
 
     #[test_log::test]
@@ -493,5 +506,21 @@ mod tests {
         check!(into_glob(["**/foo"]).is_ok());
         check!(into_glob(["**/**", "foobar"]).is_ok());
         check!(into_glob(["/", "[abc]?", "/zz"]).is_ok());
+    }
+
+    #[test_log::test]
+    fn match_file_glob() {
+        let matcher = into_glob(["/foo/bar.md"]).unwrap().compile_matcher();
+        check!(matcher.is_match("/foo/bar.md"));
+        check!(matcher.is_match("/foo/bar.md/"));
+        check!(matcher.is_match("/foo/bar.md/test"));
+    }
+
+    #[test_log::test]
+    fn match_dir_glob() {
+        let matcher = into_glob(["/foo/"]).unwrap().compile_matcher();
+        check!(!matcher.is_match("/foo"));
+        check!(matcher.is_match("/foo/"));
+        check!(matcher.is_match("/foo/bar.md/test"));
     }
 }

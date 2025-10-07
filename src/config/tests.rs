@@ -74,19 +74,19 @@ fn bad_char() {
 
 #[test_log::test]
 fn one_token() {
-    check!(parse("foo") == ok_str("/ foo"));
+    check!(parse("foo") == ok_str("/** foo"));
 }
 
 #[test_log::test]
 fn one_rule() {
-    check!(parse("/ foo") == ok_str("/ foo"));
-    check!(parse("/ foo\n") == ok_str("/ foo"));
-    check!(parse("/ foo#comment") == ok_str("/ foo"));
-    check!(parse("/ foo#comment\n") == ok_str("/ foo"));
-    check!(parse("#comment\n/ foo") == ok_str("/ foo"));
+    check!(parse("/ foo") == ok_str("/** foo"));
+    check!(parse("/ foo\n") == ok_str("/** foo"));
+    check!(parse("/ foo#comment") == ok_str("/** foo"));
+    check!(parse("/ foo#comment\n") == ok_str("/** foo"));
+    check!(parse("#comment\n/ foo") == ok_str("/** foo"));
 }
 
 #[test_log::test]
 fn one_rule_function() {
-    check!(parse(r#"/ literal("ok")"#) == ok_str(r#"/ literal("ok")"#));
+    check!(parse(r#"/ literal("ok")"#) == ok_str(r#"/** literal("ok")"#));
 }
