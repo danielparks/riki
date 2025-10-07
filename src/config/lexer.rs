@@ -371,14 +371,12 @@ mod tests {
         let mut diagnostics = Vec::new();
         let tokens = tokenize(input, &mut diagnostics);
         check!(
-            tokens
-                .iter()
-                .any(|(type_, _span)| *type_ == TokenType::Error)
+            tokens.iter().any(|(type_, _)| *type_ == TokenType::Error)
                 == !diagnostics.is_empty(),
             "Diagnostics should only be present iff there is an Error token",
         );
 
-        tokens.iter().map(|(type_, _span)| *type_).collect()
+        tokens.iter().map(|(type_, _)| *type_).collect()
     }
 
     #[test_log::test]
