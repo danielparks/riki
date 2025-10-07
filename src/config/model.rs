@@ -12,7 +12,7 @@ pub type Configuration<'src> = Vec<ConfigRule<'src>>;
 pub enum WordType {
     /// Identifier
     Identifier,
-    /// Path,
+    /// Bare path
     Path,
     /// Bare glob
     BareGlob,
@@ -49,7 +49,7 @@ impl From<WordType> for TokenType {
     }
 }
 
-/// A reference to a word in the config file
+/// A reference to a word (string, identifier, path, or glob) in the config file
 #[derive(Clone, Debug)]
 pub struct Word<'src> {
     /// The type of word
