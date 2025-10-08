@@ -39,7 +39,7 @@ pub fn process_cst<'src>(cst: &Cst<'src>) -> Configuration<'src> {
         match node {
             CNode::Rule(Rule::Action, Push) => {
                 let action =
-                    Action::Value(consume_matcher(&mut iter, "").into());
+                    Action::Value(consume_matcher_rule(&mut iter, "").into());
                 rules.push(ConfigRule {
                     matcher: matcher_stack.clone(),
                     action,
@@ -47,7 +47,7 @@ pub fn process_cst<'src>(cst: &Cst<'src>) -> Configuration<'src> {
                 expect_rule(&mut iter, Rule::Action, Pop, " after action push");
             }
             CNode::Rule(Rule::Context, Push) => {
-                matcher_stack.push(Matcher(consume_matcher(
+                matcher_stack.push(Matcher(consume_matcher_rule(
                     &mut iter,
                     " in context rule",
                 )));
@@ -92,8 +92,10 @@ pub fn process_cst<'src>(cst: &Cst<'src>) -> Configuration<'src> {
                 Pop,
             ) => panic!("{rule:?} pop rule should have already been consumed"),
             CNode::Rule(Rule::Rule, Push) => {
-                matcher_stack
-                    .push(Matcher(consume_matcher(&mut iter, " in rule rule")));
+                matcher_stack.push(Matcher(consume_matcher_rule(
+                    &mut iter,
+                    " in rule rule",
+                )));
                 // Value or function next — let this loop take care of it.
             }
             CNode::Rule(Rule::Rule, Pop) => {
@@ -204,7 +206,10 @@ fn consume_value_contents<'src>(iter: &mut CNodeIter<'_, 'src>) -> Value<'src> {
 }
 
 /// Check that the next node is a matcher rule, then get the token it contains.
-fn consume_matcher<'src, D: fmt::Display>(
+///
+/// This doesn’t return `Matcher` because in one case it’s used to consume an
+/// action value that the parser thinks is a matcher.
+fn consume_matcher_rule<'src, D: fmt::Display>(
     iter: &mut CNodeIter<'_, 'src>,
     context: D,
 ) -> Word<'src> {
