@@ -1,7 +1,10 @@
 //! The types that represent the actual configuration
 
-use super::lexer::TokenType;
+use super::lexer::{Diagnostic, Span, TokenType};
+use super::string::ParsedString;
+use codespan_reporting::diagnostic::Label;
 use globset::{Glob, GlobBuilder};
+use std::fmt;
 use std::slice;
 
 /// Alias for a complete configuration
@@ -20,6 +23,17 @@ pub enum WordType {
     QuotedSingle,
     /// Double quoted string
     QuotedDouble,
+}
+
+impl fmt::Display for WordType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Identifier => "identifier",
+            Self::Path => "path",
+            Self::BareGlob => "glob",
+            Self::QuotedSingle | Self::QuotedDouble => "string",
+        })
+    }
 }
 
 impl TryFrom<TokenType> for WordType {
@@ -59,111 +73,12 @@ pub struct Word<'src> {
     pub src: &'src str,
 }
 
-impl<'src> Word<'src> {
-    /// Create from a glob string
-    #[must_use]
-    pub const fn from_glob_str(src: &'src str) -> Self {
-        Self { type_: WordType::BareGlob, src }
-    }
-
-    /// Return the contents of this word
-    ///
-    /// FIXME variable interpolation
-    #[must_use]
-    pub fn contents(&self) -> String {
-        match self.type_ {
-            WordType::Identifier => self.src.to_owned(),
-            WordType::Path => path_unescape(self.src),
-            WordType::BareGlob => bare_glob_unescape(self.src),
-            WordType::QuotedSingle | WordType::QuotedDouble => {
-                string_unescape(self.src)
-            }
-        }
-    }
-
-    /// Return the contents of this word
-    ///
-    /// FIXME variable interpolation
-    #[must_use]
-    pub fn as_glob_str(&self) -> String {
-        match self.type_ {
-            WordType::Identifier => globset::escape(self.src),
-            WordType::Path => globset::escape(&path_unescape(self.src)),
-            WordType::BareGlob => bare_glob_unescape(self.src),
-            WordType::QuotedSingle | WordType::QuotedDouble => {
-                globset::escape(&string_unescape(self.src))
-            }
-        }
-    }
-
+impl Word<'_> {
     /// Return the canonical representation of this word
     #[must_use]
     pub fn canonical(&self) -> String {
         self.src.to_owned()
     }
-}
-
-/// Get the contents of a bare glob, e.g. `contents`.
-///
-/// FIXME [`globset`] will take care of the unescaping.
-///
-/// FIXME string interpolation
-fn bare_glob_unescape(src: &str) -> String {
-    src.to_owned()
-}
-
-/// Get the contents of a path, e.g. `contents`.
-///
-/// FIXME string interpolation
-/// FIXME other escape sequences
-/// FIXME non-unicode?
-fn path_unescape(src: &str) -> String {
-    let mut out = String::with_capacity(src.len());
-    let mut iter = src.chars();
-    while let Some(c) = iter.next() {
-        out.push(if c == '\\' {
-            match iter.next().expect("character expected after backslash") {
-                'n' => '\n',
-                't' => '\t',
-                c => c,
-            }
-        } else {
-            c
-        });
-    }
-    out
-}
-
-/// Get the contents of a string, e.g. `"contents"`.
-///
-/// Assumes the string has a single byte quote at the start and end.
-///
-/// FIXME string interpolation
-/// FIXME other escape sequences
-/// FIXME non-unicode?
-///
-/// # Panics
-///
-/// Panics if the string isn’t at least 2 bytes long (for the quotes), or of the
-/// last character before the last quote is an unescaped backslash.
-#[expect(clippy::arithmetic_side_effects, reason = "src.len() should be >= 2")]
-fn string_unescape(src: &str) -> String {
-    debug_assert!(src.len() > 2, "expected src to be wrapped in quotes");
-    let mut out = String::with_capacity(src.len() - 2);
-    // Should always have single byte quotes on either end.
-    let mut iter = src[1..src.len() - 1].chars();
-    while let Some(c) = iter.next() {
-        out.push(if c == '\\' {
-            match iter.next().expect("character expected after backslash") {
-                'n' => '\n',
-                't' => '\t',
-                c => c,
-            }
-        } else {
-            c
-        });
-    }
-    out
 }
 
 /// A reference to an identifier in the config file
@@ -179,12 +94,15 @@ impl Identifier<'_> {
 }
 
 impl<'src> TryFrom<Word<'src>> for Identifier<'src> {
-    type Error = ParseError;
+    type Error = SpannedErrors<'src>;
 
     fn try_from(word: Word<'src>) -> Result<Self, Self::Error> {
         match word.type_ {
             WordType::Identifier => Ok(Self(word.src)),
-            other => Err(ParseError::ExpectedIdentifierToken(other.into())),
+            other => Err(vec![SpannedError {
+                src: word.src,
+                error: ParseError::ExpectedIdentifierToken(other.into()),
+            }]),
         }
     }
 }
@@ -223,7 +141,7 @@ impl<'src> MatcherStack<'src> {
         Self(
             globs
                 .into_iter()
-                .map(Word::from_glob_str)
+                .map(ParsedString::from_glob_str)
                 .map(Matcher)
                 .collect(),
         )
@@ -364,7 +282,7 @@ where
 
 /// A matcher for a request.
 #[derive(Clone, Debug)]
-pub struct Matcher<'src>(pub Word<'src>);
+pub struct Matcher<'src>(pub ParsedString<'src>);
 
 impl Matcher<'_> {
     /// Return the canonical representation of this matcher
@@ -429,7 +347,7 @@ pub enum Value<'src> {
     Function(Identifier<'src>, Parameters<'src>),
 
     /// A string of some kind.
-    Literal(Word<'src>),
+    Literal(ParsedString<'src>),
 }
 
 impl Value<'_> {
@@ -448,14 +366,17 @@ impl Value<'_> {
                         .join(", ")
                 )
             }
-            Self::Literal(word) => word.canonical(),
+            Self::Literal(string) => string.canonical(),
         }
     }
 }
 
-impl<'src> From<Word<'src>> for Value<'src> {
-    fn from(word: Word<'src>) -> Self {
-        Self::Literal(word)
+impl<'src> TryFrom<Word<'src>> for Value<'src> {
+    type Error = SpannedErrors<'src>;
+
+    fn try_from(word: Word<'src>) -> Result<Self, Self::Error> {
+        // FIXME parse string interpolation here
+        Ok(Self::Literal(word.try_into()?))
     }
 }
 
@@ -474,7 +395,93 @@ pub enum ParseError {
     /// Found something other than an identifier token.
     #[error("expected an identifier token, got {0:?}")]
     ExpectedIdentifierToken(TokenType),
+
+    /// Found a lonely backslash at the end of a string.
+    #[error("found unescaped '\\' at end of {0}")]
+    StringTrailingBackslash(WordType),
+
+    /// Found a lonely dollar in a string.
+    #[error("found unescaped '$' without variable in {0}")]
+    StringBadDollar(WordType),
+
+    /// Unknown error raised by lexer in string.
+    ///
+    /// This should never be returned.
+    #[error("invalid character in {0}")]
+    StringUnknownError(WordType),
 }
+
+impl ParseError {
+    /// Add a `src` to get a [`SpannedError`]
+    #[must_use]
+    #[inline]
+    pub const fn spanned(self, src: &str) -> SpannedError<'_> {
+        SpannedError { src, error: self }
+    }
+
+    /// Add a `src` and convert to [`SpannedErrors`]
+    #[must_use]
+    #[inline]
+    pub fn spanned_s(self, src: &str) -> SpannedErrors<'_> {
+        vec![self.spanned(src)]
+    }
+}
+
+/// A [`ParseError`] along with its source.
+#[derive(Clone, Debug)]
+pub struct SpannedError<'src> {
+    /// A slice of the full source indicating the source of the error.
+    pub src: &'src str,
+
+    /// The error.
+    pub error: ParseError,
+}
+
+impl SpannedError<'_> {
+    /// Convert `src` into a [`Span`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if `src` is not actually within `source`.
+    #[must_use]
+    pub fn span(&self, source: &str) -> Span {
+        let src_start: usize = self.src.as_ptr() as usize;
+        let source_start: usize = source.as_ptr() as usize;
+
+        let start = src_start
+            .checked_sub(source_start)
+            .expect("span not in source");
+        assert!(start < source.len(), "span not in source");
+
+        let end = start
+            .checked_add(self.src.len())
+            .expect("span not in source");
+        assert!(end <= source.len(), "span not in source");
+
+        start..end
+    }
+
+    /// Convert the error into a [`Diagnostic`].
+    ///
+    /// This requires the original source that [`SpannedError::src`] references.
+    ///
+    /// # Panics
+    ///
+    /// See [`Self::span()`].
+    #[must_use]
+    pub fn into_diagnostic(self, source: &str) -> Diagnostic {
+        let span = self.span(source);
+        Diagnostic::error()
+            .with_message(self.error)
+            .with_label(Label::primary((), span))
+    }
+}
+
+/// Possibly multiple [`SpannedError`]s.
+pub type SpannedErrors<'src> = Vec<SpannedError<'src>>;
+
+/// `Result` type for config parsing.
+pub type ParseResult<'src, T, E = SpannedErrors<'src>> = Result<T, E>;
 
 #[cfg(test)]
 mod tests {
