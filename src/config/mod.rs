@@ -5,6 +5,7 @@ pub mod lexer;
 pub mod model;
 pub mod parser;
 pub mod parser2;
+pub mod string;
 mod tests;
 
 use bstr::{BStr, BString, ByteVec};
@@ -52,19 +53,30 @@ pub fn dump_config(
 
         println!("{cst}");
 
-        if !diagnostics.is_empty() {
-            println!();
-            for diag in &diagnostics {
-                term::emit(&mut err_stream.lock(), &config, &file, diag)
-                    .unwrap();
+        let diagnostics = if diagnostics.is_empty() {
+            match parser2::process_cst(&cst) {
+                Ok(rules) => {
+                    println!();
+                    for rule in rules {
+                        println!("{}", rule.canonical());
+                    }
+
+                    return Ok(());
+                }
+                Err(errors) => errors
+                    .into_iter()
+                    .map(|error| error.into_diagnostic(&source))
+                    .collect(),
             }
-            return Ok(()); // FIXME error?
-        }
+        } else {
+            diagnostics
+        };
 
         println!();
-        for rule in parser2::process_cst(&cst) {
-            println!("{}", rule.canonical());
+        for diag in &diagnostics {
+            term::emit(&mut err_stream.lock(), &config, &file, diag).unwrap();
         }
+        return Ok(()); // FIXME error?
     }
 
     Ok(())
