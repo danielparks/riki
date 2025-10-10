@@ -168,19 +168,22 @@ impl<'src> TryFrom<StringToken<'src>> for ParsedString<'src> {
     type Error = SpannedErrors<'src>;
 
     fn try_from(
-        StringToken { type_, src }: StringToken<'src>,
+        StringToken { string_type, src }: StringToken<'src>,
     ) -> Result<Self, Self::Error> {
-        match type_ {
+        match string_type {
             StringType::Identifier => {
                 // No escapes, no interpolation
                 Ok(Self::from_literal(src))
             }
             StringType::Path | StringType::BareGlob => {
-                Self::from_string_content(src, type_)
+                Self::from_string_content(src, string_type)
             }
             StringType::QuotedSingle | StringType::QuotedDouble => {
                 // Quoted... guarantee that they start and end with a quote byte
-                Self::from_string_content(&src[1..add(src.len(), -1)], type_)
+                Self::from_string_content(
+                    &src[1..add(src.len(), -1)],
+                    string_type,
+                )
             }
         }
     }

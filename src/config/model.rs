@@ -352,7 +352,7 @@ impl<'src> TryFrom<StringToken<'src>> for Identifier<'src> {
     type Error = SpannedErrors<'src>;
 
     fn try_from(token: StringToken<'src>) -> Result<Self, Self::Error> {
-        match token.type_ {
+        match token.string_type {
             StringType::Identifier => Ok(Self(token.src)),
             other => Err(vec![SpannedError {
                 src: token.src,
@@ -404,8 +404,8 @@ impl TryFrom<TokenType> for StringType {
 }
 
 impl From<StringType> for TokenType {
-    fn from(type_: StringType) -> Self {
-        match type_ {
+    fn from(string_type: StringType) -> Self {
+        match string_type {
             StringType::Identifier => Self::Identifier,
             StringType::Path => Self::Path,
             StringType::BareGlob => Self::BareGlob,
@@ -419,7 +419,7 @@ impl From<StringType> for TokenType {
 #[derive(Clone, Debug)]
 pub struct StringToken<'src> {
     /// The type of string
-    pub type_: StringType,
+    pub string_type: StringType,
 
     /// The slice of the source representing this string
     pub src: &'src str,
