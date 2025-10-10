@@ -1,9 +1,8 @@
 //! Handle strings of various types in the configuration
 
-use super::model::{
-    ParseError, ParseResult, SpannedErrors, StringToken, StringType,
-};
+use super::{ParseError, ParseResult, SpannedErrors, StringToken, StringType};
 use crate::config::bitfilter::BitFilter;
+use crate::config::lexer::PATH_CHAR_RANGE;
 use logos::Logos;
 use std::borrow::Cow;
 use std::ops::Range;
@@ -226,7 +225,7 @@ impl<'cow, 'src> Iterator for VariableSplitIter<'cow, 'src> {
 #[inline]
 pub fn escape_path(path: &str) -> Cow<'_, str> {
     pub const INVALID_FILTER: BitFilter =
-        BitFilter::from_bracketed_str(super::lexer::PATH_CHAR_RANGE).inverted();
+        BitFilter::from_bracketed_str(PATH_CHAR_RANGE).inverted();
 
     let invalid: Vec<_> = path
         .bytes()

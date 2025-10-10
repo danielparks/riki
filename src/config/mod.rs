@@ -2,12 +2,10 @@
 #![allow(clippy::too_many_lines, reason = "wip")]
 
 pub mod bitfilter;
-pub mod glob;
 pub mod lexer;
 pub mod model;
 pub mod parser;
 pub mod parser2;
-pub mod string;
 mod tests;
 
 use bstr::{BStr, BString, ByteVec};
