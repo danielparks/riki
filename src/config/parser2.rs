@@ -6,7 +6,6 @@ use super::model::{
     ParseResult, Setting, Value, Word,
 };
 use super::parser::{CNode, CNodeIter, Cst, NodeRef, Parser, Rule, RuleSide};
-use super::string::ParsedString;
 use std::fmt;
 
 /// Parse configuration file contents and return rules or errors.
@@ -48,10 +47,9 @@ pub fn process_cst<'src>(
     let mut errors = Vec::new();
     while let Some(node) = iter.next() {
         use RuleSide::{Pop, Push};
-        #[expect(clippy::match_same_arms, reason = "clarity")]
         match node {
             CNode::Rule(Rule::Action, Push) => {
-                match consume_matcher_rule(&mut iter, "") {
+                match consume_matcher_rule(&mut iter, "").try_into() {
                     Ok(value) => {
                         rules.push(ConfigRule {
                             matcher: matcher_stack.clone(),
@@ -64,15 +62,18 @@ pub fn process_cst<'src>(
             }
             CNode::Rule(Rule::Context, Push) => {
                 match consume_matcher_rule(&mut iter, " in context rule")
-                    .and_then(TryFrom::try_from)
+                    .try_into()
                 {
                     Ok(matcher) => matcher_stack.push(matcher),
                     Err(found) => errors.extend(found),
                 }
                 expect_token(&mut iter, TokenType::LBrace, " in context rule");
             }
-            CNode::Rule(Rule::Context, Pop) => {
-                assert!(matcher_stack.pop().is_some());
+            CNode::Rule(Rule::Context | Rule::Rule, Pop) => {
+                assert!(
+                    matcher_stack.pop().is_some(),
+                    "matcher stack empty; errors: {errors:?}"
+                );
             }
             CNode::Rule(
                 rule @ (Rule::Block | Rule::Line | Rule::Params),
@@ -114,15 +115,12 @@ pub fn process_cst<'src>(
             ) => panic!("{rule:?} pop rule should have already been consumed"),
             CNode::Rule(Rule::Rule, Push) => {
                 match consume_matcher_rule(&mut iter, " in rule rule")
-                    .and_then(TryFrom::try_from)
+                    .try_into()
                 {
                     Ok(matcher) => matcher_stack.push(matcher),
                     Err(found) => errors.extend(found),
                 }
                 // Value or function next — let this loop take care of it.
-            }
-            CNode::Rule(Rule::Rule, Pop) => {
-                assert!(matcher_stack.pop().is_some());
             }
             CNode::Rule(Rule::Set, Push) => {
                 match consume_set_contents(&mut iter) {
@@ -263,11 +261,11 @@ fn consume_value_contents<'src>(
 fn consume_matcher_rule<'src, D: fmt::Display>(
     iter: &mut CNodeIter<'_, 'src>,
     context: D,
-) -> ParseResult<'src, ParsedString<'src>> {
+) -> Word<'src> {
     expect_rule(iter, Rule::Matcher, RuleSide::Push, &context);
     let word = consume_word_token(iter, format!(" in matcher rule{context}"));
     expect_rule(iter, Rule::Matcher, RuleSide::Pop, " after matcher token");
-    word.try_into()
+    word
 }
 
 /// Consume a bare word token.
