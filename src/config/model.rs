@@ -1,5 +1,6 @@
 //! The types that represent the actual configuration
 
+use super::glob::GlobString;
 use super::lexer::{Diagnostic, Span, TokenType};
 use super::string::ParsedString;
 use codespan_reporting::diagnostic::Label;
@@ -141,7 +142,7 @@ impl<'src> MatcherStack<'src> {
         Self(
             globs
                 .into_iter()
-                .map(ParsedString::from_glob_str)
+                .map(GlobString::from_glob_str)
                 .map(Matcher)
                 .collect(),
         )
@@ -282,7 +283,7 @@ where
 
 /// A matcher for a request.
 #[derive(Clone, Debug)]
-pub struct Matcher<'src>(ParsedString<'src>);
+pub struct Matcher<'src>(GlobString<'src>);
 
 impl Matcher<'_> {
     /// Return the canonical representation of this matcher
@@ -291,22 +292,22 @@ impl Matcher<'_> {
         self.0.canonical()
     }
 
-    /// Get the matcher stack as a glob
+    /// Get the matcher as a glob string
     ///
     /// This does not necessarily include every condition in the matcher.
     /// FIXME: allow other conditions; evaluate them.
     #[must_use]
     pub fn as_glob_str(&self) -> String {
-        self.0.content()
+        self.0.as_glob_str()
     }
 }
 
-impl<'src> TryFrom<ParsedString<'src>> for Matcher<'src> {
+impl<'src> TryFrom<Word<'src>> for Matcher<'src> {
     type Error = SpannedErrors<'src>;
 
-    fn try_from(value: ParsedString<'src>) -> Result<Self, Self::Error> {
+    fn try_from(word: Word<'src>) -> Result<Self, Self::Error> {
         // FIXME validate glob
-        Ok(Matcher(value))
+        Ok(Matcher(word.try_into()?))
     }
 }
 
@@ -444,6 +445,10 @@ pub enum ParseError {
     /// Found something other than an identifier token.
     #[error("expected an identifier token, got {0:?}")]
     ExpectedIdentifierToken(TokenType),
+
+    /// Found something other than a glob token.
+    #[error("expected a glob-compatible bare word, got {0:?}")]
+    ExpectedGlobToken(TokenType),
 
     /// Found a lonely backslash at the end of a string.
     #[error("found unescaped '\\' at end of {0}")]
