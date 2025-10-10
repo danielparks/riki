@@ -11,95 +11,6 @@ use std::slice;
 /// Alias for a complete configuration
 pub type Configuration<'src> = Vec<ConfigRule<'src>>;
 
-/// The type of a string
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum StringType {
-    /// Identifier
-    Identifier,
-    /// Bare path
-    Path,
-    /// Bare glob
-    BareGlob,
-    /// Single quoted string
-    QuotedSingle,
-    /// Double quoted string
-    QuotedDouble,
-}
-
-impl fmt::Display for StringType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Identifier => "identifier",
-            Self::Path => "path",
-            Self::BareGlob => "glob",
-            Self::QuotedSingle | Self::QuotedDouble => "string",
-        })
-    }
-}
-
-impl TryFrom<TokenType> for StringType {
-    type Error = ParseError;
-
-    fn try_from(value: TokenType) -> Result<Self, Self::Error> {
-        match value {
-            TokenType::Identifier => Ok(Self::Identifier),
-            TokenType::Path => Ok(Self::Path),
-            TokenType::BareGlob => Ok(Self::BareGlob),
-            TokenType::QuotedSingle => Ok(Self::QuotedSingle),
-            TokenType::QuotedDouble => Ok(Self::QuotedDouble),
-            other => Err(ParseError::ExpectedStringToken(other)),
-        }
-    }
-}
-
-impl From<StringType> for TokenType {
-    fn from(type_: StringType) -> Self {
-        match type_ {
-            StringType::Identifier => Self::Identifier,
-            StringType::Path => Self::Path,
-            StringType::BareGlob => Self::BareGlob,
-            StringType::QuotedSingle => Self::QuotedSingle,
-            StringType::QuotedDouble => Self::QuotedDouble,
-        }
-    }
-}
-
-/// A reference to a string (string, identifier, path, or glob) in the source
-#[derive(Clone, Debug)]
-pub struct StringToken<'src> {
-    /// The type of string
-    pub type_: StringType,
-
-    /// The slice of the source representing this string
-    pub src: &'src str,
-}
-
-/// A reference to an identifier in the config file
-#[derive(Clone, Debug)]
-pub struct Identifier<'src>(pub &'src str);
-
-impl Identifier<'_> {
-    /// Return the canonical representation of this identifier
-    #[must_use]
-    pub fn canonical(&self) -> String {
-        self.0.to_owned()
-    }
-}
-
-impl<'src> TryFrom<StringToken<'src>> for Identifier<'src> {
-    type Error = SpannedErrors<'src>;
-
-    fn try_from(token: StringToken<'src>) -> Result<Self, Self::Error> {
-        match token.type_ {
-            StringType::Identifier => Ok(Self(token.src)),
-            other => Err(vec![SpannedError {
-                src: token.src,
-                error: ParseError::ExpectedIdentifierToken(other.into()),
-            }]),
-        }
-    }
-}
-
 /// A rule found in the configuration file.
 #[derive(Clone, Debug)]
 pub struct ConfigRule<'src> {
@@ -424,6 +335,95 @@ impl<'src> TryFrom<(Identifier<'src>, Parameters<'src>)>
 
 /// Parameters to a function call.
 pub type Parameters<'src> = Vec<Value<'src>>;
+
+/// A reference to an identifier in the config file
+#[derive(Clone, Debug)]
+pub struct Identifier<'src>(pub &'src str);
+
+impl Identifier<'_> {
+    /// Return the canonical representation of this identifier
+    #[must_use]
+    pub fn canonical(&self) -> String {
+        self.0.to_owned()
+    }
+}
+
+impl<'src> TryFrom<StringToken<'src>> for Identifier<'src> {
+    type Error = SpannedErrors<'src>;
+
+    fn try_from(token: StringToken<'src>) -> Result<Self, Self::Error> {
+        match token.type_ {
+            StringType::Identifier => Ok(Self(token.src)),
+            other => Err(vec![SpannedError {
+                src: token.src,
+                error: ParseError::ExpectedIdentifierToken(other.into()),
+            }]),
+        }
+    }
+}
+
+/// The type of a string
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StringType {
+    /// Identifier
+    Identifier,
+    /// Bare path
+    Path,
+    /// Bare glob
+    BareGlob,
+    /// Single quoted string
+    QuotedSingle,
+    /// Double quoted string
+    QuotedDouble,
+}
+
+impl fmt::Display for StringType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Identifier => "identifier",
+            Self::Path => "path",
+            Self::BareGlob => "glob",
+            Self::QuotedSingle | Self::QuotedDouble => "string",
+        })
+    }
+}
+
+impl TryFrom<TokenType> for StringType {
+    type Error = ParseError;
+
+    fn try_from(value: TokenType) -> Result<Self, Self::Error> {
+        match value {
+            TokenType::Identifier => Ok(Self::Identifier),
+            TokenType::Path => Ok(Self::Path),
+            TokenType::BareGlob => Ok(Self::BareGlob),
+            TokenType::QuotedSingle => Ok(Self::QuotedSingle),
+            TokenType::QuotedDouble => Ok(Self::QuotedDouble),
+            other => Err(ParseError::ExpectedStringToken(other)),
+        }
+    }
+}
+
+impl From<StringType> for TokenType {
+    fn from(type_: StringType) -> Self {
+        match type_ {
+            StringType::Identifier => Self::Identifier,
+            StringType::Path => Self::Path,
+            StringType::BareGlob => Self::BareGlob,
+            StringType::QuotedSingle => Self::QuotedSingle,
+            StringType::QuotedDouble => Self::QuotedDouble,
+        }
+    }
+}
+
+/// A reference to a string (string, identifier, path, or glob) in the source
+#[derive(Clone, Debug)]
+pub struct StringToken<'src> {
+    /// The type of string
+    pub type_: StringType,
+
+    /// The slice of the source representing this string
+    pub src: &'src str,
+}
 
 /// Errors that could be produced from parsing code.
 ///
