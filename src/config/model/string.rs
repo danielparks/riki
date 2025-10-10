@@ -2,7 +2,6 @@
 
 use super::{ParseError, ParseResult, SpannedErrors, StringToken, StringType};
 use crate::config::bitfilter::BitFilter;
-use crate::config::lexer::PATH_CHAR_RANGE;
 use logos::Logos;
 use std::borrow::Cow;
 use std::ops::Range;
@@ -219,37 +218,6 @@ impl<'cow, 'src> Iterator for VariableSplitIter<'cow, 'src> {
     }
 }
 
-/// Escape path if necessary.
-#[expect(clippy::arithmetic_side_effects, reason = "checks first")]
-#[must_use]
-#[inline]
-pub fn escape_path(path: &str) -> Cow<'_, str> {
-    pub const INVALID_FILTER: BitFilter =
-        BitFilter::from_bracketed_str(PATH_CHAR_RANGE).inverted();
-
-    let invalid: Vec<_> = path
-        .bytes()
-        .enumerate()
-        .filter_map(|(i, b)| INVALID_FILTER.match_byte(b).then_some(i))
-        .collect();
-    if invalid.is_empty() {
-        Cow::Borrowed(path)
-    } else {
-        let mut out = String::with_capacity(path.len() + invalid.len());
-        let mut offset = 0;
-        let mut rest = path;
-        for i in invalid {
-            let prefix;
-            (prefix, rest) = rest.split_at(i - offset);
-            out.push_str(prefix);
-            out.push('\\');
-            offset = i;
-        }
-        out.push_str(rest);
-        Cow::Owned(out)
-    }
-}
-
 /// Escape inside of quoted string.
 ///
 /// Invalid characters are control characters (`[\x00-\x1F\x7F]`) including tab
@@ -268,7 +236,7 @@ pub fn escape_quoted(input: &str, quote: u8) -> Cow<'_, str> {
     let invalid: Vec<_> = input
         .bytes()
         .enumerate()
-        .filter_map(|(i, b)| invalid_filter.match_byte(b).then_some(i))
+        .filter(|(_, b)| invalid_filter.match_byte(*b))
         .collect();
     if invalid.is_empty() {
         Cow::Borrowed(input)
@@ -276,12 +244,20 @@ pub fn escape_quoted(input: &str, quote: u8) -> Cow<'_, str> {
         let mut out = String::with_capacity(input.len() + invalid.len());
         let mut offset = 0;
         let mut rest = input;
-        for i in invalid {
+        for (i, b) in invalid {
             let prefix;
             (prefix, rest) = rest.split_at(i - offset);
             out.push_str(prefix);
             out.push('\\');
-            offset = i;
+            out.push(match b {
+                b'\n' => 'n',
+                b'\r' => 'r',
+                b'\t' => 't',
+                b => b as char,
+            });
+            // Skip the first byte of rest (already handled as b)
+            rest = &rest[1..];
+            offset = i + 1;
         }
         out.push_str(rest);
         Cow::Owned(out)
@@ -372,21 +348,6 @@ mod tests {
     use assert2::check;
 
     #[test_log::test]
-    fn escape_path_simple() {
-        check!(escape_path("") == "");
-        check!(escape_path("/") == "/");
-        check!(escape_path("/abc/def") == "/abc/def");
-        check!(escape_path("/abc/def$part") == r"/abc/def\$part");
-        check!(escape_path("/with space") == r"/with\ space");
-    }
-
-    #[test_log::test]
-    fn escape_path_newline() {
-        // FIXME Use \n
-        check!(escape_path("/a b\nc d") == "/a\\ b\\\nc\\ d");
-    }
-
-    #[test_log::test]
     fn escape_quote_simple() {
         for &quote in b"'\"" {
             check!(escape_quoted("", quote) == "");
@@ -405,7 +366,6 @@ mod tests {
 
     #[test_log::test]
     fn escape_quote_newline() {
-        // FIXME Use \n
-        check!(escape_quoted("/a b\nc d", b'\'') == "/a b\\\nc d");
+        check!(escape_quoted("/a b\nc\td", b'\'') == r"/a b\nc\td");
     }
 }
