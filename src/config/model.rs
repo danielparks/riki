@@ -282,7 +282,7 @@ where
 
 /// A matcher for a request.
 #[derive(Clone, Debug)]
-pub struct Matcher<'src>(pub ParsedString<'src>);
+pub struct Matcher<'src>(ParsedString<'src>);
 
 impl Matcher<'_> {
     /// Return the canonical representation of this matcher
@@ -298,6 +298,15 @@ impl Matcher<'_> {
     #[must_use]
     pub fn as_glob_str(&self) -> String {
         self.0.content()
+    }
+}
+
+impl<'src> TryFrom<ParsedString<'src>> for Matcher<'src> {
+    type Error = SpannedErrors<'src>;
+
+    fn try_from(value: ParsedString<'src>) -> Result<Self, Self::Error> {
+        // FIXME validate glob
+        Ok(Matcher(value))
     }
 }
 

@@ -2,8 +2,8 @@
 
 use super::lexer::{Diagnostic, TokenType};
 use super::model::{
-    Action, ConfigRule, Configuration, Identifier, Matcher, MatcherStack,
-    Parameters, ParseResult, Setting, Value, Word,
+    Action, ConfigRule, Configuration, Identifier, MatcherStack, Parameters,
+    ParseResult, Setting, Value, Word,
 };
 use super::parser::{CNode, CNodeIter, Cst, NodeRef, Parser, Rule, RuleSide};
 use super::string::ParsedString;
@@ -63,11 +63,10 @@ pub fn process_cst<'src>(
                 expect_rule(&mut iter, Rule::Action, Pop, " after action push");
             }
             CNode::Rule(Rule::Context, Push) => {
-                // FIXME validate matcher
-                match consume_matcher_rule(&mut iter, " in context rule") {
-                    Ok(value) => {
-                        matcher_stack.push(Matcher(value));
-                    }
+                match consume_matcher_rule(&mut iter, " in context rule")
+                    .and_then(TryFrom::try_from)
+                {
+                    Ok(matcher) => matcher_stack.push(matcher),
                     Err(found) => errors.extend(found),
                 }
                 expect_token(&mut iter, TokenType::LBrace, " in context rule");
@@ -114,9 +113,10 @@ pub fn process_cst<'src>(
                 Pop,
             ) => panic!("{rule:?} pop rule should have already been consumed"),
             CNode::Rule(Rule::Rule, Push) => {
-                // FIXME validate matcher
-                match consume_matcher_rule(&mut iter, " in rule rule") {
-                    Ok(matcher) => matcher_stack.push(Matcher(matcher)),
+                match consume_matcher_rule(&mut iter, " in rule rule")
+                    .and_then(TryFrom::try_from)
+                {
+                    Ok(matcher) => matcher_stack.push(matcher),
                     Err(found) => errors.extend(found),
                 }
                 // Value or function next — let this loop take care of it.
