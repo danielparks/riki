@@ -1,13 +1,14 @@
 //! Handle strings of various types in the configuration
 
 use super::model::{ParseError, ParseResult, SpannedErrors, Word, WordType};
+use crate::config::bitfilter::BitFilter;
 use logos::Logos;
 use std::borrow::Cow;
 use std::ops::Range;
+use std::slice;
 use tinyvec::{ArrayVec, TinyVec};
 
 /// A string that’s been parsed to expand escapes and for easy interpolation
-#[expect(dead_code, reason = "wip")]
 #[derive(Clone, Debug)]
 pub struct ParsedString<'src> {
     /// The unescaped contents of the string.
@@ -21,28 +22,65 @@ pub struct ParsedString<'src> {
 }
 
 impl<'src> ParsedString<'src> {
-    /// Return the canonical representation of this value
+    /// Return the content of this string
     #[must_use]
-    pub fn canonical(&self) -> String {
-        #[expect(clippy::match_same_arms, reason = "wip")]
-        match self.word_type {
-            WordType::Identifier => self.unescaped.to_string(),
-            WordType::Path => {
-                // FIXME escape
-                self.unescaped.to_string()
-            }
-            WordType::BareGlob => {
-                // FIXME escape
-                self.unescaped.to_string()
-            }
-            WordType::QuotedSingle => {
-                // FIXME escape
-                format!(r"'{}'", self.unescaped)
-            }
-            WordType::QuotedDouble => {
-                // FIXME escape
-                format!(r#""{}""#, self.unescaped)
-            }
+    pub fn content(&self) -> String {
+        // FIXME variables
+        self.unescaped.to_string()
+    }
+
+    /// Split on interpolated variables
+    ///
+    /// The iterator yields `(&'src str, Option<&'_ Interpolation<'src>>)`.
+    #[must_use]
+    pub fn split_on_variables(&self) -> VariableSplitIter<'_, 'src> {
+        VariableSplitIter {
+            source: &self.unescaped,
+            variable_iter: self.variables.iter(),
+            last_variable_end: 0,
+        }
+    }
+
+    /// Return the canonical representation of this value
+    ///
+    /// # Panics
+    ///
+    /// Panics if the escaped string would have more than `usize::MAX` bytes.
+    #[must_use]
+    pub fn canonical<'a>(&'a self) -> String
+    where
+        'src: 'a,
+    {
+        if self.word_type == WordType::BareGlob {
+            // FIXME this should use an unwritten escape_glob() function.
+            self.split_on_variables()
+                .map(|(fixed, var)| match var {
+                    Some(var) => {
+                        format!("{}${{{}}}", escape_path(fixed), var.variable)
+                    }
+                    None => escape_path(fixed).to_string(),
+                })
+                .collect::<String>()
+        } else {
+            let mut out = String::with_capacity(
+                self.unescaped.len().checked_add(2).unwrap(),
+            );
+            out.push('"');
+            // FIXME: be smart check for quote characters or something
+            out.extend(self.split_on_variables().map(
+                |(fixed, var)| match var {
+                    Some(var) => {
+                        format!(
+                            "{}${{{}}}",
+                            escape_quoted(fixed, b'"'),
+                            var.variable
+                        )
+                    }
+                    None => escape_quoted(fixed, b'"').to_string(),
+                },
+            ));
+            out.push('"');
+            out
         }
     }
 
@@ -177,6 +215,106 @@ impl<'src> TryFrom<Word<'src>> for ParsedString<'src> {
     }
 }
 
+/// An iterator over pairs of fixed slices and variable interpolations.
+pub struct VariableSplitIter<'cow, 'src> {
+    /// The source string.
+    source: &'cow Cow<'src, str>,
+    /// The variable interpolations in the source string.
+    variable_iter: slice::Iter<'cow, Interpolation<'src>>,
+    /// The end of the last variable.
+    last_variable_end: usize,
+}
+
+impl<'cow, 'src> Iterator for VariableSplitIter<'cow, 'src> {
+    type Item = (&'cow str, Option<&'cow Interpolation<'src>>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.variable_iter.next() {
+            Some(var) => {
+                let value =
+                    &self.source[self.last_variable_end..var.range.start];
+                self.last_variable_end = var.range.end;
+                Some((value, Some(var)))
+            }
+            None if self.last_variable_end < self.source.len() => {
+                let value = &self.source[self.last_variable_end..];
+                self.last_variable_end = self.source.len();
+                Some((value, None))
+            }
+            None => None,
+        }
+    }
+}
+
+/// Escape path if necessary.
+#[expect(clippy::arithmetic_side_effects, reason = "checks first")]
+#[must_use]
+#[inline]
+pub fn escape_path(path: &str) -> Cow<'_, str> {
+    pub const INVALID_FILTER: BitFilter =
+        BitFilter::from_bracketed_str(super::lexer::PATH_CHAR_RANGE).inverted();
+
+    let invalid: Vec<_> = path
+        .bytes()
+        .enumerate()
+        .filter_map(|(i, b)| INVALID_FILTER.match_byte(b).then_some(i))
+        .collect();
+    if invalid.is_empty() {
+        Cow::Borrowed(path)
+    } else {
+        let mut out = String::with_capacity(path.len() + invalid.len());
+        let mut offset = 0;
+        let mut rest = path;
+        for i in invalid {
+            let prefix;
+            (prefix, rest) = rest.split_at(i - offset);
+            out.push_str(prefix);
+            out.push('\\');
+            offset = i;
+        }
+        out.push_str(rest);
+        Cow::Owned(out)
+    }
+}
+
+/// Escape inside of quoted string.
+///
+/// Invalid characters are control characters (`[\x00-\x1F\x7F]`) including tab
+/// and newline, backslash, and the quote character.
+///
+/// # Panics
+///
+/// Panics if a non-ASCII byte is passed as `quote`.
+#[expect(clippy::arithmetic_side_effects, reason = "checks first")]
+#[must_use]
+#[inline]
+pub fn escape_quoted(input: &str, quote: u8) -> Cow<'_, str> {
+    let mut invalid_filter = BitFilter::from_bytes(b"\x00-\x1F\x7F\\");
+    invalid_filter.add(quote).unwrap();
+
+    let invalid: Vec<_> = input
+        .bytes()
+        .enumerate()
+        .filter_map(|(i, b)| invalid_filter.match_byte(b).then_some(i))
+        .collect();
+    if invalid.is_empty() {
+        Cow::Borrowed(input)
+    } else {
+        let mut out = String::with_capacity(input.len() + invalid.len());
+        let mut offset = 0;
+        let mut rest = input;
+        for i in invalid {
+            let prefix;
+            (prefix, rest) = rest.split_at(i - offset);
+            out.push_str(prefix);
+            out.push('\\');
+            offset = i;
+        }
+        out.push_str(rest);
+        Cow::Owned(out)
+    }
+}
+
 /// Interpolated variable
 ///
 /// This only implements `Default` for [`TinyVec`].
@@ -253,4 +391,25 @@ const fn empty_tinyvec<'a>() -> TinyVec<[Interpolation<'a>; 1]> {
 #[inline]
 const fn add(a: usize, b: isize) -> usize {
     a.checked_add_signed(b).expect("invalid offset")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use assert2::check;
+
+    #[test_log::test]
+    fn escape_path_simple() {
+        check!(escape_path("") == "");
+        check!(escape_path("/") == "/");
+        check!(escape_path("/abc/def") == "/abc/def");
+        check!(escape_path("/abc/def$part") == r"/abc/def\$part");
+        check!(escape_path("/with space") == r"/with\ space");
+    }
+
+    #[test_log::test]
+    fn escape_path_newline() {
+        // FIXME Use \n
+        check!(escape_path("/a b\nc d") == "/a\\ b\\\nc\\ d");
+    }
 }
