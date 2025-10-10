@@ -197,7 +197,7 @@ fn consume_set_contents<'src>(
 
     expect_rule(iter, Rule::Set, RuleSide::Pop, " after set push rule");
 
-    result.map(|value| Setting { variable, value })
+    result.and_then(|value| (variable, value).try_into())
 }
 
 /// Consume contents of a function rule.

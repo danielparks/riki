@@ -335,17 +335,28 @@ impl Action<'_> {
 #[derive(Clone, Debug)]
 pub struct Setting<'src> {
     /// The variable being set
-    pub variable: Identifier<'src>,
+    name: Identifier<'src>,
 
     /// The value
-    pub value: Value<'src>,
+    value: Value<'src>,
 }
 
 impl Setting<'_> {
     /// Return the canonical representation of this setting
     #[must_use]
     pub fn canonical(&self) -> String {
-        format!("{} = {}", self.variable.canonical(), self.value.canonical())
+        format!("{} = {}", self.name.canonical(), self.value.canonical())
+    }
+}
+
+impl<'src> TryFrom<(Identifier<'src>, Value<'src>)> for Setting<'src> {
+    type Error = SpannedErrors<'src>;
+
+    fn try_from(
+        (name, value): (Identifier<'src>, Value<'src>),
+    ) -> Result<Self, Self::Error> {
+        // FIXME validate setting
+        Ok(Self { name, value })
     }
 }
 
