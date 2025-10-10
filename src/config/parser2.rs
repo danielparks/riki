@@ -235,9 +235,8 @@ fn consume_function_contents<'src>(
             // Find the end of the function. We always consume both in a pair
             // so we can never get one that corresponds to a different function.
             CNode::Rule(Rule::Function, RuleSide::Pop) => {
-                // FIXME validate function identifier
                 return if errors.is_empty() {
-                    Ok(Value::Function(identifier, parameters))
+                    Ok(Value::Function((identifier, parameters).try_into()?))
                 } else {
                     Err(errors)
                 };
