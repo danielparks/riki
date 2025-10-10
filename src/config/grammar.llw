@@ -24,7 +24,7 @@ params^: '(' [value (',' value)*] ')';
 block^: '{' context '}';
 matcher: Identifier | Path | BareGlob | QuotedDouble | QuotedSingle;
 // This means that function calls are not within the value rule; the value rule
-// only ever contains a word.
+// only ever contains a string.
 value: Identifier [ params @function ] | Path | QuotedDouble | QuotedSingle;
 
 /*

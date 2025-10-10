@@ -3,7 +3,7 @@
 use super::lexer::{Diagnostic, TokenType};
 use super::model::{
     Action, ConfigRule, Configuration, Identifier, MatcherStack, Parameters,
-    ParseResult, Setting, Value, Word,
+    ParseResult, Setting, StringToken, Value,
 };
 use super::parser::{CNode, CNodeIter, Cst, NodeRef, Parser, Rule, RuleSide};
 use std::fmt;
@@ -249,9 +249,9 @@ fn consume_function_contents<'src>(
 fn consume_value_contents<'src>(
     iter: &mut CNodeIter<'_, 'src>,
 ) -> ParseResult<'src, Value<'src>> {
-    let word = consume_word_token(iter, " in value");
+    let token = consume_string_token(iter, " in value");
     expect_rule(iter, Rule::Value, RuleSide::Pop, " after value token");
-    Ok(Value::Literal(word.try_into()?))
+    Ok(Value::Literal(token.try_into()?))
 }
 
 /// Check that the next node is a matcher rule, then get the token it contains.
@@ -261,34 +261,35 @@ fn consume_value_contents<'src>(
 fn consume_matcher_rule<'src, D: fmt::Display>(
     iter: &mut CNodeIter<'_, 'src>,
     context: D,
-) -> Word<'src> {
+) -> StringToken<'src> {
     expect_rule(iter, Rule::Matcher, RuleSide::Push, &context);
-    let word = consume_word_token(iter, format!(" in matcher rule{context}"));
+    let token =
+        consume_string_token(iter, format!(" in matcher rule{context}"));
     expect_rule(iter, Rule::Matcher, RuleSide::Pop, " after matcher token");
-    word
+    token
 }
 
-/// Consume a bare word token.
+/// Consume an identifier token (e.g. a function name).
 fn consume_identifier<'src, D: fmt::Display>(
     iter: &mut CNodeIter<'_, 'src>,
     context: D,
 ) -> Identifier<'src> {
-    consume_word_token(iter, &context)
+    consume_string_token(iter, &context)
         .try_into()
         .unwrap_or_else(|_| panic!("expected identifier token{context}"))
 }
 
 /// Check that the next node is a token and return it.
-fn consume_word_token<'src, D: fmt::Display>(
+fn consume_string_token<'src, D: fmt::Display>(
     iter: &mut CNodeIter<'_, 'src>,
     context: D,
-) -> Word<'src> {
+) -> StringToken<'src> {
     let next = iter.next();
     let Some(CNode::Token(token, src)) = next else {
-        panic!("expected word token{context}, got {next:?}");
+        panic!("expected string token{context}, got {next:?}");
     };
 
-    Word { type_: token.try_into().unwrap(), src }
+    StringToken { type_: token.try_into().unwrap(), src }
 }
 
 /// Check that the next node is a certain rule.

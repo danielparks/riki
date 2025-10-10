@@ -160,13 +160,13 @@ pub enum OuterTokenType {
     ///
     /// Special characters:
     ///
-    ///   * `' '`, `'\t'`, `'\n'` — word separators
+    ///   * `' '`, `'\t'`, `'\n'` — token separators
     ///   * `'{'`, `'}'` — block start or end
     ///   * `'('`, `')'` — params start or end
     ///   * `','` — params separator
     ///   * `'='` — setting operator
-    ///   * `'"'` — double-quoted word
-    ///   * `'\''` — single-quoted word
+    ///   * `'"'` — double-quoted string
+    ///   * `'\''` — single-quoted string
     ///   * `'#'` — comment
     ///   * `'$'` — variable
     ///   * `'\\'` — escaping
@@ -175,8 +175,8 @@ pub enum OuterTokenType {
     /// block-delimiting braces be surrounded by whitespace. Commas in
     /// parameters must be followed (or preceded) by whitespace.
     ///
-    /// `'('`, `')'`, and `'='` are illegal in bare words without escaping; they
-    /// will be be interpreted as their own token.
+    /// `'('`, `')'`, and `'='` are illegal in bare strings without escaping;
+    /// they will be be interpreted as their own token.
     ///
     /// Quotes are illegal in bare globs without escaping, but they will raise
     /// an error.
@@ -447,7 +447,7 @@ mod tests {
     }
 
     #[test_log::test]
-    fn bare_word_escape() {
+    fn bare_string_escape() {
         check!(just_tokens(r"bare\ word?").as_slice() == [BareGlob]);
         check!(just_tokens(r"bare\\word*").as_slice() == [BareGlob]);
         check!(just_tokens(r#"\"ab[e-x]c\""#).as_slice() == [BareGlob]);
@@ -458,6 +458,7 @@ mod tests {
     }
 
     #[test_log::test]
+    #[expect(clippy::cognitive_complexity, reason = "tests")]
     fn globs() {
         check!(just_tokens(" {} ").as_slice() == [BareGlob]);
         check!(just_tokens(" {ab} ").as_slice() == [BareGlob]);

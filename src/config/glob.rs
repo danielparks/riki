@@ -1,6 +1,8 @@
 //! Handle globs in the configuration
 
-use super::model::{ParseError, ParseResult, SpannedErrors, Word, WordType};
+use super::model::{
+    ParseError, ParseResult, SpannedErrors, StringToken, StringType,
+};
 use std::borrow::Cow;
 
 /// A string that’s been parsed to expand escapes and for easy interpolation
@@ -40,15 +42,17 @@ impl<'src> GlobString<'src> {
     }
 }
 
-impl<'src> TryFrom<Word<'src>> for GlobString<'src> {
+impl<'src> TryFrom<StringToken<'src>> for GlobString<'src> {
     type Error = SpannedErrors<'src>;
 
-    fn try_from(Word { type_, src }: Word<'src>) -> Result<Self, Self::Error> {
+    fn try_from(
+        StringToken { type_, src }: StringToken<'src>,
+    ) -> Result<Self, Self::Error> {
         // FIXME validate glob
         match type_ {
-            WordType::BareGlob | WordType::Identifier | WordType::Path => {
-                Self::from_string_content(src)
-            }
+            StringType::BareGlob
+            | StringType::Identifier
+            | StringType::Path => Self::from_string_content(src),
             other => Err(vec![
                 (ParseError::ExpectedGlobToken(other.into()).spanned(src)),
             ]),
