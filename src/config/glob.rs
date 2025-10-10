@@ -46,10 +46,10 @@ impl<'src> TryFrom<StringToken<'src>> for GlobString<'src> {
     type Error = SpannedErrors<'src>;
 
     fn try_from(
-        StringToken { type_, src }: StringToken<'src>,
+        StringToken { string_type, src }: StringToken<'src>,
     ) -> Result<Self, Self::Error> {
         // FIXME validate glob
-        match type_ {
+        match string_type {
             StringType::BareGlob
             | StringType::Identifier
             | StringType::Path => Self::from_string_content(src),

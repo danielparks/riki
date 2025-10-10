@@ -289,7 +289,7 @@ fn consume_string_token<'src, D: fmt::Display>(
         panic!("expected string token{context}, got {next:?}");
     };
 
-    StringToken { type_: token.try_into().unwrap(), src }
+    StringToken { string_type: token.try_into().unwrap(), src }
 }
 
 /// Check that the next node is a certain rule.
