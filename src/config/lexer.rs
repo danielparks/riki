@@ -458,7 +458,6 @@ mod tests {
     }
 
     #[test_log::test]
-    #[expect(clippy::cognitive_complexity, reason = "tests")]
     fn globs() {
         check!(just_tokens(" {} ").as_slice() == [BareGlob]);
         check!(just_tokens(" {ab} ").as_slice() == [BareGlob]);
