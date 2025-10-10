@@ -1,8 +1,6 @@
 //! Handle globs in the configuration
 
-use super::model::{
-    ParseError, ParseResult, SpannedErrors, StringToken, StringType,
-};
+use super::{ParseError, ParseResult, SpannedErrors, StringToken, StringType};
 use std::borrow::Cow;
 
 /// A string that’s been parsed to expand escapes and for easy interpolation
