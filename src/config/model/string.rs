@@ -48,8 +48,7 @@ impl<'src> ParsedString<'src> {
     where
         'src: 'a,
     {
-        let mut out =
-            String::with_capacity(self.unescaped.len().checked_add(2).unwrap());
+        let mut out = String::with_capacity(add(self.unescaped.len(), 2));
         out.push('"');
         // FIXME: be smart check for quote characters or something
         out.extend(self.split_on_variables().map(|(fixed, var)| match var {
