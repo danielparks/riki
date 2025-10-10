@@ -74,14 +74,6 @@ pub struct Word<'src> {
     pub src: &'src str,
 }
 
-impl Word<'_> {
-    /// Return the canonical representation of this word
-    #[must_use]
-    pub fn canonical(&self) -> String {
-        self.src.to_owned()
-    }
-}
-
 /// A reference to an identifier in the config file
 #[derive(Clone, Debug)]
 pub struct Identifier<'src>(pub &'src str);
