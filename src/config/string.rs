@@ -18,9 +18,6 @@ pub struct ParsedString<'src> {
 
     /// Any variables to be interpolated.
     variables: TinyVec<[Interpolation<'src>; 1]>,
-
-    /// The type of string.
-    string_type: StringType,
 }
 
 impl<'src> ParsedString<'src> {
@@ -53,44 +50,18 @@ impl<'src> ParsedString<'src> {
     where
         'src: 'a,
     {
-        if self.string_type == StringType::BareGlob {
-            // FIXME this should use an unwritten escape_glob() function.
-            self.split_on_variables()
-                .map(|(fixed, var)| match var {
-                    Some(var) => {
-                        format!("{}${{{}}}", escape_path(fixed), var.variable)
-                    }
-                    None => escape_path(fixed).to_string(),
-                })
-                .collect::<String>()
-        } else {
-            let mut out = String::with_capacity(
-                self.unescaped.len().checked_add(2).unwrap(),
-            );
-            out.push('"');
-            // FIXME: be smart check for quote characters or something
-            out.extend(self.split_on_variables().map(
-                |(fixed, var)| match var {
-                    Some(var) => {
-                        format!(
-                            "{}${{{}}}",
-                            escape_quoted(fixed, b'"'),
-                            var.variable
-                        )
-                    }
-                    None => escape_quoted(fixed, b'"').to_string(),
-                },
-            ));
-            out.push('"');
-            out
-        }
-    }
-
-    /// Create from a glob string
-    #[must_use]
-    pub const fn from_glob_str(src: &'src str) -> Self {
-        // FIXME
-        Self::from_literal(src, StringType::BareGlob)
+        let mut out =
+            String::with_capacity(self.unescaped.len().checked_add(2).unwrap());
+        out.push('"');
+        // FIXME: be smart check for quote characters or something
+        out.extend(self.split_on_variables().map(|(fixed, var)| match var {
+            Some(var) => {
+                format!("{}${{{}}}", escape_quoted(fixed, b'"'), var.variable)
+            }
+            None => escape_quoted(fixed, b'"').to_string(),
+        }));
+        out.push('"');
+        out
     }
 
     /// Create from a final string.
@@ -99,12 +70,8 @@ impl<'src> ParsedString<'src> {
     /// or interpolation.
     #[must_use]
     #[inline]
-    pub const fn from_literal(src: &'src str, string_type: StringType) -> Self {
-        Self {
-            unescaped: Cow::Borrowed(src),
-            variables: empty_tinyvec(),
-            string_type,
-        }
+    pub const fn from_literal(src: &'src str) -> Self {
+        Self { unescaped: Cow::Borrowed(src), variables: empty_tinyvec() }
     }
 
     /// Parse string contents
@@ -190,7 +157,7 @@ impl<'src> ParsedString<'src> {
                 Cow::Owned(out)
             };
 
-            Ok(Self { unescaped, variables, string_type })
+            Ok(Self { unescaped, variables })
         } else {
             Err(errors)
         }
@@ -207,7 +174,7 @@ impl<'src> TryFrom<StringToken<'src>> for ParsedString<'src> {
         match type_ {
             StringType::Identifier => {
                 // No escapes, no interpolation
-                Ok(Self::from_literal(src, type_))
+                Ok(Self::from_literal(src))
             }
             StringType::Path | StringType::BareGlob => {
                 Self::from_string_content(src, type_)
