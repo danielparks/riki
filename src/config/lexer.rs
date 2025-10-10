@@ -83,13 +83,21 @@ pub enum TokenType {
     Error,
 }
 
+/// Regular expression representing a path with no interpolation or escapes.
+pub const PATH_CHAR_RANGE: &str = "[-%+./0-9:@A-Z_a-z|~]";
+
 /// A token returned by the outer lexer.
+///
+/// These have to match code elsewhere. Unfortunately, they won’t accept
+/// `const`s as parameters. Check that they match the `const`s above, and search
+/// for the sub-pattern name, e.g. `identifier_char`.
 #[derive(Logos, Debug, PartialEq, Eq, Clone)]
 #[logos(error = LexerError)]
 #[logos(subpattern escape = r"\\[[:^cntrl:]]")]
 #[logos(subpattern glob_start_char = r#"[^[:cntrl:] #()=\\{}"']|(?&escape)"#)]
 #[logos(subpattern glob_ending_char = r"[^[:cntrl:] #()=\\]|(?&escape)")]
-#[logos(subpattern identifier_char = r"[a-zA-Z0-9_]")]
+#[logos(subpattern identifier_char = "[a-zA-Z0-9_]")]
+#[logos(subpattern path_char = "[-%+./0-9:@A-Z_a-z|~]")]
 #[logos(subpattern variable = r"\$(\{(?&identifier_char)+\}|(?&identifier_char)+)")]
 #[logos(skip(r"#[^\r\n]*"))] // For comment right before EOF
 #[logos(skip(r"[ \t]+"))]
@@ -139,7 +147,7 @@ pub enum OuterTokenType {
     Identifier,
 
     /// A path.
-    #[regex(r"([-%+./0-9:@A-Z_a-z|~]|(?&variable)|(?&escape))+", priority = 10)]
+    #[regex(r"((?&path_char)|(?&variable)|(?&escape))+", priority = 10)]
     Path,
 
     /// A glob or path literal.
@@ -193,10 +201,15 @@ pub enum OuterTokenType {
 }
 
 /// A token returned by the inner parameter lexer.
+///
+/// These have to match code elsewhere. Unfortunately, they won’t accept
+/// `const`s as parameters. Check that they match the `const`s above, and search
+/// for the sub-pattern name, e.g. `identifier_char`.
 #[derive(Logos, Debug, PartialEq, Eq, Copy, Clone)]
 #[logos(error = LexerError)]
 #[logos(subpattern escape = r"\\[[:^cntrl:]]")]
-#[logos(subpattern identifier_char = r"[a-zA-Z0-9_]")]
+#[logos(subpattern identifier_char = "[a-zA-Z0-9_]")]
+#[logos(subpattern path_char = "[-%+./0-9:@A-Z_a-z|~]")]
 #[logos(subpattern variable = r"\$(\{(?&identifier_char)+\}|(?&identifier_char)+)")]
 #[logos(skip(r"#[^\r\n]*"))] // For comment right before EOF
 #[logos(skip(r"[ \t\n]+"))] // Skip newlines too
@@ -228,7 +241,7 @@ pub enum ParameterTokenType {
     Identifier,
 
     /// A path.
-    #[regex(r"([-%+./0-9:@A-Z_a-z|~]|(?&variable)|(?&escape))+", priority = 10)]
+    #[regex(r"((?&path_char)|(?&variable)|(?&escape))+", priority = 10)]
     Path,
 
     /// A double quoted string

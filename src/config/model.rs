@@ -297,7 +297,7 @@ impl Matcher<'_> {
     /// FIXME: allow other conditions; evaluate them.
     #[must_use]
     pub fn as_glob_str(&self) -> String {
-        self.0.canonical()
+        self.0.content()
     }
 }
 
