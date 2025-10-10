@@ -170,7 +170,6 @@ impl<'src> TryFrom<StringToken<'src>> for ParsedString<'src> {
     fn try_from(
         StringToken { type_, src }: StringToken<'src>,
     ) -> Result<Self, Self::Error> {
-        // FIXME parse string interpolation here
         match type_ {
             StringType::Identifier => {
                 // No escapes, no interpolation
