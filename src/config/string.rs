@@ -1,6 +1,8 @@
 //! Handle strings of various types in the configuration
 
-use super::model::{ParseError, ParseResult, SpannedErrors, Word, WordType};
+use super::model::{
+    ParseError, ParseResult, SpannedErrors, StringToken, StringType,
+};
 use crate::config::bitfilter::BitFilter;
 use logos::Logos;
 use std::borrow::Cow;
@@ -18,7 +20,7 @@ pub struct ParsedString<'src> {
     variables: TinyVec<[Interpolation<'src>; 1]>,
 
     /// The type of string.
-    word_type: WordType,
+    string_type: StringType,
 }
 
 impl<'src> ParsedString<'src> {
@@ -51,7 +53,7 @@ impl<'src> ParsedString<'src> {
     where
         'src: 'a,
     {
-        if self.word_type == WordType::BareGlob {
+        if self.string_type == StringType::BareGlob {
             // FIXME this should use an unwritten escape_glob() function.
             self.split_on_variables()
                 .map(|(fixed, var)| match var {
@@ -88,7 +90,7 @@ impl<'src> ParsedString<'src> {
     #[must_use]
     pub const fn from_glob_str(src: &'src str) -> Self {
         // FIXME
-        Self::from_literal(src, WordType::BareGlob)
+        Self::from_literal(src, StringType::BareGlob)
     }
 
     /// Create from a final string.
@@ -97,11 +99,11 @@ impl<'src> ParsedString<'src> {
     /// or interpolation.
     #[must_use]
     #[inline]
-    pub const fn from_literal(src: &'src str, word_type: WordType) -> Self {
+    pub const fn from_literal(src: &'src str, string_type: StringType) -> Self {
         Self {
             unescaped: Cow::Borrowed(src),
             variables: empty_tinyvec(),
-            word_type,
+            string_type,
         }
     }
 
@@ -111,9 +113,9 @@ impl<'src> ParsedString<'src> {
     #[expect(clippy::arithmetic_side_effects, reason = "len < isize::MAX")]
     fn from_string_content(
         src: &'src str,
-        word_type: WordType,
+        string_type: StringType,
     ) -> ParseResult<'src, Self> {
-        let lexer = StringToken::lexer(src);
+        let lexer = StringLexToken::lexer(src);
         let mut out = String::new();
         let mut variables = TinyVec::default();
         let mut offset: isize = 0;
@@ -123,7 +125,7 @@ impl<'src> ParsedString<'src> {
         assert!(src.len() < isize::MAX as usize, "string too long");
 
         for (token, span) in lexer.spanned() {
-            use StringToken::*;
+            use StringLexToken::*;
             match token {
                 Ok(BracketsVariable) => {
                     variables.push(Interpolation {
@@ -138,10 +140,11 @@ impl<'src> ParsedString<'src> {
                     });
                 }
                 Ok(BadDollar) => errors.push(
-                    ParseError::StringBadDollar(word_type).spanned(&src[span]),
+                    ParseError::StringBadDollar(string_type)
+                        .spanned(&src[span]),
                 ),
                 Ok(TrailingEscape) => errors.push(
-                    ParseError::StringTrailingBackslash(word_type)
+                    ParseError::StringTrailingBackslash(string_type)
                         .spanned(&src[span]),
                 ),
                 Ok(Content) => {}
@@ -173,7 +176,7 @@ impl<'src> ParsedString<'src> {
                     }
                 }
                 Err(()) => errors.push(
-                    ParseError::StringUnknownError(word_type)
+                    ParseError::StringUnknownError(string_type)
                         .spanned(&src[span]),
                 ),
             }
@@ -187,27 +190,29 @@ impl<'src> ParsedString<'src> {
                 Cow::Owned(out)
             };
 
-            Ok(Self { unescaped, variables, word_type })
+            Ok(Self { unescaped, variables, string_type })
         } else {
             Err(errors)
         }
     }
 }
 
-impl<'src> TryFrom<Word<'src>> for ParsedString<'src> {
+impl<'src> TryFrom<StringToken<'src>> for ParsedString<'src> {
     type Error = SpannedErrors<'src>;
 
-    fn try_from(Word { type_, src }: Word<'src>) -> Result<Self, Self::Error> {
+    fn try_from(
+        StringToken { type_, src }: StringToken<'src>,
+    ) -> Result<Self, Self::Error> {
         // FIXME parse string interpolation here
         match type_ {
-            WordType::Identifier => {
+            StringType::Identifier => {
                 // No escapes, no interpolation
                 Ok(Self::from_literal(src, type_))
             }
-            WordType::Path | WordType::BareGlob => {
+            StringType::Path | StringType::BareGlob => {
                 Self::from_string_content(src, type_)
             }
-            WordType::QuotedSingle | WordType::QuotedDouble => {
+            StringType::QuotedSingle | StringType::QuotedDouble => {
                 // Quoted... guarantee that they start and end with a quote byte
                 Self::from_string_content(&src[1..add(src.len(), -1)], type_)
             }
@@ -337,7 +342,7 @@ impl Interpolation<'_> {
 /// A token from lexing a string literal.
 #[derive(Logos, Debug, PartialEq, Eq, Clone)]
 #[logos(subpattern identifier_char = r"[a-zA-Z0-9_]")]
-pub enum StringToken {
+pub enum StringLexToken {
     /// Variable interpolation in brackets
     #[regex(r"\$\{(?&identifier_char)+\}")]
     BracketsVariable,

@@ -11,9 +11,9 @@ use std::slice;
 /// Alias for a complete configuration
 pub type Configuration<'src> = Vec<ConfigRule<'src>>;
 
-/// The type of a word
+/// The type of a string
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum WordType {
+pub enum StringType {
     /// Identifier
     Identifier,
     /// Bare path
@@ -26,7 +26,7 @@ pub enum WordType {
     QuotedDouble,
 }
 
-impl fmt::Display for WordType {
+impl fmt::Display for StringType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Identifier => "identifier",
@@ -37,7 +37,7 @@ impl fmt::Display for WordType {
     }
 }
 
-impl TryFrom<TokenType> for WordType {
+impl TryFrom<TokenType> for StringType {
     type Error = ParseError;
 
     fn try_from(value: TokenType) -> Result<Self, Self::Error> {
@@ -47,30 +47,30 @@ impl TryFrom<TokenType> for WordType {
             TokenType::BareGlob => Ok(Self::BareGlob),
             TokenType::QuotedSingle => Ok(Self::QuotedSingle),
             TokenType::QuotedDouble => Ok(Self::QuotedDouble),
-            other => Err(ParseError::ExpectedWordToken(other)),
+            other => Err(ParseError::ExpectedStringToken(other)),
         }
     }
 }
 
-impl From<WordType> for TokenType {
-    fn from(type_: WordType) -> Self {
+impl From<StringType> for TokenType {
+    fn from(type_: StringType) -> Self {
         match type_ {
-            WordType::Identifier => Self::Identifier,
-            WordType::Path => Self::Path,
-            WordType::BareGlob => Self::BareGlob,
-            WordType::QuotedSingle => Self::QuotedSingle,
-            WordType::QuotedDouble => Self::QuotedDouble,
+            StringType::Identifier => Self::Identifier,
+            StringType::Path => Self::Path,
+            StringType::BareGlob => Self::BareGlob,
+            StringType::QuotedSingle => Self::QuotedSingle,
+            StringType::QuotedDouble => Self::QuotedDouble,
         }
     }
 }
 
-/// A reference to a word (string, identifier, path, or glob) in the config file
+/// A reference to a string (string, identifier, path, or glob) in the source
 #[derive(Clone, Debug)]
-pub struct Word<'src> {
-    /// The type of word
-    pub type_: WordType,
+pub struct StringToken<'src> {
+    /// The type of string
+    pub type_: StringType,
 
-    /// The slice of the source representing this word
+    /// The slice of the source representing this string
     pub src: &'src str,
 }
 
@@ -86,14 +86,14 @@ impl Identifier<'_> {
     }
 }
 
-impl<'src> TryFrom<Word<'src>> for Identifier<'src> {
+impl<'src> TryFrom<StringToken<'src>> for Identifier<'src> {
     type Error = SpannedErrors<'src>;
 
-    fn try_from(word: Word<'src>) -> Result<Self, Self::Error> {
-        match word.type_ {
-            WordType::Identifier => Ok(Self(word.src)),
+    fn try_from(token: StringToken<'src>) -> Result<Self, Self::Error> {
+        match token.type_ {
+            StringType::Identifier => Ok(Self(token.src)),
             other => Err(vec![SpannedError {
-                src: word.src,
+                src: token.src,
                 error: ParseError::ExpectedIdentifierToken(other.into()),
             }]),
         }
@@ -294,12 +294,12 @@ impl Matcher<'_> {
     }
 }
 
-impl<'src> TryFrom<Word<'src>> for Matcher<'src> {
+impl<'src> TryFrom<StringToken<'src>> for Matcher<'src> {
     type Error = SpannedErrors<'src>;
 
-    fn try_from(word: Word<'src>) -> Result<Self, Self::Error> {
+    fn try_from(token: StringToken<'src>) -> Result<Self, Self::Error> {
         // FIXME validate glob
-        Ok(Matcher(word.try_into()?))
+        Ok(Matcher(token.try_into()?))
     }
 }
 
@@ -374,12 +374,12 @@ impl Value<'_> {
     }
 }
 
-impl<'src> TryFrom<Word<'src>> for Value<'src> {
+impl<'src> TryFrom<StringToken<'src>> for Value<'src> {
     type Error = SpannedErrors<'src>;
 
-    fn try_from(word: Word<'src>) -> Result<Self, Self::Error> {
+    fn try_from(token: StringToken<'src>) -> Result<Self, Self::Error> {
         // FIXME parse string interpolation here
-        Ok(Self::Literal(word.try_into()?))
+        Ok(Self::Literal(token.try_into()?))
     }
 }
 
@@ -430,31 +430,31 @@ pub type Parameters<'src> = Vec<Value<'src>>;
 /// Does not include lexer errors or errors sent to diagnostics.
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum ParseError {
-    /// Found something other than a word token.
-    #[error("expected a word token, got {0:?}")]
-    ExpectedWordToken(TokenType),
+    /// Found something other than a string-type token.
+    #[error("expected am identifier, glob, path, or string token, got {0:?}")]
+    ExpectedStringToken(TokenType),
 
     /// Found something other than an identifier token.
     #[error("expected an identifier token, got {0:?}")]
     ExpectedIdentifierToken(TokenType),
 
     /// Found something other than a glob token.
-    #[error("expected a glob-compatible bare word, got {0:?}")]
+    #[error("expected a glob-compatible bare string, got {0:?}")]
     ExpectedGlobToken(TokenType),
 
     /// Found a lonely backslash at the end of a string.
     #[error("found unescaped '\\' at end of {0}")]
-    StringTrailingBackslash(WordType),
+    StringTrailingBackslash(StringType),
 
     /// Found a lonely dollar in a string.
     #[error("found unescaped '$' without variable in {0}")]
-    StringBadDollar(WordType),
+    StringBadDollar(StringType),
 
     /// Unknown error raised by lexer in string.
     ///
     /// This should never be returned.
     #[error("invalid character in {0}")]
-    StringUnknownError(WordType),
+    StringUnknownError(StringType),
 }
 
 impl ParseError {
