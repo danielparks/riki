@@ -353,7 +353,7 @@ impl Setting<'_> {
 #[derive(Clone, Debug)]
 pub enum Value<'src> {
     /// Call a function.
-    Function(Identifier<'src>, Parameters<'src>),
+    Function(FunctionCall<'src>),
 
     /// A string of some kind.
     Literal(ParsedString<'src>),
@@ -364,17 +364,7 @@ impl Value<'_> {
     #[must_use]
     pub fn canonical(&self) -> String {
         match self {
-            Self::Function(identifier, parameters) => {
-                format!(
-                    "{}({})",
-                    identifier.canonical(),
-                    parameters
-                        .iter()
-                        .map(Value::canonical)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            }
+            Self::Function(function) => function.canonical(),
             Self::Literal(string) => string.canonical(),
         }
     }
@@ -386,6 +376,45 @@ impl<'src> TryFrom<Word<'src>> for Value<'src> {
     fn try_from(word: Word<'src>) -> Result<Self, Self::Error> {
         // FIXME parse string interpolation here
         Ok(Self::Literal(word.try_into()?))
+    }
+}
+
+/// A function call
+#[derive(Clone, Debug)]
+pub struct FunctionCall<'src> {
+    /// The function name
+    name: Identifier<'src>,
+
+    /// The parameters
+    parameters: Parameters<'src>,
+}
+
+impl FunctionCall<'_> {
+    /// Return the canonical representation of this function call
+    #[must_use]
+    pub fn canonical(&self) -> String {
+        format!(
+            "{}({})",
+            self.name.canonical(),
+            self.parameters
+                .iter()
+                .map(Value::canonical)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
+impl<'src> TryFrom<(Identifier<'src>, Parameters<'src>)>
+    for FunctionCall<'src>
+{
+    type Error = SpannedErrors<'src>;
+
+    fn try_from(
+        (name, parameters): (Identifier<'src>, Parameters<'src>),
+    ) -> Result<Self, Self::Error> {
+        // FIXME validate function call
+        Ok(Self { name, parameters })
     }
 }
 
