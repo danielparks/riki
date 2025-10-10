@@ -280,7 +280,7 @@ pub fn escape_path(path: &str) -> Cow<'_, str> {
 /// Escape inside of quoted string.
 ///
 /// Invalid characters are control characters (`[\x00-\x1F\x7F]`) including tab
-/// and newline, backslash, and the quote character.
+/// and newline, backslash, dollar sign, and the quote character.
 ///
 /// # Panics
 ///
@@ -289,7 +289,7 @@ pub fn escape_path(path: &str) -> Cow<'_, str> {
 #[must_use]
 #[inline]
 pub fn escape_quoted(input: &str, quote: u8) -> Cow<'_, str> {
-    let mut invalid_filter = BitFilter::from_bytes(b"\x00-\x1F\x7F\\");
+    let mut invalid_filter = BitFilter::from_bytes(b"\x00-\x1F\x7F\\$");
     invalid_filter.add(quote).unwrap();
 
     let invalid: Vec<_> = input
@@ -411,5 +411,28 @@ mod tests {
     fn escape_path_newline() {
         // FIXME Use \n
         check!(escape_path("/a b\nc d") == "/a\\ b\\\nc\\ d");
+    }
+
+    #[test_log::test]
+    fn escape_quote_simple() {
+        for &quote in b"'\"" {
+            check!(escape_quoted("", quote) == "");
+            check!(escape_quoted("/", quote) == "/");
+            check!(escape_quoted("/abc/def", quote) == "/abc/def");
+            check!(escape_quoted("/abc/def$part", quote) == r"/abc/def\$part");
+            check!(escape_quoted(r"\backslash", quote) == r"\\backslash");
+        }
+    }
+
+    #[test_log::test]
+    fn escape_quote_quotes() {
+        check!(escape_quoted("single'double\"", b'\'') == r#"single\'double""#);
+        check!(escape_quoted("single'double\"", b'"') == r#"single'double\""#);
+    }
+
+    #[test_log::test]
+    fn escape_quote_newline() {
+        // FIXME Use \n
+        check!(escape_quoted("/a b\nc d", b'\'') == "/a b\\\nc d");
     }
 }
