@@ -293,7 +293,6 @@ impl<'src> TryFrom<StringToken<'src>> for Value<'src> {
     type Error = SpannedErrors<'src>;
 
     fn try_from(token: StringToken<'src>) -> Result<Self, Self::Error> {
-        // FIXME parse string interpolation here
         Ok(Self::Literal(token.try_into()?))
     }
 }
@@ -393,7 +392,7 @@ impl fmt::Display for StringType {
 }
 
 impl TryFrom<TokenType> for StringType {
-    type Error = ParseError;
+    type Error = ParseError<'static>;
 
     fn try_from(value: TokenType) -> Result<Self, Self::Error> {
         match value {

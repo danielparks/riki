@@ -90,3 +90,28 @@ fn one_rule() {
 fn one_rule_function() {
     check!(parse(r#"/ literal("ok")"#) == ok_str(r#"/** literal("ok")"#));
 }
+
+#[test_log::test]
+fn bad_var() {
+    check!(parse("/ $bad") == err_str(r#"found unknown variable "bad" 2..6"#));
+    check!(
+        parse(r#"/ "/abc/$extra_bad1/def""#)
+            == err_str(r#"found unknown variable "extra_bad1" 8..19"#)
+    );
+    check!(
+        parse(r#"/ "/abc/$/def""#)
+            == err_str("found unescaped '$' without variable in string 8..9")
+    );
+    check!(
+        parse("/ '$bad1$path$bad2'")
+            == err_str(
+                "found unknown variable \"bad1\" 3..8\n\
+                found unknown variable \"bad2\" 13..18"
+            )
+    );
+}
+
+#[test_log::test]
+fn good_var() {
+    check!(parse("/ $path") == ok_str(r#"/** "${path}""#));
+}
