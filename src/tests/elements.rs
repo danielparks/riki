@@ -4,7 +4,7 @@
 use assert2::{check, let_assert};
 use jiff::Timestamp;
 use regex::Regex;
-use riki::{Page, Result, Source, render_source_to_string};
+use crate::{Page, Result, Source, render_source_to_string};
 use std::path::PathBuf;
 
 /// Makes error output more legible.
@@ -22,7 +22,7 @@ fn ref_page(content: &str) -> Result<Page> {
 
 #[test]
 fn last_modified_tz() {
-    let mut tpls = riki::templates();
+    let mut tpls = crate::templates();
     tpls.register_template_string("default", "{{{body}}}")
         .unwrap();
 
@@ -59,7 +59,7 @@ fn last_modified_tz() {
 
 #[test]
 fn last_modified_format() {
-    let mut tpls = riki::templates();
+    let mut tpls = crate::templates();
     tpls.register_template_string("default", "{{{body}}}")
         .unwrap();
 
@@ -81,7 +81,7 @@ fn regex_assert(re: &str, input: &str) {
 
 #[test]
 fn a_email() {
-    let mut tpls = riki::templates();
+    let mut tpls = crate::templates();
     tpls.register_template_string("default", "{{{body}}}")
         .unwrap();
 

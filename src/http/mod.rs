@@ -19,7 +19,8 @@
 //! | `static/dir/index.html` | `/dir/`          |
 
 mod errors;
-pub use crate::http::errors::*;
+mod tests;
+pub use errors::*;
 pub mod util;
 
 use crate::errors::{Error, Result};
@@ -347,7 +348,7 @@ fn read_page_file(
 }
 
 #[cfg(test)]
-mod tests {
+mod unit_tests {
     use super::*;
 
     use assert2::check;

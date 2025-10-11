@@ -3,7 +3,7 @@
 
 use assert2::{check, let_assert};
 use jiff::Timestamp;
-use riki::{Page, Source};
+use crate::{Page, Source};
 use std::fs;
 use std::path::{Path, PathBuf};
 use temp_dir::TempDir;
@@ -21,7 +21,7 @@ const AS_STR: for<'a> fn(&'a String) -> &'a str = String::as_str;
 
 #[test]
 fn empty_template() {
-    let mut tpls = riki::templates();
+    let mut tpls = crate::templates();
     tpls.register_template_string("empty", "").unwrap();
 
     let_assert!(Ok(page) = Page::from_memory("title: page\n---\n# Page"));
@@ -30,7 +30,7 @@ fn empty_template() {
 
 #[test]
 fn override_template() {
-    let mut tpls = riki::templates();
+    let mut tpls = crate::templates();
     // Override embedded default template
     tpls.register_template_string("default", "").unwrap();
 
@@ -40,7 +40,7 @@ fn override_template() {
 
 #[test]
 fn embedded_template() {
-    let tpls = riki::templates();
+    let tpls = crate::templates();
     let mut embeded_names: Vec<_> = tpls.get_templates().keys().collect();
     embeded_names.sort();
     check!(
@@ -65,7 +65,7 @@ fn embedded_template() {
 
 \t</body>
 </html>
-") = riki::templates().render("default", &page).as_ref().map(AS_STR));
+") = crate::templates().render("default", &page).as_ref().map(AS_STR));
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn basic_template() {
     let temp = TempDir::new().unwrap();
     create_file(&temp, "default.hbs", "{{ metadata.title }} {{{ body }}}");
 
-    let tpls = riki::templates_from_directory(temp.path()).unwrap();
+    let tpls = crate::templates_from_directory(temp.path()).unwrap();
 
     let_assert!(
         Ok(page) = Page::from_memory("title: title<test>\n---\n# heading")
@@ -92,7 +92,7 @@ fn basic_template_twice() {
     let temp = TempDir::new().unwrap();
     create_file(&temp, "default.hbs", "{{{ body }}}");
 
-    let tpls = riki::templates_from_directory(temp.path()).unwrap();
+    let tpls = crate::templates_from_directory(temp.path()).unwrap();
 
     let_assert!(Ok(page) = Page::from_memory("# 1"));
     check!(
@@ -113,7 +113,7 @@ fn multiple_templates() {
     create_file(&temp, "default.hbs", "{{{ body }}}");
     create_file(&temp, "weird.hbs", "strange {{{ body }}}");
 
-    let tpls = riki::templates_from_directory(temp.path()).unwrap();
+    let tpls = crate::templates_from_directory(temp.path()).unwrap();
 
     let_assert!(Ok(page) = Page::from_memory("# 1"));
     check!(
@@ -138,7 +138,7 @@ fn strftime_helper() {
     };
     let_assert!(Ok(page) = Page::from_source(source, ""));
 
-    let mut tpls = riki::templates();
+    let mut tpls = crate::templates();
 
     tpls.register_template_string(
         "la_tz",

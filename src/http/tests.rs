@@ -1,5 +1,7 @@
 //! Test HTTP server.
+#![cfg(test)]
 
+use super::{Configuration, path_handler};
 use actix_http::{Request, header};
 use actix_web::body::BoxBody;
 use actix_web::dev::{Service, ServiceResponse};
@@ -8,7 +10,6 @@ use actix_web::test::TestRequest;
 use actix_web::web::{Bytes, Data};
 use actix_web::{App, body, http, test};
 use assert2::check;
-use riki::http::{Configuration, path_handler};
 use std::fs;
 use temp_dir::TempDir;
 use tracing_test::traced_test;
@@ -27,7 +28,7 @@ async fn init_app() -> (
     let temp_dir = TempDir::new().unwrap();
     let config = Configuration::default_in(temp_dir.path());
 
-    let mut tpls = riki::templates();
+    let mut tpls = crate::templates();
     tpls.clear_templates();
     tpls.register_template_string("default", "{{{ body }}}")
         .unwrap();
