@@ -8,7 +8,7 @@ use codespan_reporting::diagnostic::Label;
 ///
 /// Does not include lexer errors or errors sent to diagnostics.
 #[derive(Clone, Debug, thiserror::Error)]
-pub enum ParseError {
+pub enum ParseError<'src> {
     /// Found something other than a string-type token.
     #[error("expected am identifier, glob, path, or string token, got {0:?}")]
     ExpectedStringToken(TokenType),
@@ -34,20 +34,24 @@ pub enum ParseError {
     /// This should never be returned.
     #[error("invalid character in {0}")]
     StringUnknownError(StringType),
+
+    /// Unknown variable reference.
+    #[error("found unknown variable {0:?}")]
+    UnknownVariable(&'src str),
 }
 
-impl ParseError {
+impl<'src> ParseError<'src> {
     /// Add a `src` to get a [`SpannedError`]
     #[must_use]
     #[inline]
-    pub const fn spanned(self, src: &str) -> SpannedError<'_> {
+    pub const fn spanned(self, src: &'src str) -> SpannedError<'src> {
         SpannedError { src, error: self }
     }
 
     /// Add a `src` and convert to [`SpannedErrors`]
     #[must_use]
     #[inline]
-    pub fn spanned_s(self, src: &str) -> SpannedErrors<'_> {
+    pub fn spanned_s(self, src: &'src str) -> SpannedErrors<'src> {
         vec![self.spanned(src)]
     }
 }
@@ -59,7 +63,7 @@ pub struct SpannedError<'src> {
     pub src: &'src str,
 
     /// The error.
-    pub error: ParseError,
+    pub error: ParseError<'src>,
 }
 
 impl SpannedError<'_> {

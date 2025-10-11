@@ -2,6 +2,7 @@
 
 use super::{ParseError, ParseResult, SpannedErrors, StringToken, StringType};
 use crate::config::bitfilter::BitFilter;
+use crate::config::is_valid_variable;
 use logos::Logos;
 use std::borrow::Cow;
 use std::ops::Range;
@@ -91,17 +92,26 @@ impl<'src> ParsedString<'src> {
         for (token, span) in lexer.spanned() {
             use StringLexToken::*;
             match token {
-                Ok(BracketsVariable) => {
-                    variables.push(Interpolation {
-                        variable: &src[add(span.start, 2)..add(span.end, -1)],
-                        range: add(span.start, offset)..add(span.end, offset),
-                    });
-                }
-                Ok(Variable) => {
-                    variables.push(Interpolation {
-                        variable: &src[add(span.start, 1)..span.end],
-                        range: add(span.start, offset)..add(span.end, offset),
-                    });
+                Ok(var_type @ (BracketsVariable | Variable)) => {
+                    let name_range = match var_type {
+                        BracketsVariable => {
+                            add(span.start, 2)..add(span.end, -1)
+                        }
+                        Variable => add(span.start, 1)..span.end,
+                        _ => unreachable!("nested matches"),
+                    };
+                    let var_range =
+                        add(span.start, offset)..add(span.end, offset);
+
+                    match Interpolation::try_from((
+                        &src[name_range],
+                        var_range.clone(),
+                    )) {
+                        Ok(interpolation) => variables.push(interpolation),
+                        Err(error) => {
+                            errors.push(error.spanned(&src[var_range]));
+                        }
+                    }
                 }
                 Ok(BadDollar) => errors.push(
                     ParseError::StringBadDollar(string_type)
@@ -112,7 +122,10 @@ impl<'src> ParsedString<'src> {
                         .spanned(&src[span]),
                 ),
                 Ok(Content) => {}
-                Ok(escape) => {
+                Ok(
+                    escape @ (LiteralEscape | NewlineEscape
+                    | CarriageReturnEscape | TabEscape),
+                ) => {
                     offset -= 1;
                     if end_copied == 0 {
                         out.reserve_exact(src.len() - 1);
@@ -269,16 +282,30 @@ pub fn escape_quoted(input: &str, quote: u8) -> Cow<'_, str> {
 #[derive(Clone, Debug, Default)]
 pub struct Interpolation<'src> {
     /// The name of the variable.
-    pub variable: &'src str,
+    variable: &'src str,
 
     /// The range in the string to replace.
-    pub range: Range<usize>,
+    range: Range<usize>,
 }
 
 impl Interpolation<'_> {
     /// This should only be used to initialize `TinyVec`.
     const fn empty() -> Self {
         Self { variable: "", range: 0..0 }
+    }
+}
+
+impl<'src> TryFrom<(&'src str, Range<usize>)> for Interpolation<'src> {
+    type Error = ParseError<'src>;
+
+    fn try_from(
+        (variable, range): (&'src str, Range<usize>),
+    ) -> Result<Self, Self::Error> {
+        if is_valid_variable(variable) {
+            Ok(Interpolation { variable, range })
+        } else {
+            Err(ParseError::UnknownVariable(variable))
+        }
     }
 }
 

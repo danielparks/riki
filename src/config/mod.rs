@@ -81,3 +81,9 @@ pub fn dump_config(
 
     Ok(())
 }
+
+/// Stub: check if a variable name is valid for use in the configuration
+#[must_use]
+pub fn is_valid_variable(name: &str) -> bool {
+    matches!(name, "path")
+}
