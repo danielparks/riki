@@ -115,3 +115,29 @@ fn bad_var() {
 fn good_var() {
     check!(parse("/ $path") == ok_str(r#"/** "${path}""#));
 }
+
+#[test_log::test]
+fn bad_function() {
+    check!(parse("/ bad()") == err_str(r#"found unknown function "bad" 2..5"#));
+    check!(
+        parse("/ error(bad())")
+            == err_str(r#"found unknown function "bad" 8..11"#)
+    );
+    check!(
+        parse("/ error(1, 2)")
+            == err_str(
+                "found 2 parameters in call to error(); expected 1 2..7"
+            )
+    );
+    check!(
+        parse("/ error()")
+            == err_str(
+                "found 0 parameters in call to error(); expected 1 2..7"
+            )
+    );
+}
+
+#[test_log::test]
+fn good_function() {
+    check!(parse("/ error(403)") == ok_str(r#"/** error("403")"#));
+}
