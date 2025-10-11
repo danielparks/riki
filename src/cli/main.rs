@@ -6,7 +6,7 @@ mod params;
 use anyhow::anyhow;
 use params::{Command, Params, Parser};
 use riki::actions::{RealFileReturn, StaticContext};
-use riki::{actions, http, render};
+use riki::{actions, config, http, render};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -84,11 +84,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             http::serve(http::Configuration::default_in(base_dir), bind)?;
         }
         Command::Dump { path, just_tokens } => {
-            riki::config::dump_config(
-                path,
-                &params.err_stream(),
-                *just_tokens,
-            )?;
+            config::dump_config(path, &params.err_stream(), *just_tokens)?;
         }
     }
 
