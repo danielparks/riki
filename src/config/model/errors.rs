@@ -21,6 +21,10 @@ pub enum ParseError<'src> {
     #[error("expected a glob-compatible bare string, got {0:?}")]
     ExpectedGlobToken(TokenType),
 
+    /// Found a function call with more than 255 parameters.
+    #[error("invalid function call (more than 255 parameters)")]
+    TooManyParameters,
+
     /// Found a lonely backslash at the end of a string.
     #[error("found unescaped '\\' at end of {0}")]
     StringTrailingBackslash(StringType),
@@ -35,9 +39,26 @@ pub enum ParseError<'src> {
     #[error("invalid character in {0}")]
     StringUnknownError(StringType),
 
+    /// Unknown function reference.
+    #[error("found unknown function {0:?}")]
+    UnknownFunctionName(&'src str),
+
     /// Unknown variable reference.
     #[error("found unknown variable {0:?}")]
     UnknownVariable(&'src str),
+
+    /// Wrong number of parameters in a function call.
+    #[error(
+        "found {actual} parameters in call to {name}(); expected {expected}"
+    )]
+    WrongFunctionParameterCount {
+        /// Name of the function
+        name: &'src str,
+        /// Expected number of parameters
+        expected: u8,
+        /// Actual number of parameters
+        actual: u8,
+    },
 }
 
 impl<'src> ParseError<'src> {
