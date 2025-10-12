@@ -3,7 +3,7 @@
 use super::lexer::{Diagnostic, TokenType};
 use super::model::{
     Action, ConfigRule, Configuration, Identifier, MatcherStack, Parameters,
-    ParseResult, Setting, StringToken, Value,
+    ParseError, ParseResult, Setting, StringToken, Value,
 };
 use super::parser::{CNode, CNodeIter, Cst, NodeRef, Parser, Rule, RuleSide};
 use std::fmt;
@@ -234,7 +234,13 @@ fn consume_function_contents<'src>(
             // so we can never get one that corresponds to a different function.
             CNode::Rule(Rule::Function, RuleSide::Pop) => {
                 return if errors.is_empty() {
-                    Ok(Value::Function((identifier, parameters).try_into()?))
+                    Ok(Value::Function(
+                        (identifier.clone(), parameters).try_into().map_err(
+                            // FIXME wrong span! Generate a new span from
+                            // identifier to the last RParen
+                            |error: ParseError| error.spanned_s(identifier.0),
+                        )?,
+                    ))
                 } else {
                     Err(errors)
                 };

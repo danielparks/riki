@@ -326,20 +326,18 @@ impl FunctionCall<'_> {
 impl<'src> TryFrom<(Identifier<'src>, Parameters<'src>)>
     for FunctionCall<'src>
 {
-    type Error = SpannedErrors<'src>;
+    type Error = ParseError<'src>;
 
     fn try_from(
         (name, parameters): (Identifier<'src>, Parameters<'src>),
     ) -> Result<Self, Self::Error> {
-        // FIXME wrong span for errors! Should cover entire call.
         super::validate_function_call(
             name.0,
             parameters
                 .len()
                 .try_into()
-                .map_err(|_| ParseError::TooManyParameters.spanned_s(name.0))?,
-        )
-        .map_err(|error| error.spanned_s(name.0))?;
+                .map_err(|_| ParseError::TooManyParameters)?,
+        )?;
         Ok(Self { name, parameters })
     }
 }
