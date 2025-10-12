@@ -110,3 +110,21 @@ pub fn validate_function_call(
         (other, _) => Err(ParseError::UnknownFunctionName(other)),
     }
 }
+
+/// Validate `Setting`
+///
+/// # Errors
+///
+/// Returns [`ParseError`] for invalid settings.
+pub fn validate_setting<'src>(
+    name: &'src str,
+    value: &model::Value<'src>,
+) -> Result<(), ParseError<'src>> {
+    match (name, value) {
+        ("root" | "templates", model::Value::Literal(_)) => Ok(()),
+        ("root" | "templates", model::Value::Function(_)) => {
+            Err(ParseError::SettingDoesNotAcceptFunction(name))
+        }
+        (other, _) => Err(ParseError::UnknownSettingName(other)),
+    }
+}

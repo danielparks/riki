@@ -25,6 +25,10 @@ pub enum ParseError<'src> {
     #[error("invalid function call (more than 255 parameters)")]
     TooManyParameters,
 
+    /// Setting with an invalid function value.
+    #[error("setting {0:?} does not accept a function result as a value")]
+    SettingDoesNotAcceptFunction(&'src str),
+
     /// Found a lonely backslash at the end of a string.
     #[error("found unescaped '\\' at end of {0}")]
     StringTrailingBackslash(StringType),
@@ -42,6 +46,10 @@ pub enum ParseError<'src> {
     /// Unknown function reference.
     #[error("found unknown function {0:?}")]
     UnknownFunctionName(&'src str),
+
+    /// Unknown setting name.
+    #[error("found unknown setting name {0:?}")]
+    UnknownSettingName(&'src str),
 
     /// Unknown variable reference.
     #[error("found unknown variable {0:?}")]

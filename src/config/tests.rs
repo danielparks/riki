@@ -141,3 +141,27 @@ fn bad_function() {
 fn good_function() {
     check!(parse("/ error(403)") == ok_str(r#"/** error("403")"#));
 }
+
+#[test_log::test]
+fn bad_setting() {
+    check!(
+        parse("bad = nope")
+            == err_str(r#"found unknown setting name "bad" 0..3"#)
+    );
+    check!(
+        parse("bad = error(403)")
+            == err_str(r#"found unknown setting name "bad" 0..3"#)
+    );
+    check!(
+        parse("root = error(403)")
+            == err_str(
+                "setting \"root\" does not accept a function result as a value \
+                0..4"
+            )
+    );
+}
+
+#[test_log::test]
+fn good_setting() {
+    check!(parse("root = /tmp") == ok_str(r#"/** root = "/tmp""#));
+}
