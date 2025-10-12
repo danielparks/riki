@@ -195,7 +195,12 @@ fn consume_set_contents<'src>(
 
     expect_rule(iter, Rule::Set, RuleSide::Pop, " after set push rule");
 
-    result.and_then(|value| (variable, value).try_into())
+    // FIXME wrong span! Use span for whole setting.
+    result.and_then(|value| {
+        (variable.clone(), value)
+            .try_into()
+            .map_err(|error: ParseError| error.spanned_s(variable.0))
+    })
 }
 
 /// Consume contents of a function rule.

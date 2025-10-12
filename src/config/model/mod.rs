@@ -258,12 +258,12 @@ impl Setting<'_> {
 }
 
 impl<'src> TryFrom<(Identifier<'src>, Value<'src>)> for Setting<'src> {
-    type Error = SpannedErrors<'src>;
+    type Error = ParseError<'src>;
 
     fn try_from(
         (name, value): (Identifier<'src>, Value<'src>),
     ) -> Result<Self, Self::Error> {
-        // FIXME validate setting
+        super::validate_setting(name.0, &value)?;
         Ok(Self { name, value })
     }
 }
