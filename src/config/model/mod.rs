@@ -363,10 +363,8 @@ impl<'src> TryFrom<StringToken<'src>> for Identifier<'src> {
     fn try_from(token: StringToken<'src>) -> Result<Self, Self::Error> {
         match token.string_type {
             StringType::Identifier => Ok(Self(token.src)),
-            other => Err(vec![SpannedError {
-                src: token.src,
-                error: ParseError::ExpectedIdentifierToken(other.into()),
-            }]),
+            other => Err(ParseError::ExpectedIdentifierToken(other.into())
+                .spanned_s(token.src)),
         }
     }
 }

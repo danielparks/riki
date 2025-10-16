@@ -51,9 +51,9 @@ impl<'src> TryFrom<StringToken<'src>> for GlobString<'src> {
             StringType::BareGlob
             | StringType::Identifier
             | StringType::Path => Self::from_string_content(src),
-            other => Err(vec![
-                (ParseError::ExpectedGlobToken(other.into()).spanned(src)),
-            ]),
+            other => {
+                Err(ParseError::ExpectedGlobToken(other.into()).spanned_s(src))
+            }
         }
     }
 }
