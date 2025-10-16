@@ -11,6 +11,7 @@ fn parse(source: &str) -> Result<String, String> {
     parser2::parse(source)
         .map(|rules| {
             rules
+                .rules()
                 .iter()
                 .map(ConfigRule::canonical)
                 .collect::<Vec<_>>()

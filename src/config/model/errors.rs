@@ -21,6 +21,14 @@ pub enum ParseError<'src> {
     #[error("expected a glob-compatible bare string, got {0:?}")]
     ExpectedGlobToken(TokenType),
 
+    /// Error creating a glob
+    #[error("invalid matcher: {0}")]
+    BuildingGlob(globset::Error),
+
+    /// Error creating a globset
+    #[error("invalid matchers: {0}")]
+    BuildingGlobSet(globset::Error),
+
     /// Found a function call with more than 255 parameters.
     #[error("invalid function call (more than 255 parameters)")]
     TooManyParameters,
@@ -73,8 +81,15 @@ impl<'src> ParseError<'src> {
     /// Add a `src` to get a [`SpannedError`]
     #[must_use]
     #[inline]
-    pub const fn spanned(self, src: &'src str) -> SpannedError<'src> {
-        SpannedError { src, error: self }
+    pub fn spanned(self, src: &'src str) -> SpannedError<'src> {
+        SpannedError { srcs: vec![src], error: self }
+    }
+
+    /// Add `src`s to get a [`SpannedError`]
+    #[must_use]
+    #[inline]
+    pub const fn with_spans(self, srcs: Vec<&'src str>) -> SpannedError<'src> {
+        SpannedError { srcs, error: self }
     }
 
     /// Add a `src` and convert to [`SpannedErrors`]
@@ -88,50 +103,46 @@ impl<'src> ParseError<'src> {
 /// A [`ParseError`] along with its source.
 #[derive(Clone, Debug)]
 pub struct SpannedError<'src> {
-    /// A slice of the full source indicating the source of the error.
-    pub src: &'src str,
+    /// Slices of the full source indicating the source of the error.
+    pub srcs: Vec<&'src str>,
 
     /// The error.
     pub error: ParseError<'src>,
 }
 
-impl SpannedError<'_> {
-    /// Convert `src` into a [`Span`].
-    ///
-    /// # Panics
-    ///
-    /// Panics if `src` is not actually within `source`.
-    #[must_use]
-    pub fn span(&self, source: &str) -> Span {
-        let src_start: usize = self.src.as_ptr() as usize;
-        let source_start: usize = source.as_ptr() as usize;
-
-        let start = src_start
-            .checked_sub(source_start)
-            .expect("span not in source");
-        assert!(start < source.len(), "span not in source");
-
-        let end = start
-            .checked_add(self.src.len())
-            .expect("span not in source");
-        assert!(end <= source.len(), "span not in source");
-
-        start..end
-    }
-
+impl<'src> SpannedError<'src> {
     /// Convert the error into a [`Diagnostic`].
     ///
-    /// This requires the original source that [`SpannedError::src`] references.
+    /// This requires the original source that entries in [`SpannedError::srcs`]
+    /// reference.
     ///
     /// # Panics
     ///
-    /// See [`Self::span()`].
+    /// See [`slice_to_span()`].
     #[must_use]
     pub fn into_diagnostic(self, source: &str) -> Diagnostic {
-        let span = self.span(source);
-        Diagnostic::error()
-            .with_message(self.error)
-            .with_label(Label::primary((), span))
+        let mut diagnostic = Diagnostic::error().with_message(self.error);
+        let mut iter = self.srcs.iter().map(|src| slice_to_span(src, source));
+        if let Some(span) = iter.next() {
+            diagnostic = diagnostic.with_label(Label::primary((), span));
+            for span in iter {
+                diagnostic = diagnostic.with_label(Label::secondary((), span));
+            }
+        }
+        diagnostic
+    }
+
+    /// Convert this into [`SpannedErrors`]
+    #[must_use]
+    #[inline]
+    pub fn plural(self) -> SpannedErrors<'src> {
+        vec![self]
+    }
+}
+
+impl<'src> From<SpannedError<'src>> for SpannedErrors<'src> {
+    fn from(val: SpannedError<'src>) -> Self {
+        val.plural()
     }
 }
 
@@ -140,3 +151,24 @@ pub type SpannedErrors<'src> = Vec<SpannedError<'src>>;
 
 /// `Result` type for config parsing.
 pub type ParseResult<'src, T, E = SpannedErrors<'src>> = Result<T, E>;
+
+/// Convert a slice of the source into a [`Span`].
+///
+/// # Panics
+///
+/// Panics if `slice` is not actually within `source`.
+#[must_use]
+pub fn slice_to_span(slice: &str, source: &str) -> Span {
+    let src_start: usize = slice.as_ptr() as usize;
+    let source_start: usize = source.as_ptr() as usize;
+
+    let start = src_start
+        .checked_sub(source_start)
+        .expect("slice not in source");
+    assert!(start < source.len(), "slice not in source");
+
+    let end = start.checked_add(slice.len()).expect("slice not in source");
+    assert!(end <= source.len(), "slice not in source");
+
+    start..end
+}
