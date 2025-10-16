@@ -56,9 +56,9 @@ pub fn dump_config(
 
         let diagnostics = if diagnostics.is_empty() {
             match parser2::process_cst(&cst) {
-                Ok(rules) => {
+                Ok(configuration) => {
                     println!();
-                    for rule in rules {
+                    for rule in configuration.rules() {
                         println!("{}", rule.canonical());
                     }
 

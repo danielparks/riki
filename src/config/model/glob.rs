@@ -8,6 +8,8 @@ use std::borrow::Cow;
 pub struct GlobString<'src> {
     /// The unescaped contents of the glob.
     unescaped: Cow<'src, str>,
+    /// The span in the source
+    span: &'src str,
 }
 
 impl<'src> GlobString<'src> {
@@ -25,18 +27,24 @@ impl<'src> GlobString<'src> {
         self.unescaped.to_string()
     }
 
+    /// Get the span of the original source for this glob.
+    #[must_use]
+    pub const fn span(&self) -> &'src str {
+        self.span
+    }
+
     /// Create from a glob string
     #[must_use]
     pub const fn from_glob_str(src: &'src str) -> Self {
         // FIXME
-        Self { unescaped: Cow::Borrowed(src) }
+        Self { unescaped: Cow::Borrowed(src), span: src }
     }
 
     /// Parse glob string contents
     #[expect(clippy::unnecessary_wraps, reason = "wip")]
     const fn from_string_content(src: &'src str) -> ParseResult<'src, Self> {
         // FIXME
-        Ok(Self { unescaped: Cow::Borrowed(src) })
+        Ok(Self { unescaped: Cow::Borrowed(src), span: src })
     }
 }
 

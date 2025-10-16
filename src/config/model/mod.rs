@@ -8,12 +8,80 @@ pub use glob::*;
 pub use string::*;
 
 use super::lexer::TokenType;
-use globset::{Glob, GlobBuilder};
+use globset::{Glob, GlobBuilder, GlobSet, GlobSetBuilder};
 use std::fmt;
 use std::slice;
 
-/// Alias for a complete configuration
-pub type Configuration<'src> = Vec<ConfigRule<'src>>;
+/// An entire configuration
+#[expect(dead_code, reason = "wip")]
+pub struct Configuration<'src> {
+    /// Matcher to determine which rules to apply.
+    globset: GlobSet,
+
+    /// All the rules in the configuration.
+    rules: Vec<ConfigRule<'src>>,
+}
+
+impl<'src> Configuration<'src> {
+    /// Get all the rules.
+    #[must_use]
+    pub fn rules(&self) -> &[ConfigRule<'src>] {
+        &self.rules
+    }
+}
+
+/// Build a configuration from rules
+pub struct ConfigurationBuilder<'src> {
+    /// Builder for the final `GlobSet`.
+    globset_builder: GlobSetBuilder,
+
+    /// All the rules in the configuration.
+    rules: Vec<ConfigRule<'src>>,
+}
+
+impl Default for ConfigurationBuilder<'_> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'src> ConfigurationBuilder<'src> {
+    /// Create an empty `ConfigurationBuilder`.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { globset_builder: GlobSetBuilder::new(), rules: Vec::new() }
+    }
+
+    /// Add a rule.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is a problem creating a [`Glob`] from the
+    /// rule’s matchers.
+    pub fn add(&mut self, rule: ConfigRule<'src>) -> ParseResult<'src, ()> {
+        self.globset_builder.add(rule.matcher.as_glob()?);
+        self.rules.push(rule);
+        Ok(())
+    }
+
+    /// Build a [`Configuration`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is a problem creating a [`GlobSet`] from all
+    /// the rule matchers.
+    pub fn build(self) -> ParseResult<'src, Configuration<'src>> {
+        let Self { globset_builder, rules } = self;
+        Ok(Configuration {
+            globset: globset_builder.build().map_err(|error| {
+                ParseError::BuildingGlobSet(error)
+                    .with_spans(Vec::new())
+                    .plural()
+            })?,
+            rules,
+        })
+    }
+}
 
 /// A rule found in the configuration file.
 #[derive(Clone, Debug)]
@@ -71,6 +139,12 @@ impl<'src> MatcherStack<'src> {
         self.0.pop()
     }
 
+    /// Get the spans for each matcher
+    #[must_use]
+    pub fn spans(&self) -> Vec<&'src str> {
+        self.0.iter().map(Matcher::span).collect()
+    }
+
     /// Get the matcher stack as a glob
     ///
     /// This does not necessarily include every condition in the matcher.
@@ -79,12 +153,17 @@ impl<'src> MatcherStack<'src> {
     /// # Errors
     ///
     /// May pass through errors from [`GlobBuilder::build()`].
-    pub fn as_glob(&self) -> Result<Glob, globset::Error> {
+    pub fn as_glob(&self) -> ParseResult<'src, Glob> {
         GlobBuilder::new(&self.as_glob_str())
             .literal_separator(true)
             .backslash_escape(true)
             .empty_alternates(true)
             .build()
+            .map_err(|error| {
+                ParseError::BuildingGlob(error)
+                    .with_spans(self.spans())
+                    .into()
+            })
     }
 
     /// Get the matcher stack as a glob string
@@ -192,7 +271,7 @@ where
 #[derive(Clone, Debug)]
 pub struct Matcher<'src>(GlobString<'src>);
 
-impl Matcher<'_> {
+impl<'src> Matcher<'src> {
     /// Return the canonical representation of this matcher
     #[must_use]
     pub fn canonical(&self) -> String {
@@ -206,6 +285,12 @@ impl Matcher<'_> {
     #[must_use]
     pub fn as_glob_str(&self) -> String {
         self.0.as_glob_str()
+    }
+
+    /// Get the span of the original source for this matcher.
+    #[must_use]
+    pub const fn span(&self) -> &'src str {
+        self.0.span()
     }
 }
 
@@ -439,7 +524,7 @@ mod tests {
 
     fn into_glob<'a, I: IntoIterator<Item = &'a str>>(
         globs: I,
-    ) -> Result<Glob, globset::Error> {
+    ) -> ParseResult<'a, Glob> {
         let stack = MatcherStack::from_glob_strs(globs);
         println!("glob str: {}", stack.as_glob_str());
         stack.as_glob()

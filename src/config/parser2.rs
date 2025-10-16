@@ -2,8 +2,9 @@
 
 use super::lexer::{Diagnostic, TokenType};
 use super::model::{
-    Action, ConfigRule, Configuration, Identifier, MatcherStack, Parameters,
-    ParseError, ParseResult, Setting, StringToken, Value,
+    Action, ConfigRule, Configuration, ConfigurationBuilder, Identifier,
+    MatcherStack, Parameters, ParseError, ParseResult, Setting, StringToken,
+    Value,
 };
 use super::parser::{CNode, CNodeIter, Cst, NodeRef, Parser, Rule, RuleSide};
 use std::fmt;
@@ -43,7 +44,7 @@ pub fn process_cst<'src>(
 ) -> ParseResult<'src, Configuration<'src>> {
     let mut iter = cst.descendents(NodeRef::ROOT);
     let mut matcher_stack: MatcherStack = MatcherStack::empty();
-    let mut rules: Configuration = Vec::new();
+    let mut rules = ConfigurationBuilder::new();
     let mut errors = Vec::new();
     while let Some(node) = iter.next() {
         use RuleSide::{Pop, Push};
@@ -51,10 +52,10 @@ pub fn process_cst<'src>(
             CNode::Rule(Rule::Action, Push) => {
                 match consume_matcher_rule(&mut iter, "").try_into() {
                     Ok(value) => {
-                        rules.push(ConfigRule {
+                        rules.add(ConfigRule {
                             matcher: matcher_stack.clone(),
                             action: Action::Value(Value::Literal(value)),
-                        });
+                        })?;
                     }
                     Err(found) => errors.extend(found),
                 }
@@ -94,10 +95,10 @@ pub fn process_cst<'src>(
             CNode::Rule(Rule::Function, Push) => {
                 match consume_function_contents(&mut iter) {
                     Ok(value) => {
-                        rules.push(ConfigRule {
+                        rules.add(ConfigRule {
                             matcher: matcher_stack.clone(),
                             action: Action::Value(value),
-                        });
+                        })?;
                     }
                     Err(found) => errors.extend(found),
                 }
@@ -125,10 +126,10 @@ pub fn process_cst<'src>(
             CNode::Rule(Rule::Set, Push) => {
                 match consume_set_contents(&mut iter) {
                     Ok(setting) => {
-                        rules.push(ConfigRule {
+                        rules.add(ConfigRule {
                             matcher: matcher_stack.clone(),
                             action: Action::Setting(setting),
-                        });
+                        })?;
                     }
                     Err(found) => errors.extend(found),
                 }
@@ -136,10 +137,10 @@ pub fn process_cst<'src>(
             CNode::Rule(Rule::Value, Push) => {
                 match consume_value_contents(&mut iter) {
                     Ok(value) => {
-                        rules.push(ConfigRule {
+                        rules.add(ConfigRule {
                             matcher: matcher_stack.clone(),
                             action: Action::Value(value),
-                        });
+                        })?;
                     }
                     Err(found) => errors.extend(found),
                 }
@@ -167,7 +168,7 @@ pub fn process_cst<'src>(
     }
 
     if errors.is_empty() {
-        Ok(rules)
+        Ok(rules.build()?)
     } else {
         Err(errors)
     }
