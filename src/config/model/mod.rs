@@ -13,7 +13,6 @@ use std::fmt;
 use std::slice;
 
 /// An entire configuration
-#[expect(dead_code, reason = "wip")]
 pub struct Configuration<'src> {
     /// Matcher to determine which rules to apply.
     globset: GlobSet,
@@ -27,6 +26,16 @@ impl<'src> Configuration<'src> {
     #[must_use]
     pub fn rules(&self) -> &[ConfigRule<'src>] {
         &self.rules
+    }
+
+    /// Get matching actions for a path.
+    #[must_use]
+    pub fn matches(&self, path: &str) -> Vec<&Action<'src>> {
+        self.globset
+            .matches(path)
+            .into_iter()
+            .map(|i| &self.rules[i].action)
+            .collect()
     }
 }
 
