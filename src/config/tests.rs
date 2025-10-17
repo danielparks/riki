@@ -2,33 +2,36 @@
 #![cfg(test)]
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
-use super::model::ConfigRule;
+use super::model::{ConfigRule, Configuration};
 use super::parser2;
 use assert2::check;
 
+/// Parse configuration file and return errors in easy to compare format.
+fn parse(source: &str) -> Result<Configuration<'_>, String> {
+    parser2::parse(source).map_err(|diagnostics| {
+        diagnostics
+            .iter()
+            .map(|diagnostic| {
+                format!(
+                    "{} {:?}",
+                    diagnostic.message, diagnostic.labels[0].range
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    })
+}
+
 /// Convenience function to easily compare parse results
 fn canonicalize(source: &str) -> Result<String, String> {
-    parser2::parse(source)
-        .map(|rules| {
-            rules
-                .rules()
-                .iter()
-                .map(ConfigRule::canonical)
-                .collect::<Vec<_>>()
-                .join("\n")
-        })
-        .map_err(|diagnostics| {
-            diagnostics
-                .iter()
-                .map(|diagnostic| {
-                    format!(
-                        "{} {:?}",
-                        diagnostic.message, diagnostic.labels[0].range
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        })
+    parse(source).map(|rules| {
+        rules
+            .rules()
+            .iter()
+            .map(ConfigRule::canonical)
+            .collect::<Vec<_>>()
+            .join("\n")
+    })
 }
 
 /// Convenience function to return `Result<String, String>` for comparison.
@@ -174,4 +177,10 @@ fn bad_setting() {
 #[test_log::test]
 fn good_setting() {
     check!(canonicalize("root = /tmp") == ok_str(r#"/** root = "/tmp""#));
+}
+
+#[test_log::test]
+fn config_matches_simple() {
+    let config = parse("root = /srv\n/ $path\n").unwrap();
+    check!(config.matches("/foo/bar").len() == 2);
 }
