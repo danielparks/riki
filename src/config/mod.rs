@@ -12,7 +12,7 @@ use bstr::{BStr, BString, ByteVec};
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::{self, Config};
 use lexer::tokenize;
-use model::ParseError;
+use model::ConfigSettings;
 use parser::Parser;
 use std::fs;
 use std::io;
@@ -57,8 +57,16 @@ pub fn dump_config(
         let diagnostics = if diagnostics.is_empty() {
             match parser2::process_cst(&cst) {
                 Ok(configuration) => {
+                    let mut settings = &ConfigSettings::default();
                     println!();
                     for rule in configuration.rules() {
+                        if &rule.settings != settings {
+                            settings = &rule.settings;
+                            println!(
+                                "{}",
+                                settings.canonical("/**").join("\n")
+                            );
+                        }
                         println!("{}", rule.canonical());
                     }
 
@@ -87,22 +95,4 @@ pub fn dump_config(
 #[must_use]
 pub fn is_valid_variable(name: &str) -> bool {
     matches!(name, "path")
-}
-
-/// Validate `Setting`
-///
-/// # Errors
-///
-/// Returns [`ParseError`] for invalid settings.
-pub fn validate_setting<'src>(
-    name: &'src str,
-    value: &model::Value<'src>,
-) -> Result<(), ParseError<'src>> {
-    match (name, value) {
-        ("root" | "templates", model::Value::Literal(_)) => Ok(()),
-        ("root" | "templates", model::Value::Function(_)) => {
-            Err(ParseError::SettingDoesNotAcceptFunction(name))
-        }
-        (other, _) => Err(ParseError::UnknownSettingName(other)),
-    }
 }

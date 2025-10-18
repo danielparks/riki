@@ -2,7 +2,7 @@
 #![cfg(test)]
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
-use super::model::{ConfigRule, Configuration};
+use super::model::{ConfigSettings, Configuration};
 use super::parser2;
 use assert2::check;
 
@@ -24,13 +24,17 @@ fn parse(source: &str) -> Result<Configuration<'_>, String> {
 
 /// Convenience function to easily compare parse results
 fn canonicalize(source: &str) -> Result<String, String> {
-    parse(source).map(|rules| {
-        rules
-            .rules()
-            .iter()
-            .map(ConfigRule::canonical)
-            .collect::<Vec<_>>()
-            .join("\n")
+    parse(source).map(|config| {
+        let mut settings = &ConfigSettings::default();
+        let mut out = Vec::new();
+        for rule in config.rules() {
+            if &rule.settings != settings {
+                settings = &rule.settings;
+                out.extend(settings.canonical("/**"));
+            }
+            out.push(rule.canonical());
+        }
+        out.join("\n")
     })
 }
 
@@ -176,11 +180,18 @@ fn bad_setting() {
 
 #[test_log::test]
 fn good_setting() {
-    check!(canonicalize("root = /tmp") == ok_str(r#"/** root = "/tmp""#));
+    check!(
+        canonicalize("root = /tmp\ntemplates = /templates\n/ $path")
+            == ok_str(
+                "/** root = \"/tmp\"\n\
+                /** templates = \"/templates\"\n\
+                /** \"${path}\""
+            )
+    );
 }
 
 #[test_log::test]
 fn config_matches_simple() {
     let config = parse("root = /srv\n/ $path\n").unwrap();
-    check!(config.matches("/foo/bar").len() == 2);
+    check!(config.matches("/foo/bar").len() == 1);
 }

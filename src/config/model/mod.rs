@@ -9,7 +9,9 @@ pub use string::*;
 
 use super::lexer::TokenType;
 use globset::{Glob, GlobBuilder, GlobSet, GlobSetBuilder};
+use std::env;
 use std::fmt;
+use std::path::PathBuf;
 use std::slice;
 
 /// An entire configuration
@@ -30,7 +32,7 @@ impl<'src> Configuration<'src> {
 
     /// Get matching actions for a path.
     #[must_use]
-    pub fn matches(&self, path: &str) -> Vec<&Action<'src>> {
+    pub fn matches(&self, path: &str) -> Vec<&Value<'src>> {
         self.globset
             .matches(path)
             .into_iter()
@@ -95,10 +97,14 @@ impl<'src> ConfigurationBuilder<'src> {
 /// A rule found in the configuration file.
 #[derive(Clone, Debug)]
 pub struct ConfigRule<'src> {
-    /// Match a request
+    /// Match a request.
     pub matcher: MatcherStack<'src>,
-    /// Action to take in response to a request
-    pub action: Action<'src>,
+
+    /// Settings from configuration, e.g. the root directory.
+    pub settings: ConfigSettings,
+
+    /// Action to take in response to a request.
+    pub action: Value<'src>,
 }
 
 impl ConfigRule<'_> {
@@ -106,6 +112,133 @@ impl ConfigRule<'_> {
     #[must_use]
     pub fn canonical(&self) -> String {
         format!("{} {}", self.matcher.canonical(), self.action.canonical())
+    }
+}
+
+/// Settings from configuration.
+///
+/// For example, `root = /srv`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ConfigSettings {
+    /// The root directory to search relative to.
+    pub root: PathBuf,
+
+    /// Template directory.
+    pub templates: PathBuf,
+}
+
+impl ConfigSettings {
+    /// Apply a setting.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError`]s if there are problems interpolating variables or
+    /// if `name` or `value` are invalid.
+    pub fn apply<'src>(
+        &mut self,
+        name: &Identifier<'src>,
+        value: Value<'src>,
+    ) -> Result<(), SpannedErrors<'src>> {
+        match (name.0, value) {
+            ("root", Value::Literal(value)) => {
+                // FIXME might be relative
+                self.root = value.as_pathbuf()?;
+                Ok(())
+            }
+            ("templates", Value::Literal(value)) => {
+                // FIXME might be relative
+                self.templates = value.as_pathbuf()?;
+                Ok(())
+            }
+            ("root" | "templates", Value::Function(_)) => {
+                // FIXME wrong span, should cover entire setting or value
+                Err(ParseError::SettingDoesNotAcceptFunction(name.0)
+                    .spanned_s(name.0))
+            }
+            (_, _) => {
+                Err(ParseError::UnknownSettingName(name.0).spanned_s(name.0))
+            }
+        }
+    }
+
+    /// Generate a canonical version of these settings.
+    #[must_use]
+    pub fn canonical(&self, matcher: &str) -> Vec<String> {
+        // FIXME canonical string output
+        vec![
+            format!(r#"{matcher} root = "{}""#, self.root.display()),
+            format!(r#"{matcher} templates = "{}""#, self.templates.display()),
+        ]
+    }
+}
+
+impl Default for ConfigSettings {
+    /// Default settings.
+    ///
+    ///   * `root`: `.`
+    ///   * `templates`: `./templates`
+    fn default() -> Self {
+        let root = env::current_dir().unwrap_or_default();
+        let templates = root.join("templates");
+        Self { root, templates }
+    }
+}
+
+/// The context stack for the parser.
+///
+/// Holds current settings and matcher for the extent of a new context.
+#[derive(Clone, Debug, Default)]
+pub struct ContextStack<'src> {
+    /// The stack of matchers and settings.
+    stack: Vec<(Matcher<'src>, ConfigSettings)>,
+
+    /// Settings for the root context.
+    root_settings: ConfigSettings,
+}
+
+impl<'src> ContextStack<'src> {
+    /// Is the stack empty?
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.stack.is_empty()
+    }
+
+    /// Get a clone of the current settings.
+    #[must_use]
+    pub fn settings_cloned(&self) -> ConfigSettings {
+        self.stack
+            .last()
+            .map(|(_, settings)| settings.clone())
+            .unwrap_or_else(|| self.root_settings.clone())
+    }
+
+    /// Get a mutable reference to the current settings.
+    pub fn settings_mut(&mut self) -> &mut ConfigSettings {
+        self.stack
+            .last_mut()
+            .map(|(_, settings)| settings)
+            .unwrap_or(&mut self.root_settings)
+    }
+
+    /// Add a matcher to the stack.
+    pub fn push(&mut self, matcher: Matcher<'src>) {
+        self.stack.push((matcher, self.settings_cloned()));
+    }
+
+    /// Remove a matcher from the top of the stack.
+    pub fn pop(&mut self) -> Option<Matcher<'src>> {
+        self.stack.pop().map(|(matcher, _)| matcher)
+    }
+
+    /// Get the current matcher stack.
+    #[must_use]
+    pub fn matcher_stack(&self) -> MatcherStack<'src> {
+        MatcherStack(
+            self.stack
+                .iter()
+                .map(|(matcher, _)| matcher.clone())
+                .collect(),
+        )
     }
 }
 
@@ -130,22 +263,6 @@ impl<'src> MatcherStack<'src> {
                 .map(Matcher)
                 .collect(),
         )
-    }
-
-    /// Add a matcher to the stack
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Add a matcher to the stack
-    pub fn push(&mut self, matcher: Matcher<'src>) {
-        self.0.push(matcher);
-    }
-
-    /// Remove a matcher from the top of the stack
-    pub fn pop(&mut self) -> Option<Matcher<'src>> {
-        self.0.pop()
     }
 
     /// Get the spans for each matcher
@@ -309,56 +426,6 @@ impl<'src> TryFrom<StringToken<'src>> for Matcher<'src> {
     fn try_from(token: StringToken<'src>) -> Result<Self, Self::Error> {
         // FIXME validate glob
         Ok(Matcher(token.try_into()?))
-    }
-}
-
-/// The action corresponding to a rule.
-#[derive(Clone, Debug)]
-pub enum Action<'src> {
-    /// Set an option for matching requests.
-    Setting(Setting<'src>),
-
-    /// Value to return for matching requests.
-    Value(Value<'src>),
-}
-
-impl Action<'_> {
-    /// Return the canonical representation of this action
-    #[must_use]
-    pub fn canonical(&self) -> String {
-        match self {
-            Self::Setting(setting) => setting.canonical(),
-            Self::Value(value) => value.canonical(),
-        }
-    }
-}
-
-/// A configuration setting
-#[derive(Clone, Debug)]
-pub struct Setting<'src> {
-    /// The variable being set
-    name: Identifier<'src>,
-
-    /// The value
-    value: Value<'src>,
-}
-
-impl Setting<'_> {
-    /// Return the canonical representation of this setting
-    #[must_use]
-    pub fn canonical(&self) -> String {
-        format!("{} = {}", self.name.canonical(), self.value.canonical())
-    }
-}
-
-impl<'src> TryFrom<(Identifier<'src>, Value<'src>)> for Setting<'src> {
-    type Error = ParseError<'src>;
-
-    fn try_from(
-        (name, value): (Identifier<'src>, Value<'src>),
-    ) -> Result<Self, Self::Error> {
-        super::validate_setting(name.0, &value)?;
-        Ok(Self { name, value })
     }
 }
 

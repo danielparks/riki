@@ -6,6 +6,7 @@ use crate::config::is_valid_variable;
 use logos::Logos;
 use std::borrow::Cow;
 use std::ops::Range;
+use std::path::PathBuf;
 use std::slice;
 use tinyvec::{ArrayVec, TinyVec};
 
@@ -25,6 +26,16 @@ impl<'src> ParsedString<'src> {
     pub fn content(&self) -> String {
         // FIXME variables
         self.unescaped.to_string()
+    }
+
+    /// Return the content of this string as a [`PathBuf`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError`]s if there are problems interpolating variables.
+    pub fn as_pathbuf(&self) -> ParseResult<'src, PathBuf> {
+        // FIXME variables
+        Ok(PathBuf::from(self.content()))
     }
 
     /// Split on interpolated variables
