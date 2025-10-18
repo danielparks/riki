@@ -4,7 +4,8 @@
 
 use super::model::{ConfigSettings, Configuration};
 use super::parser2;
-use assert2::check;
+use assert2::{check, let_assert};
+use std::path::PathBuf;
 
 /// Parse configuration file and return errors in easy to compare format.
 fn parse(source: &str) -> Result<Configuration<'_>, String> {
@@ -192,6 +193,42 @@ fn good_setting() {
 
 #[test_log::test]
 fn config_matches_simple() {
-    let config = parse("root = /srv\n/ $path\n").unwrap();
-    check!(config.matches("/foo/bar").len() == 1);
+    let config = parse(
+        "root = /srv\n\
+        templates = templates\n\
+        / $path",
+    )
+    .unwrap();
+    let_assert!([rule] = &config.matches("/foo/bar")[..]);
+    check!(rule.settings.root == PathBuf::from("/srv"));
+    check!(rule.settings.templates == PathBuf::from("/srv/templates"));
+    // FIXME check action
+}
+
+#[test_log::test]
+fn relative_settings() {
+    let config = parse(
+        "root = /srv
+        templates = tmpl
+        root = web
+        / $path",
+    )
+    .unwrap();
+    let_assert!([rule] = &config.matches("/")[..]);
+    check!(rule.settings.root == PathBuf::from("/srv/web"));
+    check!(rule.settings.templates == PathBuf::from("/srv/tmpl"));
+}
+
+#[test_log::test]
+fn absolute_settings() {
+    let config = parse(
+        "root = /srv
+        templates = /tpl
+        root = /www
+        / $path",
+    )
+    .unwrap();
+    let_assert!([rule] = &config.matches("/")[..]);
+    check!(rule.settings.root == PathBuf::from("/www"));
+    check!(rule.settings.templates == PathBuf::from("/tpl"));
 }

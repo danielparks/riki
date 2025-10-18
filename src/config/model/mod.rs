@@ -30,13 +30,13 @@ impl<'src> Configuration<'src> {
         &self.rules
     }
 
-    /// Get matching actions for a path.
+    /// Get matching rules for a path.
     #[must_use]
-    pub fn matches(&self, path: &str) -> Vec<&Value<'src>> {
+    pub fn matches(&self, path: &str) -> Vec<&ConfigRule<'src>> {
         self.globset
             .matches(path)
             .into_iter()
-            .map(|i| &self.rules[i].action)
+            .map(|i| &self.rules[i])
             .collect()
     }
 }
@@ -141,13 +141,11 @@ impl ConfigSettings {
     ) -> Result<(), SpannedErrors<'src>> {
         match (name.0, value) {
             ("root", Value::Literal(value)) => {
-                // FIXME might be relative
-                self.root = value.as_pathbuf()?;
+                self.root = self.root.join(value.as_pathbuf()?);
                 Ok(())
             }
             ("templates", Value::Literal(value)) => {
-                // FIXME might be relative
-                self.templates = value.as_pathbuf()?;
+                self.templates = self.root.join(value.as_pathbuf()?);
                 Ok(())
             }
             ("root" | "templates", Value::Function(_)) => {
