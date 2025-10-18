@@ -2,9 +2,8 @@
 
 use super::lexer::{Diagnostic, TokenType};
 use super::model::{
-    Action, ConfigRule, Configuration, ConfigurationBuilder, Identifier,
-    MatcherStack, Parameters, ParseError, ParseResult, Setting, StringToken,
-    Value,
+    ConfigRule, Configuration, ConfigurationBuilder, ContextStack, Identifier,
+    Parameters, ParseError, ParseResult, StringToken, Value,
 };
 use super::parser::{CNode, CNodeIter, Cst, NodeRef, Parser, Rule, RuleSide};
 use std::fmt;
@@ -43,7 +42,7 @@ pub fn process_cst<'src>(
     cst: &Cst<'src>,
 ) -> ParseResult<'src, Configuration<'src>> {
     let mut iter = cst.descendents(NodeRef::ROOT);
-    let mut matcher_stack: MatcherStack = MatcherStack::empty();
+    let mut stack = ContextStack::default();
     let mut rules = ConfigurationBuilder::new();
     let mut errors = Vec::new();
     while let Some(node) = iter.next() {
@@ -53,8 +52,9 @@ pub fn process_cst<'src>(
                 match consume_matcher_rule(&mut iter, "").try_into() {
                     Ok(value) => {
                         rules.add(ConfigRule {
-                            matcher: matcher_stack.clone(),
-                            action: Action::Value(Value::Literal(value)),
+                            matcher: stack.matcher_stack(),
+                            settings: stack.settings_cloned(),
+                            action: Value::Literal(value),
                         })?;
                     }
                     Err(found) => errors.extend(found),
@@ -65,14 +65,14 @@ pub fn process_cst<'src>(
                 match consume_matcher_rule(&mut iter, " in context rule")
                     .try_into()
                 {
-                    Ok(matcher) => matcher_stack.push(matcher),
+                    Ok(matcher) => stack.push(matcher),
                     Err(found) => errors.extend(found),
                 }
                 expect_token(&mut iter, TokenType::LBrace, " in context rule");
             }
             CNode::Rule(Rule::Context | Rule::Rule, Pop) => {
                 assert!(
-                    matcher_stack.pop().is_some(),
+                    stack.pop().is_some(),
                     "matcher stack empty; errors: {errors:?}"
                 );
             }
@@ -88,7 +88,7 @@ pub fn process_cst<'src>(
             CNode::Rule(Rule::File, _) => {
                 // Either start or end of file
                 assert!(
-                    matcher_stack.is_empty(),
+                    stack.is_empty(),
                     "matcher stack must be empty at start and end of file"
                 );
             }
@@ -96,8 +96,9 @@ pub fn process_cst<'src>(
                 match consume_function_contents(&mut iter) {
                     Ok(value) => {
                         rules.add(ConfigRule {
-                            matcher: matcher_stack.clone(),
-                            action: Action::Value(value),
+                            matcher: stack.matcher_stack(),
+                            settings: stack.settings_cloned(),
+                            action: value,
                         })?;
                     }
                     Err(found) => errors.extend(found),
@@ -118,28 +119,27 @@ pub fn process_cst<'src>(
                 match consume_matcher_rule(&mut iter, " in rule rule")
                     .try_into()
                 {
-                    Ok(matcher) => matcher_stack.push(matcher),
+                    Ok(matcher) => stack.push(matcher),
                     Err(found) => errors.extend(found),
                 }
                 // Value or function next — let this loop take care of it.
             }
             CNode::Rule(Rule::Set, Push) => {
-                match consume_set_contents(&mut iter) {
-                    Ok(setting) => {
-                        rules.add(ConfigRule {
-                            matcher: matcher_stack.clone(),
-                            action: Action::Setting(setting),
-                        })?;
-                    }
-                    Err(found) => errors.extend(found),
+                if let Err(found) =
+                    consume_set_contents(&mut iter).and_then(|(name, value)| {
+                        stack.settings_mut().apply(&name, value)
+                    })
+                {
+                    errors.extend(found);
                 }
             }
             CNode::Rule(Rule::Value, Push) => {
                 match consume_value_contents(&mut iter) {
                     Ok(value) => {
                         rules.add(ConfigRule {
-                            matcher: matcher_stack.clone(),
-                            action: Action::Value(value),
+                            matcher: stack.matcher_stack(),
+                            settings: stack.settings_cloned(),
+                            action: value,
                         })?;
                     }
                     Err(found) => errors.extend(found),
@@ -177,7 +177,7 @@ pub fn process_cst<'src>(
 /// Consume contents of a set rule.
 fn consume_set_contents<'src>(
     iter: &mut CNodeIter<'_, 'src>,
-) -> ParseResult<'src, Setting<'src>> {
+) -> ParseResult<'src, (Identifier<'src>, Value<'src>)> {
     let variable = consume_identifier(iter, " for set variable");
     expect_token(iter, TokenType::Equal, " in set rule");
 
@@ -196,12 +196,7 @@ fn consume_set_contents<'src>(
 
     expect_rule(iter, Rule::Set, RuleSide::Pop, " after set push rule");
 
-    // FIXME wrong span! Use span for whole setting.
-    result.and_then(|value| {
-        (variable.clone(), value)
-            .try_into()
-            .map_err(|error: ParseError| error.spanned_s(variable.0))
-    })
+    result.map(|value| (variable, value))
 }
 
 /// Consume contents of a function rule.
