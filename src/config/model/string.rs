@@ -95,7 +95,7 @@ impl<'src> ParsedString<'src> {
         let mut out = String::new();
         let mut variables = TinyVec::default();
         let mut offset: isize = 0;
-        let mut end_copied = 0;
+        let mut next_index_to_copy = 0;
         let mut errors = Vec::new();
 
         assert!(src.len() < isize::MAX as usize, "string too long");
@@ -138,27 +138,27 @@ impl<'src> ParsedString<'src> {
                     | CarriageReturnEscape | TabEscape),
                 ) => {
                     offset -= 1;
-                    if end_copied == 0 {
+                    if next_index_to_copy == 0 {
                         out.reserve_exact(src.len() - 1);
                     }
-                    out.push_str(&src[end_copied..span.start]);
+                    out.push_str(&src[next_index_to_copy..span.start]);
 
                     match escape {
                         LiteralEscape => {
                             // Copy the escaped byte next time.
-                            end_copied = span.end;
+                            next_index_to_copy = span.start + 1;
                         }
                         NewlineEscape => {
                             out.push('\n');
-                            end_copied = span.end + 1;
+                            next_index_to_copy = span.end;
                         }
                         CarriageReturnEscape => {
                             out.push('\r');
-                            end_copied = span.end + 1;
+                            next_index_to_copy = span.end;
                         }
                         TabEscape => {
                             out.push('\t');
-                            end_copied = span.end + 1;
+                            next_index_to_copy = span.end;
                         }
                         _ => unreachable!("nested matches"),
                     }
@@ -171,10 +171,10 @@ impl<'src> ParsedString<'src> {
         }
 
         if errors.is_empty() {
-            let unescaped = if end_copied == 0 {
+            let unescaped = if next_index_to_copy == 0 {
                 Cow::Borrowed(src)
             } else {
-                out.push_str(&src[end_copied..]);
+                out.push_str(&src[next_index_to_copy..]);
                 Cow::Owned(out)
             };
 
@@ -382,7 +382,30 @@ const fn add(a: usize, b: isize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use assert2::check;
+    use assert2::{check, let_assert};
+
+    /// Create a [`ParsedString`] easily.
+    fn parse_str(s: &str) -> ParseResult<'_, ParsedString<'_>> {
+        ParsedString::from_string_content(s, StringType::QuotedDouble)
+    }
+
+    #[test_log::test]
+    fn parse_string_literal_escape() {
+        let_assert!(Ok(s) = parse_str(r"\z"));
+        check!(s.unescaped == "z");
+
+        let_assert!(Ok(s) = parse_str(r"a\zb"));
+        check!(s.unescaped == "azb");
+    }
+
+    #[test_log::test]
+    fn parse_string_newline_escape() {
+        let_assert!(Ok(s) = parse_str(r"\n"));
+        check!(s.unescaped == "\n");
+
+        let_assert!(Ok(s) = parse_str(r"a\nb"));
+        check!(s.unescaped == "a\nb");
+    }
 
     #[test_log::test]
     fn escape_quote_simple() {
