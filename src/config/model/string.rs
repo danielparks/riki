@@ -38,6 +38,48 @@ impl<'src> ParsedString<'src> {
         Ok(PathBuf::from(self.content()))
     }
 
+    /// Does this start with a variable?
+    #[must_use]
+    pub fn starts_with_variable(&self) -> bool {
+        self.variables
+            .first()
+            .is_some_and(|var| var.range.start == 0)
+    }
+
+    /// Does this end with a variable?
+    #[must_use]
+    pub fn ends_with_variable(&self) -> bool {
+        self.variables
+            .last()
+            .is_some_and(|var| var.range.end >= self.unescaped.len())
+    }
+
+    /// Does this start with `c`?
+    ///
+    /// Returns `None` if this starts with a variable, and thus the final start
+    /// is unknown.
+    #[must_use]
+    pub fn starts_with(&self, c: char) -> Option<bool> {
+        if self.starts_with_variable() {
+            None
+        } else {
+            Some(self.unescaped.starts_with(c))
+        }
+    }
+
+    /// Does this end with `c`?
+    ///
+    /// Returns `None` if this ends with a variable, and thus the final ending
+    /// is unknown.
+    #[must_use]
+    pub fn ends_with(&self, c: char) -> Option<bool> {
+        if self.ends_with_variable() {
+            None
+        } else {
+            Some(self.unescaped.ends_with(c))
+        }
+    }
+
     /// Split on interpolated variables
     ///
     /// The iterator yields `(&'src str, Option<&'_ Interpolation<'src>>)`.
@@ -405,6 +447,124 @@ mod tests {
 
         let_assert!(Ok(s) = parse_str(r"a\nb"));
         check!(s.unescaped == "a\nb");
+    }
+
+    #[test_log::test]
+    fn parse_string_just_var_no_braces() {
+        let_assert!(Ok(s) = parse_str("$path"));
+        check!(s.starts_with_variable());
+        check!(s.ends_with_variable());
+        check!(s.starts_with('/') == None);
+        check!(s.ends_with('/') == None);
+    }
+
+    #[test_log::test]
+    fn parse_string_just_var_braces() {
+        let_assert!(Ok(s) = parse_str("${path}"));
+        check!(s.starts_with_variable());
+        check!(s.ends_with_variable());
+        check!(s.starts_with('/') == None);
+        check!(s.ends_with('/') == None);
+    }
+
+    #[test_log::test]
+    fn parse_string_start_var_no_braces() {
+        let_assert!(Ok(s) = parse_str("$path/foo"));
+        check!(s.starts_with_variable());
+        check!(!s.ends_with_variable());
+        check!(s.starts_with('/') == None);
+        check!(s.ends_with('/') == Some(false));
+        check!(s.ends_with('o') == Some(true));
+    }
+
+    #[test_log::test]
+    fn parse_string_start_var_braces() {
+        let_assert!(Ok(s) = parse_str("${path}bar"));
+        check!(s.starts_with_variable());
+        check!(!s.ends_with_variable());
+        check!(s.starts_with('/') == None);
+        check!(s.ends_with('/') == Some(false));
+        check!(s.ends_with('r') == Some(true));
+    }
+
+    #[test_log::test]
+    fn parse_string_start_var_no_braces_c() {
+        let_assert!(Ok(s) = parse_str("$path/"));
+        check!(s.starts_with_variable());
+        check!(!s.ends_with_variable());
+        check!(s.starts_with('/') == None);
+        check!(s.ends_with('/') == Some(true));
+        check!(s.ends_with('o') == Some(false));
+    }
+
+    #[test_log::test]
+    fn parse_string_start_var_braces_c() {
+        let_assert!(Ok(s) = parse_str("${path}/"));
+        check!(s.starts_with_variable());
+        check!(!s.ends_with_variable());
+        check!(s.starts_with('/') == None);
+        check!(s.ends_with('/') == Some(true));
+        check!(s.ends_with('o') == Some(false));
+    }
+
+    #[test_log::test]
+    fn parse_string_start_var_no_braces_escape() {
+        let_assert!(Ok(s) = parse_str(r"$path\z"));
+        check!(s.starts_with_variable());
+        check!(!s.ends_with_variable());
+        check!(s.starts_with('/') == None);
+        check!(s.ends_with('/') == Some(false));
+        check!(s.ends_with('z') == Some(true));
+    }
+
+    #[test_log::test]
+    fn parse_string_start_var_no_braces_escape2() {
+        let_assert!(Ok(s) = parse_str(r"$path\z\z"));
+        check!(s.starts_with_variable());
+        check!(!s.ends_with_variable());
+        check!(s.starts_with('/') == None);
+        check!(s.ends_with('/') == Some(false));
+        check!(s.ends_with('z') == Some(true));
+    }
+
+    #[test_log::test]
+    fn parse_string_start_var_braces_escape() {
+        let_assert!(Ok(s) = parse_str(r"${path}\z"));
+        check!(s.starts_with_variable());
+        check!(!s.ends_with_variable());
+        check!(s.starts_with('/') == None);
+        check!(s.ends_with('/') == Some(false));
+        check!(s.ends_with('z') == Some(true));
+    }
+
+    #[test_log::test]
+    fn parse_string_start_var_braces_escape2() {
+        let_assert!(Ok(s) = parse_str(r"${path}\z\z"));
+        check!(s.starts_with_variable());
+        check!(!s.ends_with_variable());
+        check!(s.starts_with('/') == None);
+        check!(s.ends_with('/') == Some(false));
+        check!(s.ends_with('z') == Some(true));
+    }
+
+    #[test_log::test]
+    fn parse_string_end_var_no_braces() {
+        let_assert!(Ok(s) = parse_str("/foo/$path"));
+        check!(!s.starts_with_variable());
+        check!(s.ends_with_variable());
+        check!(s.starts_with('/') == Some(true));
+        check!(s.starts_with('o') == Some(false));
+        check!(s.ends_with('/') == None);
+    }
+
+    #[test_log::test]
+    fn parse_string_end_var_braces() {
+        let_assert!(Ok(s) = parse_str("/foo/${path}"));
+        check!(!s.starts_with_variable());
+        check!(s.ends_with_variable());
+        check!(s.starts_with('/') == Some(true));
+        check!(s.starts_with('o') == Some(false));
+        check!(s.ends_with('/') == None);
     }
 
     #[test_log::test]
