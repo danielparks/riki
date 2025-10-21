@@ -38,6 +38,43 @@ impl<'src> ParsedString<'src> {
         Ok(PathBuf::from(self.content()))
     }
 
+    /// Append a character to the end of the string.
+    pub fn push(&mut self, c: char) {
+        self.unescaped.to_mut().push(c);
+    }
+
+    /// Append a string to the end of the string.
+    pub fn push_str(&mut self, s: &str) {
+        self.unescaped.to_mut().push_str(s);
+    }
+
+    /// Append a string to the end of the string.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the final combined string would be more than `usize::MAX`
+    /// bytes long.
+    pub fn push_string(&mut self, other: &Self) {
+        self.variables.extend(other.variables.iter().map(|var| {
+            Interpolation::<'src> {
+                variable: var.variable,
+                range: Range {
+                    start: var
+                        .range
+                        .start
+                        .checked_add(self.unescaped.len())
+                        .unwrap(),
+                    end: var
+                        .range
+                        .end
+                        .checked_add(self.unescaped.len())
+                        .unwrap(),
+                },
+            }
+        }));
+        self.unescaped.to_mut().push_str(&other.unescaped);
+    }
+
     /// Does this start with a variable?
     #[must_use]
     pub fn starts_with_variable(&self) -> bool {
@@ -332,7 +369,7 @@ pub fn escape_quoted(input: &str, quote: u8) -> Cow<'_, str> {
 /// Interpolated variable
 ///
 /// This only implements `Default` for [`TinyVec`].
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Interpolation<'src> {
     /// The name of the variable.
     variable: &'src str,
@@ -565,6 +602,54 @@ mod tests {
         check!(s.starts_with('/') == Some(true));
         check!(s.starts_with('o') == Some(false));
         check!(s.ends_with('/') == None);
+    }
+
+    #[test_log::test]
+    fn push_c() {
+        let mut s = parse_str("/foo/${path}").unwrap();
+        s.push('Z');
+        check!(s.ends_with('Z') == Some(true));
+    }
+
+    #[test_log::test]
+    fn push_string_no_vars() {
+        let mut a = parse_str("abc").unwrap();
+        let b = parse_str("def").unwrap();
+        a.push_string(&b);
+        check!(a.unescaped == "abcdef");
+        check!(a.variables.is_empty());
+    }
+
+    #[test_log::test]
+    fn push_string_both_vars() {
+        let mut a = parse_str("/foo/${path}").unwrap();
+        let b = parse_str("${path}/foo").unwrap();
+        a.push_string(&b);
+        check!(a.unescaped == "/foo/${path}${path}/foo");
+        let mut iter = a.variables.iter();
+        check!(
+            iter.next()
+                == Some(&Interpolation { variable: "path", range: 5..12 })
+        );
+        check!(
+            iter.next()
+                == Some(&Interpolation { variable: "path", range: 12..19 })
+        );
+        check!(iter.next() == None);
+    }
+
+    #[test_log::test]
+    fn push_string_b_var() {
+        let mut a = parse_str("/foo/").unwrap();
+        let b = parse_str("${path}/foo").unwrap();
+        a.push_string(&b);
+        check!(a.unescaped == "/foo/${path}/foo");
+        let mut iter = a.variables.iter();
+        check!(
+            iter.next()
+                == Some(&Interpolation { variable: "path", range: 5..12 })
+        );
+        check!(iter.next() == None);
     }
 
     #[test_log::test]
