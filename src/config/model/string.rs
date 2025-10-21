@@ -11,7 +11,7 @@ use std::slice;
 use tinyvec::{ArrayVec, TinyVec};
 
 /// A string that’s been parsed to expand escapes and for easy interpolation
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ParsedString<'src> {
     /// The unescaped contents of the string.
     unescaped: Cow<'src, str>,
@@ -21,6 +21,16 @@ pub struct ParsedString<'src> {
 }
 
 impl<'src> ParsedString<'src> {
+    /// Get span in the source, if available.
+    #[must_use]
+    pub const fn span(&self) -> Option<&'src str> {
+        if let Cow::Borrowed(src) = self.unescaped {
+            Some(src)
+        } else {
+            None
+        }
+    }
+
     /// Return the content of this string
     #[must_use]
     pub fn content(&self) -> String {
@@ -261,6 +271,26 @@ impl<'src> ParsedString<'src> {
         } else {
             Err(errors)
         }
+    }
+}
+
+impl<'src> From<&'src str> for ParsedString<'src> {
+    fn from(src: &'src str) -> Self {
+        Self { unescaped: Cow::Borrowed(src), variables: empty_tinyvec() }
+    }
+}
+
+impl From<String> for ParsedString<'_> {
+    fn from(src: String) -> Self {
+        Self { unescaped: Cow::Owned(src), variables: empty_tinyvec() }
+    }
+}
+
+#[expect(clippy::fallible_impl_from, reason = "wip")]
+impl From<PathBuf> for ParsedString<'_> {
+    fn from(value: PathBuf) -> Self {
+        // FIXME this should support non-UTF-8 rather than panicking.
+        value.to_str().unwrap().to_owned().into()
     }
 }
 

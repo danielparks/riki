@@ -29,6 +29,10 @@ pub enum ParseError<'src> {
     #[error("invalid matchers: {0}")]
     BuildingGlobSet(globset::Error),
 
+    /// Path cannot start with variable
+    #[error("path cannot start with variable; try prepending \"/\" or \"./\"")]
+    PathStartsWithVariable,
+
     /// Setting with an invalid function value.
     #[error("setting {0:?} does not accept a function result as a value")]
     SettingDoesNotAcceptFunction(&'src str),

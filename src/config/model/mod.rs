@@ -101,7 +101,7 @@ pub struct ConfigRule<'src> {
     pub matcher: MatcherStack<'src>,
 
     /// Settings from configuration, e.g. the root directory.
-    pub settings: ConfigSettings,
+    pub settings: ConfigSettings<'src>,
 
     /// Action to take in response to a request.
     pub action: Value<'src>,
@@ -119,33 +119,33 @@ impl ConfigRule<'_> {
 ///
 /// For example, `root = /srv`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ConfigSettings {
+pub struct ConfigSettings<'src> {
     /// The root directory to search relative to.
-    pub root: PathBuf,
+    pub root: PathValue<'src>,
 
     /// Template directory.
-    pub templates: PathBuf,
+    pub templates: PathValue<'src>,
 }
 
-impl ConfigSettings {
+impl<'src> ConfigSettings<'src> {
     /// Apply a setting.
     ///
     /// # Errors
     ///
-    /// Returns [`ParseError`]s if there are problems interpolating variables or
-    /// if `name` or `value` are invalid.
-    pub fn apply<'src>(
+    /// Returns [`ParseError`]s if there are problems joining paths or if `name`
+    /// or `value` are invalid.
+    pub fn apply(
         &mut self,
         name: &Identifier<'src>,
         value: Value<'src>,
     ) -> Result<(), SpannedErrors<'src>> {
         match (name.0, value) {
             ("root", Value::Literal(value)) => {
-                self.root = self.root.join(value.as_pathbuf()?);
+                self.root.push(&value.try_into()?);
                 Ok(())
             }
             ("templates", Value::Literal(value)) => {
-                self.templates = self.root.join(value.as_pathbuf()?);
+                self.templates = self.root.join(&value.try_into()?);
                 Ok(())
             }
             ("root" | "templates", Value::Function(_)) => {
@@ -162,23 +162,110 @@ impl ConfigSettings {
     /// Generate a canonical version of these settings.
     #[must_use]
     pub fn canonical(&self, matcher: &str) -> Vec<String> {
-        // FIXME canonical string output
         vec![
-            format!(r#"{matcher} root = "{}""#, self.root.display()),
-            format!(r#"{matcher} templates = "{}""#, self.templates.display()),
+            format!(r"{matcher} root = {}", self.root.canonical()),
+            format!(r"{matcher} templates = {}", self.templates.canonical()),
         ]
     }
 }
 
-impl Default for ConfigSettings {
+impl Default for ConfigSettings<'_> {
     /// Default settings.
     ///
     ///   * `root`: `.`
     ///   * `templates`: `./templates`
     fn default() -> Self {
-        let root = env::current_dir().unwrap_or_default();
-        let templates = root.join("templates");
+        let root: PathValue<'_> = env::current_dir().unwrap_or_default().into();
+        let templates = root.join(&"templates".into());
         Self { root, templates }
+    }
+}
+
+/// A value that will evaluate to a path.
+///
+/// This allows things like joining `PathValue`s together.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct PathValue<'src>(ParsedString<'src>);
+
+impl PathValue<'_> {
+    /// Canonical version of path.
+    #[must_use]
+    #[inline]
+    pub fn canonical(&self) -> String {
+        self.0.canonical()
+    }
+
+    /// Join another path onto this one.
+    pub fn push(&mut self, other: &Self) {
+        if other.starts_with('/') {
+            self.0 = other.0.clone();
+        } else if self.ends_with('/') == Some(true) {
+            self.0.push_string(&other.0);
+        } else {
+            // This could end with a variable; a double / doesn’t matter.
+            self.0.push('/');
+            self.0.push_string(&other.0);
+        }
+    }
+
+    /// Join two paths together.
+    #[must_use]
+    pub fn join(&self, other: &Self) -> Self {
+        // If other is absolute, and we moved other, this could just return it.
+        let mut new = self.clone();
+        new.push(other);
+        new
+    }
+
+    /// Does this start with `c`?
+    #[must_use]
+    #[inline]
+    fn starts_with(&self, c: char) -> bool {
+        self.0
+            .starts_with(c)
+            .expect("PathValue cannot start with variable")
+    }
+
+    /// Does this end with `c`?
+    ///
+    /// Returns `None` if this ends with a variable, and thus the final ending
+    /// is unknown.
+    #[must_use]
+    #[inline]
+    fn ends_with(&self, c: char) -> Option<bool> {
+        self.0.ends_with(c)
+    }
+}
+
+impl<'src> TryFrom<ParsedString<'src>> for PathValue<'src> {
+    type Error = SpannedErrors<'src>;
+
+    fn try_from(value: ParsedString<'src>) -> Result<Self, Self::Error> {
+        if value.starts_with_variable() {
+            if let Some(src) = value.span() {
+                Err(ParseError::PathStartsWithVariable.spanned_s(src))
+            } else {
+                Err(ParseError::PathStartsWithVariable
+                    .with_spans(Vec::new())
+                    .into())
+            }
+        } else {
+            Ok(Self(value))
+        }
+    }
+}
+
+impl<'src> From<&'src str> for PathValue<'src> {
+    fn from(value: &'src str) -> Self {
+        // No variables
+        Self(value.into())
+    }
+}
+
+impl From<PathBuf> for PathValue<'_> {
+    fn from(value: PathBuf) -> Self {
+        // No variables
+        Self(value.into())
     }
 }
 
@@ -188,10 +275,10 @@ impl Default for ConfigSettings {
 #[derive(Clone, Debug, Default)]
 pub struct ContextStack<'src> {
     /// The stack of matchers and settings.
-    stack: Vec<(Matcher<'src>, ConfigSettings)>,
+    stack: Vec<(Matcher<'src>, ConfigSettings<'src>)>,
 
     /// Settings for the root context.
-    root_settings: ConfigSettings,
+    root_settings: ConfigSettings<'src>,
 }
 
 impl<'src> ContextStack<'src> {
@@ -203,7 +290,7 @@ impl<'src> ContextStack<'src> {
 
     /// Get a clone of the current settings.
     #[must_use]
-    pub fn settings_cloned(&self) -> ConfigSettings {
+    pub fn settings_cloned(&self) -> ConfigSettings<'src> {
         self.stack
             .last()
             .map(|(_, settings)| settings.clone())
@@ -211,7 +298,7 @@ impl<'src> ContextStack<'src> {
     }
 
     /// Get a mutable reference to the current settings.
-    pub fn settings_mut(&mut self) -> &mut ConfigSettings {
+    pub fn settings_mut(&mut self) -> &mut ConfigSettings<'src> {
         self.stack
             .last_mut()
             .map(|(_, settings)| settings)
