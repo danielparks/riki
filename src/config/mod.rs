@@ -89,28 +89,6 @@ pub fn is_valid_variable(name: &str) -> bool {
     matches!(name, "path")
 }
 
-/// Validate `FunctionCall`
-///
-/// # Errors
-///
-/// Returns [`ParseError`] for invalid function calls.
-pub fn validate_function_call(
-    name: &str,
-    parameters: u8,
-) -> Result<(), ParseError<'_>> {
-    match (name, parameters) {
-        ("error" | "render" | "markdown" | "literal", 1) => Ok(()),
-        ("error" | "render" | "markdown" | "literal", actual) => {
-            Err(ParseError::WrongFunctionParameterCount {
-                name,
-                expected: 1,
-                actual,
-            })
-        }
-        (other, _) => Err(ParseError::UnknownFunctionName(other)),
-    }
-}
-
 /// Validate `Setting`
 ///
 /// # Errors

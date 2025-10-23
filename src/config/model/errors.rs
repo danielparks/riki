@@ -29,10 +29,6 @@ pub enum ParseError<'src> {
     #[error("invalid matchers: {0}")]
     BuildingGlobSet(globset::Error),
 
-    /// Found a function call with more than 255 parameters.
-    #[error("invalid function call (more than 255 parameters)")]
-    TooManyParameters,
-
     /// Setting with an invalid function value.
     #[error("setting {0:?} does not accept a function result as a value")]
     SettingDoesNotAcceptFunction(&'src str),
@@ -71,9 +67,9 @@ pub enum ParseError<'src> {
         /// Name of the function
         name: &'src str,
         /// Expected number of parameters
-        expected: u8,
+        expected: usize,
         /// Actual number of parameters
-        actual: u8,
+        actual: usize,
     },
 }
 
