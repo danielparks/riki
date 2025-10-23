@@ -75,7 +75,7 @@ fn last_modified_format() {
 fn regex_assert(re: &str, input: &str) {
     check!(
         Regex::new(re).unwrap().is_match(input),
-        "Regular expresion:\n  {re:?}\ndoes not match:\n  {input:?}",
+        "Regular expression:\n  {re:?}\ndoes not match:\n  {input:?}",
     );
 }
 

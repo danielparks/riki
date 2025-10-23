@@ -41,10 +41,10 @@ fn override_template() {
 #[test]
 fn embedded_template() {
     let tpls = crate::templates();
-    let mut embeded_names: Vec<_> = tpls.get_templates().keys().collect();
-    embeded_names.sort();
+    let mut embedded_names: Vec<_> = tpls.get_templates().keys().collect();
+    embedded_names.sort();
     check!(
-        embeded_names
+        embedded_names
             == vec![
                 "default",
                 "error403",
