@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use std::slice;
 
 /// An entire configuration
+#[derive(Clone, Debug)]
 pub struct Configuration<'src> {
     /// Matcher to determine which rules to apply.
     globset: GlobSet,
@@ -42,6 +43,7 @@ impl<'src> Configuration<'src> {
 }
 
 /// Build a configuration from rules
+#[derive(Clone, Debug)]
 pub struct ConfigurationBuilder<'src> {
     /// Builder for the final `GlobSet`.
     globset_builder: GlobSetBuilder,
