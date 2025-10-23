@@ -425,14 +425,19 @@ impl<'src> TryFrom<(Identifier<'src>, Parameters<'src>)>
     fn try_from(
         (name, parameters): (Identifier<'src>, Parameters<'src>),
     ) -> Result<Self, Self::Error> {
-        super::validate_function_call(
-            name.0,
-            parameters
-                .len()
-                .try_into()
-                .map_err(|_| ParseError::TooManyParameters)?,
-        )?;
-        Ok(Self { name, parameters })
+        match (name.0, parameters.len()) {
+            ("error" | "render" | "markdown" | "literal", 1) => {
+                Ok(Self { name, parameters })
+            }
+            ("error" | "render" | "markdown" | "literal", actual) => {
+                Err(ParseError::WrongFunctionParameterCount {
+                    name: name.0,
+                    expected: 1,
+                    actual,
+                })
+            }
+            (other, _) => Err(ParseError::UnknownFunctionName(other)),
+        }
     }
 }
 
