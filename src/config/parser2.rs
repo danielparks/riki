@@ -3,7 +3,7 @@
 use super::lexer::{Diagnostic, TokenType};
 use super::model::{
     ConfigRule, Configuration, ConfigurationBuilder, ContextStack, Identifier,
-    Parameters, ParseError, ParseResult, StringToken, Value,
+    Parameters, ParseResult, StringToken, Value, actions,
 };
 use super::parser::{CNode, CNodeIter, Cst, NodeRef, Parser, Rule, RuleSide};
 use std::fmt;
@@ -206,6 +206,7 @@ fn consume_function_contents<'src>(
     // Get identifier (name of function)
     let identifier = consume_identifier(iter, " for function identifier");
     let mut parameters = Parameters::new();
+    let mut rparen = None;
     let mut errors = Vec::new();
     // Get '('
     expect_token(iter, TokenType::LParen, " in function rule");
@@ -228,20 +229,22 @@ fn consume_function_contents<'src>(
                     Err(found) => errors.extend(found),
                 }
             }
-            // Ignore tokens — we rely on the parser grammar to make sure these
-            // are in the correct places.
-            CNode::Token(TokenType::Comma | TokenType::RParen, _) => {}
+            // Ignore comma tokens — we rely on the parser grammar to make sure
+            // these are in the correct places.
+            CNode::Token(TokenType::Comma, _) => {}
+            // Capture span for ')' just in case.
+            CNode::Token(TokenType::RParen, src) => {
+                rparen = Some(src);
+            }
             // Find the end of the function. We always consume both in a pair
             // so we can never get one that corresponds to a different function.
             CNode::Rule(Rule::Function, RuleSide::Pop) => {
                 return if errors.is_empty() {
-                    Ok(Value::Function(
-                        (identifier.clone(), parameters).try_into().map_err(
-                            // FIXME wrong span! Generate a new span from
-                            // identifier to the last RParen
-                            |error: ParseError| error.spanned_s(identifier.0),
-                        )?,
-                    ))
+                    Ok(Value::Function(actions::Function::from_parse(
+                        identifier.0,
+                        parameters,
+                        rparen, // FIXME should be entire span
+                    )?))
                 } else {
                     Err(errors)
                 };

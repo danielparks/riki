@@ -21,6 +21,10 @@ pub enum ParseError<'src> {
     #[error("expected a glob-compatible bare string, got {0:?}")]
     ExpectedGlobToken(TokenType),
 
+    /// Found [`super::Value::Function`] instead of [`super::Value::Literal`].
+    #[error("expected a string literal, got a function call")]
+    ExpectedLiteralNotFunction,
+
     /// Error creating a glob
     #[error("invalid matcher: {0}")]
     BuildingGlob(globset::Error),

@@ -1,5 +1,6 @@
 //! The types that represent the actual configuration
 
+pub mod actions;
 mod errors;
 mod glob;
 mod string;
@@ -271,6 +272,12 @@ impl From<PathBuf> for PathValue<'_> {
     }
 }
 
+impl<'src> From<PathValue<'src>> for ParsedString<'src> {
+    fn from(path: PathValue<'src>) -> Self {
+        path.0
+    }
+}
+
 /// The context stack for the parser.
 ///
 /// Holds current settings and matcher for the extent of a new context.
@@ -517,10 +524,13 @@ impl<'src> TryFrom<StringToken<'src>> for Matcher<'src> {
 }
 
 /// A value for a configuration setting or to return as a response.
+///
+/// This is a temporary object that will be used to generate an
+/// [`actions::Action`].
 #[derive(Clone, Debug)]
 pub enum Value<'src> {
     /// Call a function.
-    Function(FunctionCall<'src>),
+    Function(actions::Function<'src>),
 
     /// A string of some kind.
     Literal(ParsedString<'src>),
@@ -542,56 +552,6 @@ impl<'src> TryFrom<StringToken<'src>> for Value<'src> {
 
     fn try_from(token: StringToken<'src>) -> Result<Self, Self::Error> {
         Ok(Self::Literal(token.try_into()?))
-    }
-}
-
-/// A function call
-#[derive(Clone, Debug)]
-pub struct FunctionCall<'src> {
-    /// The function name
-    name: Identifier<'src>,
-
-    /// The parameters
-    parameters: Parameters<'src>,
-}
-
-impl FunctionCall<'_> {
-    /// Return the canonical representation of this function call
-    #[must_use]
-    pub fn canonical(&self) -> String {
-        format!(
-            "{}({})",
-            self.name.canonical(),
-            self.parameters
-                .iter()
-                .map(Value::canonical)
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    }
-}
-
-impl<'src> TryFrom<(Identifier<'src>, Parameters<'src>)>
-    for FunctionCall<'src>
-{
-    type Error = ParseError<'src>;
-
-    fn try_from(
-        (name, parameters): (Identifier<'src>, Parameters<'src>),
-    ) -> Result<Self, Self::Error> {
-        match (name.0, parameters.len()) {
-            ("error" | "render" | "markdown" | "literal", 1) => {
-                Ok(Self { name, parameters })
-            }
-            ("error" | "render" | "markdown" | "literal", actual) => {
-                Err(ParseError::WrongFunctionParameterCount {
-                    name: name.0,
-                    expected: 1,
-                    actual,
-                })
-            }
-            (other, _) => Err(ParseError::UnknownFunctionName(other)),
-        }
     }
 }
 

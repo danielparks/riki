@@ -1,6 +1,8 @@
 //! Handle strings of various types in the configuration
 
-use super::{ParseError, ParseResult, SpannedErrors, StringToken, StringType};
+use super::{
+    ParseError, ParseResult, SpannedErrors, StringToken, StringType, Value,
+};
 use crate::actions::{Variable, VariableMap};
 use crate::config::bitfilter::BitFilter;
 use logos::Logos;
@@ -314,6 +316,20 @@ impl<'src> TryFrom<StringToken<'src>> for ParsedString<'src> {
                     string_type,
                 )
             }
+        }
+    }
+}
+
+impl<'src> TryFrom<Value<'src>> for ParsedString<'src> {
+    type Error = SpannedErrors<'src>;
+
+    fn try_from(value: Value<'src>) -> Result<Self, Self::Error> {
+        match value {
+            // FIXME should have a span
+            Value::Function(_) => Err(vec![
+                ParseError::ExpectedLiteralNotFunction.with_spans(Vec::new()),
+            ]),
+            Value::Literal(string) => Ok(string),
         }
     }
 }
