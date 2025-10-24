@@ -1,9 +1,8 @@
 //! Perform actions defined in configuration file
 
-use super::{
-    Parameters, ParseError, ParseResult, ParsedString, PathValue, Span,
-    SpannedErrors, Value,
-};
+use super::errors::{ParseError, ParseResult, SpannedErrors};
+use super::model::{ParsedString, PathValue};
+use super::parser2::{Parameters, Span, Value};
 
 /// An action
 #[derive(Clone, Debug)]

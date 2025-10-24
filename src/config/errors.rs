@@ -1,7 +1,7 @@
 //! Errors related to the second pass parsing
 
-use super::StringType;
-use crate::config::lexer::{self, Diagnostic, TokenType};
+use super::lexer::{Diagnostic, TokenType};
+use super::parser2::{Span, StringType};
 use codespan_reporting::diagnostic::Label;
 
 /// Errors that could be produced from parsing code.
@@ -21,7 +21,8 @@ pub enum ParseError<'src> {
     #[error("expected a glob-compatible bare string, got {0:?}")]
     ExpectedGlobToken(TokenType),
 
-    /// Found [`super::Value::Function`] instead of [`super::Value::Literal`].
+    /// Found [a function][super::parser2::Value::Function] instead of [a
+    /// literal][super::parser2::Value::Literal].
     #[error("expected a string literal, got a function call")]
     ExpectedLiteralNotFunction,
 
@@ -169,98 +170,5 @@ impl<'src> SpannedError<'src> {
 impl<'src> From<SpannedError<'src>> for SpannedErrors<'src> {
     fn from(val: SpannedError<'src>) -> Self {
         val.plural()
-    }
-}
-
-/// A span of the source
-#[derive(Clone, Debug)]
-pub enum Span<'src> {
-    /// A single slice of the source string.
-    Slice(&'src str),
-    /// From the beginning of the `start` slice to end of the `end` slice.
-    SliceRange {
-        /// The slice that starts the span.
-        start: &'src str,
-        /// The slice that ends the span (inclusive).
-        end: &'src str,
-    },
-}
-
-impl<'src> Span<'src> {
-    /// Convert a [`Span`] into a [`lexer::Span`].
-    ///
-    /// # Panics
-    ///
-    /// Panics if any of the slices are not actually within `source`.
-    #[must_use]
-    pub fn to_lexer_span(&self, source: &'src str) -> lexer::Span {
-        let source_start_ptr: usize = source.as_ptr() as usize;
-
-        let start_ptr: usize = self.start_slice().as_ptr() as usize;
-        let start_index = start_ptr
-            .checked_sub(source_start_ptr)
-            .expect("start slice not in source");
-        assert!(start_index < source.len(), "start slice not in source");
-
-        let end_ptr: usize = (self.end_slice().as_ptr() as usize)
-            .checked_add(self.end_slice().len())
-            .expect("end slice blows out memory");
-        let end_index = end_ptr
-            .checked_sub(source_start_ptr)
-            .expect("end slice not in source");
-        assert!(end_index <= source.len(), "end slice not in source");
-        assert!(start_index <= end_index, "start slice not before end slice");
-
-        start_index..end_index
-    }
-
-    /// Get a slice that start the span.
-    #[must_use]
-    #[inline]
-    const fn start_slice(&self) -> &'src str {
-        match self {
-            Self::Slice(slice) => slice,
-            Self::SliceRange { start, .. } => start,
-        }
-    }
-
-    /// Get a slice that ends the span.
-    #[must_use]
-    #[inline]
-    const fn end_slice(&self) -> &'src str {
-        match self {
-            Self::Slice(slice) => slice,
-            Self::SliceRange { end, .. } => end,
-        }
-    }
-}
-
-impl<'src> From<&'src str> for Span<'src> {
-    #[inline]
-    fn from(slice: &'src str) -> Self {
-        Self::Slice(slice)
-    }
-}
-
-impl<'src, I> From<(&'src str, I)> for Span<'src>
-where
-    I: Into<Self>,
-{
-    #[inline]
-    fn from((start, end): (&'src str, I)) -> Self {
-        Self::SliceRange { start, end: end.into().end_slice() }
-    }
-}
-
-impl<'src, I> From<(&'src str, Option<I>)> for Span<'src>
-where
-    I: Into<Self>,
-{
-    #[inline]
-    fn from((start, end): (&'src str, Option<I>)) -> Self {
-        match end {
-            Some(end) => (start, end).into(),
-            None => start.into(),
-        }
     }
 }

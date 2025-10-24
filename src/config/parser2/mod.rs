@@ -1,10 +1,12 @@
 //! The parser that transforms the [`Cst`] into a [`Configuration`].
 
+mod model;
+pub use model::*;
+
+use super::actions;
+use super::errors::ParseResult;
 use super::lexer::{Diagnostic, TokenType};
-use super::model::{
-    ConfigRule, Configuration, ConfigurationBuilder, ContextStack, Identifier,
-    Parameters, ParseResult, StringToken, Value, actions,
-};
+use super::model::{ConfigRule, Configuration, ConfigurationBuilder};
 use super::parser::{CNode, CNodeIter, Cst, NodeRef, Parser, Rule, RuleSide};
 use std::fmt;
 
@@ -33,7 +35,7 @@ pub fn parse(source: &str) -> Result<Configuration<'_>, Vec<Diagnostic>> {
 /// # Errors
 ///
 /// Returns any errors encountered while processing the CST. See
-/// [`super::model::SpannedError::into_diagnostic()`].
+/// [`SpannedError::into_diagnostic()`][super::errors::SpannedError::into_diagnostic()].
 ///
 /// # Panics
 ///

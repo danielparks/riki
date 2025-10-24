@@ -3,7 +3,7 @@
 //! Used to quickly determine if characters in a string are an valid.
 //!
 //! ```
-//! use riki::config::bitfilter::BitFilter;
+//! use riki::misc::bitfilter::BitFilter;
 //!
 //! const UPPER: BitFilter = BitFilter::from_str("A-Z");
 //!
@@ -26,7 +26,7 @@ impl BitFilter {
     /// Create a `BitFilter` from a range string.
     ///
     /// ```
-    /// use riki::config::bitfilter::{BitFilter, Error};
+    /// use riki::misc::bitfilter::{BitFilter, Error};
     ///
     /// assert_eq!(
     ///     Ok(BitFilter(1 << b'A')),
@@ -99,7 +99,7 @@ impl BitFilter {
     /// Create a `BitFilter` from a range string, or panic.
     ///
     /// ```
-    /// use riki::config::bitfilter::BitFilter;
+    /// use riki::misc::bitfilter::BitFilter;
     ///
     /// const UPPER: BitFilter = BitFilter::from_bytes(b"A-Z");
     ///
@@ -125,7 +125,7 @@ impl BitFilter {
     /// Create a `BitFilter` from a range string.
     ///
     /// ```
-    /// use riki::config::bitfilter::{BitFilter, Error};
+    /// use riki::misc::bitfilter::{BitFilter, Error};
     ///
     /// assert_eq!(
     ///     Ok(BitFilter(1 << b'A')),
@@ -152,7 +152,7 @@ impl BitFilter {
     /// Create a `BitFilter` from a range string, or panic.
     ///
     /// ```
-    /// use riki::config::bitfilter::BitFilter;
+    /// use riki::misc::bitfilter::BitFilter;
     ///
     /// const UPPER: BitFilter = BitFilter::from_str("A-Z");
     ///
@@ -175,7 +175,7 @@ impl BitFilter {
     /// Create a `BitFilter` from a range string, or panic.
     ///
     /// ```
-    /// use riki::config::bitfilter::BitFilter;
+    /// use riki::misc::bitfilter::BitFilter;
     ///
     /// const UPPER: BitFilter = BitFilter::from_bracketed_str("[A-Z]");
     ///
@@ -208,7 +208,7 @@ impl BitFilter {
     /// [`Self::match_or_non_ascii()`].
     ///
     /// ```
-    /// use riki::config::bitfilter::BitFilter;
+    /// use riki::misc::bitfilter::BitFilter;
     ///
     /// let upper = BitFilter::from_bytes(b"A-Z");
     ///
@@ -233,7 +233,7 @@ impl BitFilter {
     /// Add a matching byte.
     ///
     /// ```
-    /// use riki::config::bitfilter::BitFilter;
+    /// use riki::misc::bitfilter::BitFilter;
     ///
     /// let mut filter = BitFilter::from_bytes(b"0-9");
     ///
@@ -261,7 +261,7 @@ impl BitFilter {
     /// match if a byte matches the filter
     ///
     /// ```
-    /// use riki::config::bitfilter::BitFilter;
+    /// use riki::misc::bitfilter::BitFilter;
     ///
     /// let UPPER = BitFilter::from_bytes(b"A-Z");
     /// assert!(UPPER.match_byte(b'N'));
@@ -278,7 +278,7 @@ impl BitFilter {
     /// match if a char matches the filter
     ///
     /// ```
-    /// use riki::config::bitfilter::BitFilter;
+    /// use riki::misc::bitfilter::BitFilter;
     ///
     /// let UPPER = BitFilter::from_bytes(b"A-Z");
     /// assert!(UPPER.match_char('N'));
@@ -295,7 +295,7 @@ impl BitFilter {
     /// match if a char matches the filter, or isn’t ASCII
     ///
     /// ```
-    /// use riki::config::bitfilter::BitFilter;
+    /// use riki::misc::bitfilter::BitFilter;
     ///
     /// let UPPER = BitFilter::from_bytes(b"A-Z");
     /// assert!(UPPER.match_or_non_ascii('N'));
