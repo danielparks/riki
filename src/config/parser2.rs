@@ -243,7 +243,7 @@ fn consume_function_contents<'src>(
                     Ok(Value::Function(actions::Function::from_parse(
                         identifier.0,
                         parameters,
-                        rparen, // FIXME should be entire span
+                        rparen,
                     )?))
                 } else {
                     Err(errors)

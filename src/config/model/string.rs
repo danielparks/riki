@@ -325,10 +325,10 @@ impl<'src> TryFrom<Value<'src>> for ParsedString<'src> {
 
     fn try_from(value: Value<'src>) -> Result<Self, Self::Error> {
         match value {
-            // FIXME should have a span
-            Value::Function(_) => Err(vec![
-                ParseError::ExpectedLiteralNotFunction.with_spans(Vec::new()),
-            ]),
+            Value::Function(function) => {
+                Err(ParseError::ExpectedLiteralNotFunction
+                    .spanned_s(function.span().clone()))
+            }
             Value::Literal(string) => Ok(string),
         }
     }

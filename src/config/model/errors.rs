@@ -1,7 +1,7 @@
 //! Errors related to the second pass parsing
 
 use super::StringType;
-use crate::config::lexer::{Diagnostic, Span, TokenType};
+use crate::config::lexer::{self, Diagnostic, TokenType};
 use codespan_reporting::diagnostic::Label;
 
 /// Errors that could be produced from parsing code.
@@ -82,33 +82,55 @@ pub enum ParseError<'src> {
 }
 
 impl<'src> ParseError<'src> {
-    /// Add a `src` to get a [`SpannedError`]
+    /// Add a `span` to get a [`SpannedError`]
     #[must_use]
     #[inline]
-    pub fn spanned(self, src: &'src str) -> SpannedError<'src> {
-        SpannedError { srcs: vec![src], error: self }
+    pub fn spanned<S: Into<Span<'src>>>(self, span: S) -> SpannedError<'src> {
+        SpannedError { spans: vec![span.into()], error: self }
     }
 
-    /// Add `src`s to get a [`SpannedError`]
+    /// Add `spans` to get a [`SpannedError`]
     #[must_use]
     #[inline]
-    pub const fn with_spans(self, srcs: Vec<&'src str>) -> SpannedError<'src> {
-        SpannedError { srcs, error: self }
+    pub fn with_spans<S: Into<Span<'src>>>(
+        self,
+        spans: Vec<S>,
+    ) -> SpannedError<'src> {
+        SpannedError {
+            spans: spans.into_iter().map(std::convert::Into::into).collect(),
+            error: self,
+        }
     }
 
-    /// Add a `src` and convert to [`SpannedErrors`]
+    /// Get a [`SpannedError`] without spans.
     #[must_use]
     #[inline]
-    pub fn spanned_s(self, src: &'src str) -> SpannedErrors<'src> {
-        vec![self.spanned(src)]
+    pub const fn without_spans(self) -> SpannedError<'src> {
+        SpannedError { spans: Vec::new(), error: self }
+    }
+
+    /// Add a `span` and convert to [`SpannedErrors`]
+    #[must_use]
+    #[inline]
+    pub fn spanned_s<S: Into<Span<'src>>>(
+        self,
+        span: S,
+    ) -> SpannedErrors<'src> {
+        vec![self.spanned(span.into())]
     }
 }
+
+/// `Result` type for config parsing.
+pub type ParseResult<'src, T, E = SpannedErrors<'src>> = Result<T, E>;
+
+/// Possibly multiple [`SpannedError`]s.
+pub type SpannedErrors<'src> = Vec<SpannedError<'src>>;
 
 /// A [`ParseError`] along with its source.
 #[derive(Clone, Debug)]
 pub struct SpannedError<'src> {
-    /// Slices of the full source indicating the source of the error.
-    pub srcs: Vec<&'src str>,
+    /// Spans of the full source indicating the source of the error.
+    pub spans: Vec<Span<'src>>,
 
     /// The error.
     pub error: ParseError<'src>,
@@ -117,16 +139,16 @@ pub struct SpannedError<'src> {
 impl<'src> SpannedError<'src> {
     /// Convert the error into a [`Diagnostic`].
     ///
-    /// This requires the original source that entries in [`SpannedError::srcs`]
-    /// reference.
+    /// This requires the original source that entries in
+    /// [`SpannedError::spans`] reference.
     ///
     /// # Panics
     ///
-    /// See [`slice_to_span()`].
+    /// See [`Span::to_lexer_span()`].
     #[must_use]
     pub fn into_diagnostic(self, source: &str) -> Diagnostic {
         let mut diagnostic = Diagnostic::error().with_message(self.error);
-        let mut iter = self.srcs.iter().map(|src| slice_to_span(src, source));
+        let mut iter = self.spans.iter().map(|span| span.to_lexer_span(source));
         if let Some(span) = iter.next() {
             diagnostic = diagnostic.with_label(Label::primary((), span));
             for span in iter {
@@ -150,29 +172,95 @@ impl<'src> From<SpannedError<'src>> for SpannedErrors<'src> {
     }
 }
 
-/// Possibly multiple [`SpannedError`]s.
-pub type SpannedErrors<'src> = Vec<SpannedError<'src>>;
+/// A span of the source
+#[derive(Clone, Debug)]
+pub enum Span<'src> {
+    /// A single slice of the source string.
+    Slice(&'src str),
+    /// From the beginning of the `start` slice to end of the `end` slice.
+    SliceRange {
+        /// The slice that starts the span.
+        start: &'src str,
+        /// The slice that ends the span (inclusive).
+        end: &'src str,
+    },
+}
 
-/// `Result` type for config parsing.
-pub type ParseResult<'src, T, E = SpannedErrors<'src>> = Result<T, E>;
+impl<'src> Span<'src> {
+    /// Convert a [`Span`] into a [`lexer::Span`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if any of the slices are not actually within `source`.
+    #[must_use]
+    pub fn to_lexer_span(&self, source: &'src str) -> lexer::Span {
+        let source_start_ptr: usize = source.as_ptr() as usize;
 
-/// Convert a slice of the source into a [`Span`].
-///
-/// # Panics
-///
-/// Panics if `slice` is not actually within `source`.
-#[must_use]
-pub fn slice_to_span(slice: &str, source: &str) -> Span {
-    let src_start: usize = slice.as_ptr() as usize;
-    let source_start: usize = source.as_ptr() as usize;
+        let start_ptr: usize = self.start_slice().as_ptr() as usize;
+        let start_index = start_ptr
+            .checked_sub(source_start_ptr)
+            .expect("start slice not in source");
+        assert!(start_index < source.len(), "start slice not in source");
 
-    let start = src_start
-        .checked_sub(source_start)
-        .expect("slice not in source");
-    assert!(start < source.len(), "slice not in source");
+        let end_ptr: usize = (self.end_slice().as_ptr() as usize)
+            .checked_add(self.end_slice().len())
+            .expect("end slice blows out memory");
+        let end_index = end_ptr
+            .checked_sub(source_start_ptr)
+            .expect("end slice not in source");
+        assert!(end_index <= source.len(), "end slice not in source");
+        assert!(start_index <= end_index, "start slice not before end slice");
 
-    let end = start.checked_add(slice.len()).expect("slice not in source");
-    assert!(end <= source.len(), "slice not in source");
+        start_index..end_index
+    }
 
-    start..end
+    /// Get a slice that start the span.
+    #[must_use]
+    #[inline]
+    const fn start_slice(&self) -> &'src str {
+        match self {
+            Self::Slice(slice) => slice,
+            Self::SliceRange { start, .. } => start,
+        }
+    }
+
+    /// Get a slice that ends the span.
+    #[must_use]
+    #[inline]
+    const fn end_slice(&self) -> &'src str {
+        match self {
+            Self::Slice(slice) => slice,
+            Self::SliceRange { end, .. } => end,
+        }
+    }
+}
+
+impl<'src> From<&'src str> for Span<'src> {
+    #[inline]
+    fn from(slice: &'src str) -> Self {
+        Self::Slice(slice)
+    }
+}
+
+impl<'src, I> From<(&'src str, I)> for Span<'src>
+where
+    I: Into<Self>,
+{
+    #[inline]
+    fn from((start, end): (&'src str, I)) -> Self {
+        Self::SliceRange { start, end: end.into().end_slice() }
+    }
+}
+
+impl<'src, I> From<(&'src str, Option<I>)> for Span<'src>
+where
+    I: Into<Self>,
+{
+    #[inline]
+    fn from((start, end): (&'src str, Option<I>)) -> Self {
+        match end {
+            Some(end) => (start, end).into(),
+            None => start.into(),
+        }
+    }
 }

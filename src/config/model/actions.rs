@@ -1,7 +1,7 @@
 //! Perform actions defined in configuration file
 
 use super::{
-    Parameters, ParseError, ParseResult, ParsedString, PathValue,
+    Parameters, ParseError, ParseResult, ParsedString, PathValue, Span,
     SpannedErrors, Value,
 };
 
@@ -50,16 +50,16 @@ impl<'src> From<Action<'src>> for Value<'src> {
 #[derive(Clone, Debug)]
 pub enum Function<'src> {
     /// Return an error page with the passed status code
-    Error(ParsedString<'src>),
+    Error(ParsedString<'src>, Span<'src>),
 
     /// Return a literal as the body with a 200 code
-    Literal(ParsedString<'src>),
+    Literal(ParsedString<'src>, Span<'src>),
 
     /// Render Markdown
-    Markdown(Box<Action<'src>>),
+    Markdown(Box<Action<'src>>, Span<'src>),
 
     /// Render a page in a template
-    Render(Box<Action<'src>>),
+    Render(Box<Action<'src>>, Span<'src>),
 }
 
 impl<'src> Function<'src> {
@@ -71,31 +71,31 @@ impl<'src> Function<'src> {
     pub fn from_parse(
         name: &'src str,
         parameters: Parameters<'src>,
-        _rparen: Option<&'src str>,
+        rparen: Option<&'src str>,
     ) -> ParseResult<'src, Self> {
         let actual = parameters.len();
         let mut parameters = parameters.into_iter();
+        let span = (name, rparen).into();
         match (name, parameters.next(), parameters.next()) {
             ("error", Some(value), None) => {
-                Ok(Function::Error(value.try_into()?))
+                Ok(Function::Error(value.try_into()?, span))
             }
             ("literal", Some(value), None) => {
-                Ok(Self::Literal(value.try_into()?))
+                Ok(Self::Literal(value.try_into()?, span))
             }
             ("markdown", Some(value), None) => {
-                Ok(Self::Markdown(Box::new(value.try_into()?)))
+                Ok(Self::Markdown(Box::new(value.try_into()?), span))
             }
             ("render", Some(value), None) => {
-                Ok(Self::Render(Box::new(value.try_into()?)))
+                Ok(Self::Render(Box::new(value.try_into()?), span))
             }
             ("error" | "literal" | "markdown" | "render", ..) => {
-                // FIXME wrong span
                 Err(ParseError::WrongFunctionParameterCount {
                     name,
                     expected: 1,
                     actual,
                 }
-                .spanned_s(name))
+                .spanned_s(span))
             }
             (other, ..) => {
                 Err(ParseError::UnknownFunctionName(other).spanned_s(other))
@@ -122,10 +122,22 @@ impl<'src> Function<'src> {
             "{}({})",
             self.name(),
             match self {
-                Self::Error(value) | Self::Literal(value) => value.canonical(),
-                Self::Markdown(value) | Self::Render(value) =>
+                Self::Error(value, _) | Self::Literal(value, _) =>
+                    value.canonical(),
+                Self::Markdown(value, _) | Self::Render(value, _) =>
                     value.canonical(),
             },
         )
+    }
+
+    /// Get the span for the entire function call.
+    #[must_use]
+    pub const fn span(&self) -> &Span<'src> {
+        match self {
+            Self::Error(_, span)
+            | Self::Literal(_, span)
+            | Self::Markdown(_, span)
+            | Self::Render(_, span) => span,
+        }
     }
 }

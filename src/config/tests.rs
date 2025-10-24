@@ -143,13 +143,13 @@ fn bad_function() {
     check!(
         canonicalize("/ error(1, 2)")
             == err_str(
-                "found 2 parameters in call to error(); expected 1 2..7"
+                "found 2 parameters in call to error(); expected 1 2..13"
             )
     );
     check!(
         canonicalize("/ error()")
             == err_str(
-                "found 0 parameters in call to error(); expected 1 2..7"
+                "found 0 parameters in call to error(); expected 1 2..9"
             )
     );
 }
@@ -173,7 +173,7 @@ fn bad_setting() {
         canonicalize("root = error(403)")
             == err_str(
                 "setting \"root\" does not accept a function result as a value \
-                0..4"
+                0..17"
             )
     );
     check!(
