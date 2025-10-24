@@ -1,7 +1,7 @@
 //! Perform actions defined in configuration file
 
 use super::errors::{ParseError, ParseResult, SpannedErrors};
-use super::model::{ParsedString, PathValue};
+use super::model::{ParsedPath, ParsedString};
 use super::parser2::{Parameters, Span, Value};
 
 /// An action
@@ -11,7 +11,7 @@ pub enum Action<'src> {
     Function(Function<'src>),
 
     /// Literal (a path)
-    Literal(PathValue<'src>),
+    Literal(ParsedPath<'src>),
 }
 
 impl Action<'_> {

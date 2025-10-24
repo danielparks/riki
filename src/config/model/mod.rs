@@ -119,10 +119,10 @@ impl ConfigRule<'_> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfigSettings<'src> {
     /// The root directory to search relative to.
-    pub root: PathValue<'src>,
+    pub root: ParsedPath<'src>,
 
     /// Template directory.
-    pub templates: PathValue<'src>,
+    pub templates: ParsedPath<'src>,
 }
 
 impl<'src> ConfigSettings<'src> {
@@ -172,7 +172,8 @@ impl Default for ConfigSettings<'_> {
     ///   * `root`: `.`
     ///   * `templates`: `./templates`
     fn default() -> Self {
-        let root: PathValue<'_> = env::current_dir().unwrap_or_default().into();
+        let root: ParsedPath<'_> =
+            env::current_dir().unwrap_or_default().into();
         let templates = root.join(&"templates".into());
         Self { root, templates }
     }

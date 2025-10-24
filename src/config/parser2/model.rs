@@ -3,7 +3,7 @@
 use super::super::actions;
 use super::super::errors::{ParseError, ParseResult, SpannedErrors};
 use super::super::lexer;
-use super::super::model::{ConfigSettings, GlobString, ParsedString};
+use super::super::model::{ConfigSettings, ParsedGlob, ParsedString};
 use super::super::parser2::TokenType;
 use globset::{Glob, GlobBuilder};
 use std::fmt;
@@ -84,7 +84,7 @@ impl<'src> MatcherStack<'src> {
         Self(
             globs
                 .into_iter()
-                .map(GlobString::from_glob_str)
+                .map(ParsedGlob::from_glob_str)
                 .map(Matcher)
                 .collect(),
         )
@@ -220,7 +220,7 @@ where
 
 /// A matcher for a request.
 #[derive(Clone, Debug)]
-pub struct Matcher<'src>(GlobString<'src>);
+pub struct Matcher<'src>(ParsedGlob<'src>);
 
 impl<'src> Matcher<'src> {
     /// Return the canonical representation of this matcher
