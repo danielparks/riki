@@ -1,10 +1,9 @@
 //! Handle strings of various types in the configuration
 
-use super::{
-    ParseError, ParseResult, SpannedErrors, StringToken, StringType, Value,
-};
+use super::super::errors::{ParseError, ParseResult, SpannedErrors};
+use super::super::parser2::{StringToken, StringType, Value};
 use crate::actions::{Variable, VariableMap};
-use crate::config::bitfilter::BitFilter;
+use crate::misc::bitfilter::BitFilter;
 use logos::Logos;
 use std::borrow::Cow;
 use std::ops::Range;
