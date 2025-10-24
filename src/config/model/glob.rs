@@ -6,14 +6,14 @@ use std::borrow::Cow;
 
 /// A string that’s been parsed to expand escapes and for easy interpolation
 #[derive(Clone, Debug)]
-pub struct GlobString<'src> {
+pub struct ParsedGlob<'src> {
     /// The unescaped contents of the glob.
     unescaped: Cow<'src, str>,
     /// The span in the source
     span: &'src str,
 }
 
-impl<'src> GlobString<'src> {
+impl<'src> ParsedGlob<'src> {
     /// Return the canonical representation of this glob
     #[must_use]
     pub fn canonical(&self) -> String {
@@ -49,7 +49,7 @@ impl<'src> GlobString<'src> {
     }
 }
 
-impl<'src> TryFrom<StringToken<'src>> for GlobString<'src> {
+impl<'src> TryFrom<StringToken<'src>> for ParsedGlob<'src> {
     type Error = SpannedErrors<'src>;
 
     fn try_from(

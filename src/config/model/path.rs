@@ -5,11 +5,11 @@ use std::path::PathBuf;
 
 /// A value that will evaluate to a path.
 ///
-/// This allows things like joining `PathValue`s together.
+/// This allows things like joining `ParsedPath`s together.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct PathValue<'src>(ParsedString<'src>);
+pub struct ParsedPath<'src>(ParsedString<'src>);
 
-impl PathValue<'_> {
+impl ParsedPath<'_> {
     /// Canonical version of path.
     #[must_use]
     #[inline]
@@ -45,7 +45,7 @@ impl PathValue<'_> {
     fn starts_with(&self, c: char) -> bool {
         self.0
             .starts_with(c)
-            .expect("PathValue cannot start with variable")
+            .expect("ParsedPath cannot start with variable")
     }
 
     /// Does this end with `c`?
@@ -59,7 +59,7 @@ impl PathValue<'_> {
     }
 }
 
-impl<'src> TryFrom<ParsedString<'src>> for PathValue<'src> {
+impl<'src> TryFrom<ParsedString<'src>> for ParsedPath<'src> {
     type Error = SpannedErrors<'src>;
 
     fn try_from(value: ParsedString<'src>) -> Result<Self, Self::Error> {
@@ -75,22 +75,22 @@ impl<'src> TryFrom<ParsedString<'src>> for PathValue<'src> {
     }
 }
 
-impl<'src> From<&'src str> for PathValue<'src> {
+impl<'src> From<&'src str> for ParsedPath<'src> {
     fn from(value: &'src str) -> Self {
         // No variables
         Self(value.into())
     }
 }
 
-impl From<PathBuf> for PathValue<'_> {
+impl From<PathBuf> for ParsedPath<'_> {
     fn from(value: PathBuf) -> Self {
         // No variables
         Self(value.into())
     }
 }
 
-impl<'src> From<PathValue<'src>> for ParsedString<'src> {
-    fn from(path: PathValue<'src>) -> Self {
+impl<'src> From<ParsedPath<'src>> for ParsedString<'src> {
+    fn from(path: ParsedPath<'src>) -> Self {
         path.0
     }
 }
