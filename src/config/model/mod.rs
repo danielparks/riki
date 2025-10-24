@@ -88,9 +88,7 @@ impl<'src> ConfigurationBuilder<'src> {
         let Self { globset_builder, rules } = self;
         Ok(Configuration {
             globset: globset_builder.build().map_err(|error| {
-                ParseError::BuildingGlobSet(error)
-                    .with_spans(Vec::new())
-                    .plural()
+                ParseError::BuildingGlobSet(error).without_spans().plural()
             })?,
             rules,
         })
@@ -151,10 +149,9 @@ impl<'src> ConfigSettings<'src> {
                 self.templates = self.root.join(&value.try_into()?);
                 Ok(())
             }
-            ("root" | "templates", Value::Function(_)) => {
-                // FIXME wrong span, should cover entire setting or value
+            ("root" | "templates", Value::Function(function)) => {
                 Err(ParseError::SettingDoesNotAcceptFunction(name.0)
-                    .spanned_s(name.0))
+                    .spanned_s((name.0, function.span().clone())))
             }
             (_, _) => {
                 Err(ParseError::UnknownSettingName(name.0).spanned_s(name.0))
@@ -248,9 +245,7 @@ impl<'src> TryFrom<ParsedString<'src>> for PathValue<'src> {
             if let Some(src) = value.span() {
                 Err(ParseError::PathStartsWithVariable.spanned_s(src))
             } else {
-                Err(ParseError::PathStartsWithVariable
-                    .with_spans(Vec::new())
-                    .into())
+                Err(ParseError::PathStartsWithVariable.without_spans().into())
             }
         } else {
             Ok(Self(value))
@@ -536,13 +531,21 @@ pub enum Value<'src> {
     Literal(ParsedString<'src>),
 }
 
-impl Value<'_> {
+impl<'src> Value<'src> {
     /// Return the canonical representation of this value
     #[must_use]
     pub fn canonical(&self) -> String {
         match self {
             Self::Function(function) => function.canonical(),
             Self::Literal(string) => string.canonical(),
+        }
+    }
+
+    /// Get the span for the value.
+    pub fn span(&self) -> Option<Span<'src>> {
+        match self {
+            Self::Function(function) => Some(function.span().clone()),
+            Self::Literal(string) => string.span().map(Into::into),
         }
     }
 }
