@@ -33,22 +33,22 @@ pub enum Command {
         ///
         /// If the page file is within a directory called "pages", then the
         /// default is to look for a sibling directory called "templates".
-        #[arg(short, long, default_value = None)]
-        template_dir: Option<PathBuf>,
+        #[arg(short, long="templates", default_value = None)]
+        templates_dir: Option<PathBuf>,
 
         /// Path to page file to render
-        page: PathBuf,
+        page_path: PathBuf,
     },
     /// Get metadata from a page file
     Info {
         /// Path to page file
-        page: PathBuf,
+        page_path: PathBuf,
     },
     /// Start web server
     Serve {
         /// Directory tree containing templates and pages
         #[arg(name = "path", default_value = ".")]
-        basedir: PathBuf,
+        base_dir: PathBuf,
 
         /// Address to bind to
         #[arg(long, default_value = "localhost:8000")]

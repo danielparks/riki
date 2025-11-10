@@ -40,24 +40,24 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
     logging::init(params.verbose)?;
 
     match &params.command {
-        Command::Render { template_dir, page } => {
-            let template_dir = template_dir
+        Command::Render { templates_dir, page_path } => {
+            let templates_dir = templates_dir
                 .clone()
-                .or_else(|| find_template_dir(page))
+                .or_else(|| find_templates_dir(page_path))
                 .ok_or_else(|| anyhow!("Could not find templates directory"))?;
-            let tpls = templates_from_directory(template_dir)?;
-            let page = Page::read_from(page)?;
+            let tpls = templates_from_directory(templates_dir)?;
+            let page = Page::read_from(page_path)?;
 
             print!("{}", page.render_to_string(&tpls, None)?);
         }
-        Command::Info { page } => {
-            let metadata = Page::read_from(page)?.metadata_as_string()?;
+        Command::Info { page_path } => {
+            let metadata = Page::read_from(page_path)?.metadata_as_string()?;
             if !metadata.is_empty() {
                 println!("{metadata}");
             }
         }
-        Command::Serve { basedir, bind } => {
-            http::serve(http::Configuration::default_in(basedir), bind)?;
+        Command::Serve { base_dir, bind } => {
+            http::serve(http::Configuration::default_in(base_dir), bind)?;
         }
     }
 
@@ -69,7 +69,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
 /// This looks for a “templates” directory that’s a sibling to a “pages”
 /// directory that’s an ancestor of `page_path`. Returns `None` if it can’t find
 /// the directory.
-fn find_template_dir(page_path: &Path) -> Option<PathBuf> {
+fn find_templates_dir(page_path: &Path) -> Option<PathBuf> {
     Some(
         page_path
             .ancestors()
