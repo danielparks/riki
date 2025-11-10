@@ -34,7 +34,7 @@
 //!
 //! [Conversion specifications]: jiff::fmt::strtime#conversion-specifications
 
-use crate::Page;
+use crate::response::ContentReturn;
 use actix_web::HttpRequest;
 use dom_query::{Document, NodeRef};
 use jiff::Timestamp;
@@ -66,7 +66,7 @@ pub struct Context<'a> {
     pub document: &'a Document,
 
     /// Page information.
-    pub page: &'a Page,
+    pub page: &'a ContentReturn<String>,
 
     /// Request information, if part of an HTTP request/response.
     pub req: Option<&'a HttpRequest>,

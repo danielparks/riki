@@ -1,6 +1,6 @@
 //! Errors returned by the crate.
 
-use crate::pages::Source;
+use crate::response::Source;
 use std::io;
 use std::path::PathBuf;
 use std::result;
@@ -22,10 +22,6 @@ pub enum Error {
     /// IO error
     #[error("Error in IO: {0}")]
     Io(#[from] io::Error),
-
-    /// Failed to render page metadata
-    #[error("Error rendering page metadata: {0}")]
-    MetadataRender(serde_yaml::Error),
 
     /// An important directory is missing
     #[error("Missing directory {0:?}")]
@@ -60,6 +56,10 @@ pub enum Error {
     /// Failed to compile template with [`handlebars`]
     #[error(transparent)]
     TemplateCompile(#[from] handlebars::TemplateError),
+
+    /// File was too large to load into memory
+    #[error("File ({0:?}) was too large to load into memory")]
+    FileTooLarge(PathBuf),
 }
 
 /// `Result` type for this crate.

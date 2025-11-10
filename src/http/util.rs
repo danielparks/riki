@@ -32,7 +32,7 @@ pub fn check_dir<P: AsRef<Path>>(path: P) -> Result<()> {
 ///
 ///   * [`io::Error`] resulting from opening the file, reading a byte, or
 ///     seeking to the start of the file.
-pub fn open_confirmed_file(path: &Path) -> io::Result<fs::File> {
+pub fn open_confirmed_file<P: AsRef<Path>>(path: P) -> io::Result<fs::File> {
     let mut file = fs::File::open(path)?;
     let mut buffer: [u8; 1] = [0];
     _ = file.read(&mut buffer)?;

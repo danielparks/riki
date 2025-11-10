@@ -1,7 +1,7 @@
 //! Test HTTP server.
 #![cfg(test)]
 
-use super::{Configuration, path_handler};
+use super::{Configuration, Router, path_handler};
 use actix_http::{Request, header};
 use actix_web::body::BoxBody;
 use actix_web::dev::{Service, ServiceResponse};
@@ -42,16 +42,12 @@ async fn init_app() -> (
     )
     .unwrap();
 
+    let router = Data::new(Router::new(tpls, config.clone()));
     (
         temp_dir,
         config.clone(),
-        test::init_service(
-            App::new()
-                .app_data(Data::new(tpls))
-                .app_data(Data::new(config))
-                .service(path_handler),
-        )
-        .await,
+        test::init_service(App::new().app_data(router).service(path_handler))
+            .await,
     )
 }
 

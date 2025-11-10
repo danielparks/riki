@@ -23,17 +23,20 @@ mod tests;
 pub use errors::*;
 pub mod util;
 
+use crate::elements::{
+    self, ElementError, handle_a_email, handle_last_modified,
+};
 use crate::errors::{Error, Result};
-use crate::pages::{Page, Source, render_source_to_string};
+use crate::pages::render_source_to_string;
+use crate::response::{ContentReturn, MediaType, PathReturn, Return};
 use crate::templates::templates_from_directory;
-use actix_files::NamedFile;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
+use dom_query::Document;
 use handlebars::Handlebars;
-use std::fs;
-use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::mem;
+use std::path::PathBuf;
 use tracing;
 use tracing_actix_web::TracingLogger;
 
@@ -78,15 +81,16 @@ pub async fn serve<S: AsRef<str>>(
 ) -> Result<()> {
     let address = address.as_ref();
 
-    let config = Data::new(config);
     util::check_dir(&config.root_path)?;
 
-    let tpls = Data::new(templates_from_directory(&config.templates_path)?);
+    let router = Data::new(Router::new(
+        templates_from_directory(&config.templates_path)?,
+        config,
+    ));
 
     HttpServer::new(move || {
         App::new()
-            .app_data(Data::clone(&tpls))
-            .app_data(Data::clone(&config))
+            .app_data(Data::clone(&router))
             .wrap(TracingLogger::default())
             .service(path_handler)
     })
@@ -105,246 +109,339 @@ pub async fn serve<S: AsRef<str>>(
 #[get("/{path:.*}")]
 pub async fn path_handler(
     req: HttpRequest,
-    tpls: Data<Handlebars<'_>>,
-    config: Data<Configuration>,
+    router: Data<Router<'_>>,
 ) -> impl Responder {
-    clean_path(req.path())
-        .and_then(|path| {
-            match render_page_source(&req, &config.root_path, &path) {
-                Err(WebError::NotFound) => {
-                    tracing::trace!("source not found, trying static");
-                    match render_static(&req, &config.root_path, &path) {
-                        Err(WebError::NotFound) => {
-                            tracing::trace!("static not found, trying page");
-                            render_page(&req, &config.root_path, &path, &tpls)
-                        }
-                        other => other,
-                    }
+    match RequestPath::new(req.path(), &req) {
+        Ok(path) => router.route(path).await,
+        Err(error) => Err(error),
+    }
+    .unwrap_or_else(|error: WebError| {
+        tracing::error!("{}: {error:?}", req.path());
+        error.render(&req, &router.context().tpls)
+    })
+}
+
+/// Route requests to the right actions
+#[derive(Debug)]
+pub struct Router<'a> {
+    /// Context for actions
+    context: Context<'a>,
+}
+
+impl<'a> Router<'a> {
+    /// Create a new router.
+    #[must_use]
+    pub const fn new(tpls: Handlebars<'a>, config: Configuration) -> Self {
+        let context = Context { config, tpls };
+        Self { context }
+    }
+
+    /// Get the context
+    #[must_use]
+    pub const fn context(&self) -> &Context<'a> {
+        &self.context
+    }
+
+    /// Route a request
+    ///
+    /// Hard coded rules:
+    ///
+    /// ```text
+    /// *.md redact_source(./$path)
+    /// ./$path
+    /// ./$path/index.html
+    /// render(markdown("./$path.md"))
+    /// render(markdown("./$path/index.md"))
+    /// error(404)
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returned errors will be converted to appropriate HTTP responses.
+    #[expect(clippy::future_not_send, reason = "Actix doesn’t require Send")]
+    #[expect(clippy::unused_async, reason = "Required by Actix")]
+    pub async fn route(
+        &self,
+        path: RequestPath<'_>,
+    ) -> WebResult<HttpResponse> {
+        if let Some(ret) = path.open(&self.context)? {
+            if path.ends_with_ignore_case(".md") {
+                if let Some(ret) = redact_source(&self.context, ret)? {
+                    return ret.into_response(path.req);
                 }
-                other => other,
+                // else, fall through.
+            } else {
+                return ret.into_response(path.req);
             }
-        })
-        .unwrap_or_else(|error: WebError| {
-            tracing::error!("{}: {error:?}", req.path());
-            error.render(&req, &tpls)
-        })
-}
-
-/// Get a clean path request path.
-///
-/// # Errors
-///
-///   * [`WebError::InternalString`] if the path doesn’t start with / or if the
-///     path contains a .. segment.
-///
-/// This will not return [`WebError::RedirectCanonical`] because we want to
-/// check the matching page or static file to ensure there actually is a
-/// canonical path, and to determine what it is (e.g. it might match a directory
-/// and thus end with '/').
-fn clean_path(path: &str) -> WebResult<String> {
-    // TODO? Actix seems to do deal with .. and maybe // for us. Simplify?
-    if !path.starts_with('/') {
-        Err(WebError::InternalString(format!(
-            "request path {path:?} does not start with /"
-        )))
-    } else if path.split('/').any(|v| v == "..") {
-        Err(WebError::InternalString(format!(
-            "request path {path:?} contains .."
-        )))
-    } else {
-        // This guarantees the returned path:
-        //   * either is "/" or doesn’t end with '/'
-        //   * doesn’t contain any "" or "." segments
-        #[expect(clippy::comparison_to_empty, reason = "clarity")]
-        Ok(format!(
-            "/{}",
-            path.split('/')
-                .filter(|part| *part != "." && *part != "")
-                .collect::<Vec<_>>()
-                .join("/")
-        ))
-    }
-}
-
-/// Return a static file as an [`HttpResponse`].
-///
-/// # Errors
-///
-///   * [`WebError`] if there was a problem opening or reading the file.
-///   * [`WebError::RedirectCanonical`] if the canonical path for the file does
-///     not match the request path.
-fn render_static(
-    req: &HttpRequest,
-    static_path: &Path,
-    clean_path: &str,
-) -> WebResult<HttpResponse> {
-    Ok(match open_static_file(req, static_path, clean_path) {
-        Err(WebError::NotFound) => {
-            let index_clean_path = if clean_path.ends_with('/') {
-                format!("{clean_path}index.html")
-            } else {
-                format!("{clean_path}/index.html")
-            };
-            open_static_file(req, static_path, &index_clean_path)
         }
-        other => other,
-    }?
-    .into_response(req))
-}
 
-/// Open a file path as a [`NamedFile`].
-///
-/// This reads one byte from the file to check if it’s actually a directory.
-///
-/// # Errors
-///
-///   * [`WebError`] if there was a problem opening or reading the file.
-///   * [`WebError::RedirectCanonical`] if the canonical path for the file does
-///     not match the request path.
-fn open_static_file(
-    req: &HttpRequest,
-    root: &Path,
-    clean_path: &str,
-) -> WebResult<NamedFile> {
-    let path = root.join(&clean_path[1..]);
-    let file = util::open_confirmed_file(&path)?;
+        if let Some(ret) = path.join("index.html").open(&self.context)? {
+            return ret.into_response(path.req);
+        }
 
-    let canonical_path = if clean_path.ends_with("/index.html") {
-        clean_path.strip_suffix("index.html").unwrap()
-    } else {
-        clean_path
-    };
+        if let Some(md_path) = path.with_extension(".md")
+            && let Some(ret) = md_path.open(&self.context)?
+            && let Some(ret) = markdown_to_html(&self.context, ret)?
+            && let Some(ret) = render(&self.context, Some(path.req), ret)?
+        {
+            return ret.into_response(path.req);
+        }
 
-    if req.path() == canonical_path {
-        fix_charset(NamedFile::from_file(file, path)?)
-    } else {
-        Err(WebError::RedirectCanonical(canonical_path.to_owned()))
+        if let Some(ret) = path.join("index.md").open(&self.context)?
+            && let Some(ret) = markdown_to_html(&self.context, ret)?
+            && let Some(ret) = render(&self.context, Some(path.req), ret)?
+        {
+            return ret.into_response(path.req);
+        }
+
+        Err(WebError::NotFound)
     }
 }
 
-/// Fix the charset of a [`NamedFile`] if appropriate.
-///
-/// This makes all `text/*` files default to having `charset=utf-8`. If the
-/// media type is not `text`, or if it already has a `charset` parameter, then
-/// the media type will be left as-is.
-///
-/// # Errors
-///
-///   * [`WebError::InternalString`] if the constructed content-type cannot be
-///     parsed (should never happen).
-fn fix_charset(file: NamedFile) -> WebResult<NamedFile> {
-    let content_type = file.content_type();
-    if content_type.type_() != mime::TEXT
-        || content_type.params().any(|(name, _)| name == mime::CHARSET)
-    {
-        return Ok(file);
-    }
+/// Context for actions
+#[derive(Debug, Default)]
+pub struct Context<'a> {
+    /// Configuration
+    pub config: Configuration,
 
-    let new_content_type = format!("{}; charset=utf-8", &content_type);
+    /// Templates for rendering pages
+    pub tpls: Handlebars<'a>,
+}
 
-    Ok(
-        file.set_content_type(new_content_type.parse().map_err(|error| {
-            WebError::InternalString(format!(
-                "Parsing constructed content type {new_content_type:?}: \
-                    {error}"
+/// A request for a path
+pub struct RequestPath<'a> {
+    /// The clean request path. Starts with `'/'`.
+    path: String,
+
+    /// The HTTP request.
+    pub req: &'a HttpRequest,
+    // FIXME add original path to detect when we need a 301 redirect?
+}
+
+impl<'a> RequestPath<'a> {
+    /// Get a clean path from the request path.
+    ///
+    /// # Errors
+    ///
+    ///   * [`WebError::InternalString`] if the path doesn’t start with / or if
+    ///     the path contains a .. segment.
+    ///
+    /// This will not return [`WebError::RedirectCanonical`] because we want to
+    /// check the matching page or static file to ensure there actually is a
+    /// canonical path, and to determine what it is (e.g. it might match a
+    /// directory and thus end with '/').
+    fn clean_path(path: &str) -> WebResult<String> {
+        // TODO? Actix seems to do deal with .. and maybe // for us. Simplify?
+        if !path.starts_with('/') {
+            Err(WebError::InternalString(format!(
+                "request path {path:?} does not start with /"
+            )))
+        } else if path.split('/').any(|v| v == "..") {
+            Err(WebError::InternalString(format!(
+                "request path {path:?} contains .."
+            )))
+        } else {
+            // This guarantees the returned path:
+            //   * either is "/" or doesn’t end with '/'
+            //   * doesn’t contain any "" or "." segments
+            #[expect(clippy::comparison_to_empty, reason = "clarity")]
+            Ok(format!(
+                "/{}",
+                path.split('/')
+                    .filter(|part| *part != "." && *part != "")
+                    .collect::<Vec<_>>()
+                    .join("/")
             ))
-        })?),
-    )
-}
-
-/// Render a page source to be served over HTTP.
-///
-/// # Errors
-///
-///   * [`WebError::NotFound`] if the page cannot be read, or if the path
-///     doesn’t end with `.md`.
-fn render_page_source(
-    _req: &HttpRequest,
-    root: &Path,
-    clean_path: &str,
-) -> WebResult<HttpResponse> {
-    // FIXME do this without allocating
-    if !clean_path.to_lowercase().ends_with(".md") {
-        // FIXME? fall through
-        return Err(WebError::NotFound);
-    }
-
-    let path = root.join(&clean_path[1..]);
-
-    // FIXME: caching headers based on template and Page.
-    // FIXME: add cache-busting to href, src, etc. in HTML.
-
-    Ok(HttpResponse::Ok()
-        .content_type("text/markdown; charset=UTF-8")
-        .body(render_source_to_string(fs::read_to_string(&path)?)))
-}
-
-/// Render a page to be served over HTTP.
-///
-/// # Errors
-///
-///   * [`WebError`] if the page cannot be read.
-///   * [`WebError::RedirectCanonical`] if the canonical path for the page does
-///     not match the request path.
-fn render_page(
-    req: &HttpRequest,
-    root: &Path,
-    clean_path: &str,
-    tpls: &Handlebars<'_>,
-) -> WebResult<HttpResponse> {
-    let page = match read_page_file(req, root, clean_path) {
-        Err(WebError::NotFound) => {
-            let index_clean_path = if clean_path.ends_with('/') {
-                format!("{clean_path}index")
-            } else {
-                format!("{clean_path}/index")
-            };
-            read_page_file(req, root, &index_clean_path)
         }
-        other => other,
-    }?;
+    }
 
-    // FIXME: caching headers based on template and Page.
-    // FIXME: add cache-busting to href, src, etc. in HTML.
+    /// Create a new, clean request path.
+    ///
+    /// # Errors
+    ///
+    ///   * [`WebError::InternalString`] if the path doesn’t start with / or if
+    ///     the path contains a .. segment.
+    pub fn new(path: &str, req: &'a HttpRequest) -> WebResult<Self> {
+        let path = Self::clean_path(path)?;
+        Ok(Self { path, req })
+    }
 
-    Ok(HttpResponse::Ok()
-        .content_type("text/html; charset=UTF-8")
-        .body(page.render_to_string(tpls, Some(req))?))
+    /// Try to open the path as a file.
+    ///
+    /// # Returns
+    ///
+    ///   * `Ok(Some(ret))` for file
+    ///   * `Ok(None)` if the file is not found
+    ///   * <code>Err([WebError])</code> for other IO errors.
+    fn open(&self, context: &Context) -> WebResult<Option<PathReturn>> {
+        // Convert not found error to `Ok(None)` indicating that we should try
+        // the next rule.
+        match PathReturn::new(context.config.root_path.join(&self.path[1..])) {
+            Ok(ret) => Ok(Some(ret)),
+            Err(error) if is_not_found(&error) => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+
+        /*
+        FIXME Part of old code to check canonical path
+
+            let canonical_path = if clean_path.ends_with("/index.html") {
+                clean_path.strip_suffix("index.html").unwrap()
+            } else {
+                clean_path
+            };
+        */
+    }
+
+    /// Does the path end with `suffix` (ignoring case)?
+    fn ends_with_ignore_case(&self, suffix: &str) -> bool {
+        // FIXME should this handle paths like "/.md" specially?
+        self.path
+            .len()
+            .checked_sub(suffix.len())
+            .and_then(|difference| self.path.get(difference..))
+            .map(|real_suffix| real_suffix.eq_ignore_ascii_case(suffix))
+            .unwrap_or(false)
+    }
+
+    /// Join the paths
+    fn join(&self, other: &str) -> Self {
+        let path = match (self.path.ends_with('/'), other.starts_with('/')) {
+            (true, true) => {
+                format!("{}{}", &self.path.trim_end_matches('/'), other)
+            }
+            (true, false) | (false, true) => format!("{}{}", &self.path, other),
+            (false, false) => format!("{}/{}", &self.path, other),
+        };
+
+        Self { path, req: self.req }
+    }
+
+    /// Try to add an extension to the path.
+    ///
+    /// Returns `None` if the path ends with a `'/'`.
+    fn with_extension(&self, suffix: &str) -> Option<Self> {
+        if self.path.ends_with('/') {
+            None
+        } else {
+            let path = &self.path;
+            Some(RequestPath { path: format!("{path}{suffix}"), req: self.req })
+        }
+    }
 }
 
-/// Read a file page.
+/// Render passed content in a template.
 ///
 /// # Errors
 ///
-///   * [`WebError`] if the page cannot be read.
-///   * [`WebError::RedirectCanonical`] if the canonical path for the page does
-///     not match the request path.
-fn read_page_file(
-    req: &HttpRequest,
-    root: &Path,
-    clean_path: &str,
-) -> WebResult<Page> {
-    let path = root.join(format!("{}.md", &clean_path[1..]));
-    let mut file = util::open_confirmed_file(&path)?;
+/// Will return [`WebError`] if there is a problem getting content from `ret` or
+/// rendering the template.
+pub fn render<R: Return>(
+    context: &Context<'_>,
+    req: Option<&HttpRequest>,
+    ret: R,
+) -> WebResult<Option<ContentReturn<String>>> {
+    // FIXME: caching headers based on template and Page.
+    // FIXME: add cache-busting to href, src, etc. in HTML.
+    let mut ret = ret.into_content_return()?;
 
-    let canonical_path = if clean_path.ends_with("/index") {
-        clean_path.strip_suffix("index").unwrap()
-    } else {
-        clean_path
-    };
-
-    if req.path() == canonical_path {
-        let mut content = String::new();
-        #[expect(
-            clippy::verbose_file_reads,
-            reason = "need to open file before checking path"
-        )]
-        file.read_to_string(&mut content)?;
-        Page::from_source(Source::from_path(path), content)
-            .map_err(WebError::Internal)
-    } else {
-        Err(WebError::RedirectCanonical(canonical_path.to_owned()))
+    if !ret.metadata.contains_key("title") {
+        let fragment = Document::fragment(ret.body.clone());
+        let h1 = fragment.select_single("h1");
+        if h1.length() > 0 {
+            ret.metadata.insert("title".into(), h1.text().into());
+        }
     }
+
+    let template = ret
+        .metadata
+        .get("template")
+        .map(String::as_str)
+        .unwrap_or_else(|| "default");
+
+    let document =
+        Document::from(context.tpls.render(template, &ret).map_err(
+            |error| Error::TemplateRender {
+                source: error,
+                page_source: Box::new(ret.source.clone()),
+            },
+        )?);
+
+    let ctx = elements::Context {
+        document: &document,
+        page: &ret,
+        req,
+        show_detailed_errors: true,
+    };
+    for node in document.select("a-email").nodes() {
+        if let Err(ElementError(msg)) = handle_a_email(&ctx, node) {
+            tracing::error!("Handling <a-email>: {msg}");
+            let b = document.tree.new_element("b");
+            b.set_text(msg);
+            node.replace_with(&b);
+        }
+    }
+    for node in document.select("last-modified").nodes() {
+        if let Err(ElementError(msg)) = handle_last_modified(&ctx, node) {
+            tracing::error!("Handling <last-modified>: {msg}");
+            let b = document.tree.new_element("b");
+            b.set_text(msg);
+            node.replace_with(&b);
+        }
+    }
+
+    ret.content_type = MediaType::TEXT_HTML_UTF8;
+    ret.body = document.html().to_string();
+
+    Ok(Some(ret))
+
+    /* FIXME
+        let canonical_path = if clean_path.ends_with("/index") {
+            clean_path.strip_suffix("index").unwrap()
+        } else {
+            clean_path
+        };
+    */
+}
+
+/// Load metadata and convert body to HTML.
+///
+/// # Errors
+///
+/// Will return [`WebError`] if there is a problem getting content from `ret` or
+/// parsing page metadata from the content.
+pub fn markdown_to_html<R: Return>(
+    _context: &Context<'_>,
+    ret: R,
+) -> WebResult<Option<ContentReturn<String>>> {
+    let mut ret = ret.into_content_return()?;
+    let raw_page = mem::take(&mut ret.body);
+    let (header, body) = crate::pages::split_raw_page(&raw_page);
+
+    ret.metadata.extend(
+        crate::pages::metadata_from_string(header)
+            .map_err(crate::Error::from)?,
+    );
+    ret.body = crate::pages::render_markdown(body);
+
+    Ok(Some(ret))
+}
+
+/// Redact sensitive values from passed Markdown.
+///
+/// # Errors
+///
+/// Will return [`WebError`] if there is a problem getting content from `ret`.
+pub fn redact_source<R: Return>(
+    _context: &Context<'_>,
+    ret: R,
+) -> WebResult<Option<ContentReturn<String>>> {
+    // FIXME: caching headers based on template and Page.
+    // FIXME: add cache-busting to href, src, etc. in HTML.
+    let mut ret = ret.into_content_return()?;
+    ret.body = render_source_to_string(ret.body);
+    ret.content_type = MediaType::TEXT_MARKDOWN_UTF8;
+    Ok(Some(ret))
 }
 
 #[cfg(test)]
@@ -355,7 +452,7 @@ mod unit_tests {
 
     /// For easier comparisons.
     fn wrapped_clean_path(path: &str) -> Result<String, String> {
-        clean_path(path).map_err(|error| match error {
+        RequestPath::clean_path(path).map_err(|error| match error {
             WebError::InternalString(msg) => msg,
             other => panic!("unexpected error: {other:?}"),
         })

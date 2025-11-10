@@ -5,7 +5,7 @@ mod params;
 
 use anyhow::anyhow;
 use params::{Command, Params, Parser};
-use riki::{Page, http, templates_from_directory};
+use riki::{PathReturn, http, templates_from_directory};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -41,20 +41,33 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
 
     match &params.command {
         Command::Render { templates_dir, page_path } => {
-            let templates_dir = templates_dir
-                .clone()
-                .or_else(|| find_templates_dir(page_path))
-                .ok_or_else(|| anyhow!("Could not find templates directory"))?;
-            let tpls = templates_from_directory(templates_dir)?;
-            let page = Page::read_from(page_path)?;
+            let context = http::Context {
+                tpls: templates_from_directory(
+                    templates_dir
+                        .clone()
+                        .or_else(|| find_templates_dir(page_path))
+                        .ok_or_else(|| {
+                            anyhow!("Could not find templates directory")
+                        })?,
+                )?,
+                ..Default::default()
+            };
 
-            print!("{}", page.render_to_string(&tpls, None)?);
+            let ret = PathReturn::new(page_path.clone())?;
+            let ret = http::markdown_to_html(&context, ret)?
+                .ok_or(http::WebError::NotFound)?;
+            let ret = http::render(&context, None, ret)?
+                .ok_or(http::WebError::NotFound)?;
+
+            print!("{}", ret.body);
         }
         Command::Info { page_path } => {
-            let metadata = Page::read_from(page_path)?.metadata_as_string()?;
-            if !metadata.is_empty() {
-                println!("{metadata}");
-            }
+            let ret = http::markdown_to_html(
+                &http::Context::default(),
+                PathReturn::new(page_path.clone())?,
+            )?
+            .ok_or(http::WebError::NotFound)?;
+            print!("{}", serde_yaml::to_string(&ret.metadata)?);
         }
         Command::Serve { base_dir, bind } => {
             http::serve(http::Configuration::default_in(base_dir), bind)?;
