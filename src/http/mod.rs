@@ -144,14 +144,31 @@ impl<'a> Router<'a> {
 
     /// Route a request
     ///
-    /// Hard coded rules:
+    /// # Hard coded rules
+    ///
+    ///   * `$path` always starts with `'/'` and never ends with `'/'` unless it
+    ///     is literally `"/"`.
+    ///   * `canonical(if_exists, canonical_path)`: redirects to
+    ///     `canonical_path` if:
+    ///
+    ///       * `if_exists` is a file (or a symlink to a file)
+    ///       * `req.path` doesn’t exactly match `canonical_path`
     ///
     /// ```text
-    /// *.md redact_source(./$path)
-    /// ./$path
-    /// ./$path/index.html
-    /// render(markdown("./$path.md"))
-    /// render(markdown("./$path/index.md"))
+    /// *.md {
+    ///     canonical($path, $path) # canonical if path doesn't end with /
+    ///     redact_source(./$path)
+    /// }
+    /// index.html canonical($path, "${dirname($path)}/") # FIXME interpolation
+    /// canonical($path/index.html, "${path}/")
+    /// $path/index.html
+    /// canonical($path, $path) # canonical if it doesn't end with /index.html
+    /// $path
+    /// index canonical($path, "${dirname($path)}/") # FIXME interpolation
+    /// canonical("$path/index.md", "${path}/")
+    /// render(markdown("./$path/index.md")) # canonical if path ends with /
+    /// canonical("$path.md", "$path")
+    /// render(markdown("./$path.md")) # Canonical if path = req.path and path doesn’t end with /index
     /// error(404)
     /// ```
     ///
