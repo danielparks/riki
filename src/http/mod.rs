@@ -196,6 +196,14 @@ impl<'a> Router<'a> {
                 }
                 // else, fall through.
             } else {
+                if path.file_name() == Some("index.html") {
+                    let canonical = path.parent_with_slash();
+                    if path.req.path() != canonical {
+                        return Err(WebError::RedirectCanonical(
+                            canonical.to_owned(),
+                        ));
+                    }
+                }
                 return ret.into_response(path.req);
             }
         }
@@ -316,6 +324,27 @@ impl<'a> RequestPath<'a> {
                 clean_path
             };
         */
+    }
+
+    /// Get the file name portion of the path.
+    ///
+    /// Returns `None` if there is no filename, e.g. for `"/"`. Never returns
+    /// an empty string.
+    fn file_name(&self) -> Option<&str> {
+        self.path.rsplit('/').next().filter(|name| !name.is_empty())
+    }
+
+    /// Get the parent directory of the path with a trailing slash.
+    ///
+    /// # Returns
+    ///
+    ///   * For `/` or `/dir`, returns `"/"`.
+    ///   * For `/dir/file`, returns `"/dir/"`.
+    fn parent_with_slash(&self) -> &str {
+        match self.path.rfind('/') {
+            Some(i) => &self.path[..=i],
+            None => unreachable!("path must start with /"),
+        }
     }
 
     /// Does the path end with `suffix` (ignoring case)?
