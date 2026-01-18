@@ -148,27 +148,35 @@ impl<'a> Router<'a> {
     ///
     ///   * `$path` always starts with `'/'` and never ends with `'/'` unless it
     ///     is literally `"/"`.
-    ///   * `canonical(if_exists, canonical_path)`: redirects to
-    ///     `canonical_path` if:
-    ///
-    ///       * `if_exists` is a file (or a symlink to a file)
-    ///       * `req.path` doesn’t exactly match `canonical_path`
+    ///   * `canonical(canonical_path)`: redirects to `canonical_path` if
+    ///     `req.path` doesn’t exactly match `canonical_path`.
     ///
     /// ```text
     /// *.md {
-    ///     canonical($path, $path) # canonical if path doesn't end with /
-    ///     redact_source(./$path)
+    ///     canonical($path) # canonical if path doesn't end with /
+    ///     redact_source($path)
     /// }
-    /// index.html canonical($path, "${dirname($path)}/") # FIXME interpolation
-    /// canonical($path/index.html, "${path}/")
-    /// $path/index.html
-    /// canonical($path, $path) # canonical if it doesn't end with /index.html
-    /// $path
-    /// index canonical($path, "${dirname($path)}/") # FIXME interpolation
-    /// canonical("$path/index.md", "${path}/")
-    /// render(markdown("./$path/index.md")) # canonical if path ends with /
-    /// canonical("$path.md", "$path")
-    /// render(markdown("./$path.md")) # Canonical if path = req.path and path doesn’t end with /index
+    ///
+    /// index.html canonical("${dirname($path)}/") # FIXME interpolation
+    /// if file_exists("$path/index.html") {
+    ///     canonical("${path}/")
+    ///     $path/index.html
+    /// }
+    /// if file_exists("$path") {
+    ///     canonical($path)
+    ///     $path
+    /// }
+    ///
+    /// index canonical("${dirname($path)}/") # FIXME interpolation
+    /// if file_exists("$path/index.md") {
+    ///     canonical("${path}/")
+    ///     render(markdown("$path/index.md"))
+    /// }
+    /// if file_exists("${path}.md") {
+    ///     canonical($path)
+    ///     render(markdown("${path}.md"))
+    /// }
+    ///
     /// error(404)
     /// ```
     ///
