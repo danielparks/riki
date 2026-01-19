@@ -190,19 +190,21 @@ impl<'a> Router<'a> {
         path: RequestPath<'_>,
     ) -> WebResult<HttpResponse> {
         if let Some(ret) = path.open(&self.context)? {
+            // RULE: *.md {
+            //     canonical($path)
+            //     redact_source($path)
+            // }
             if path.ends_with_ignore_case(".md") {
+                path.check_canonical(path.path())?;
+
                 if let Some(ret) = redact_source(&self.context, ret)? {
                     return ret.into_response(path.req);
                 }
                 // else, fall through.
             } else {
+                // RULE: index.html canonical("${dirname($path)}/")
                 if path.file_name() == Some("index.html") {
-                    let canonical = path.parent_with_slash();
-                    if path.req.path() != canonical {
-                        return Err(WebError::RedirectCanonical(
-                            canonical.to_owned(),
-                        ));
-                    }
+                    path.check_canonical(path.parent_with_slash())?;
                 }
                 return ret.into_response(path.req);
             }
@@ -324,6 +326,25 @@ impl<'a> RequestPath<'a> {
                 clean_path
             };
         */
+    }
+
+    /// Redirect to a canonical path if necessary.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WebError::RedirectCanonical`] if a redirect is required, and
+    /// `Ok(())` otherwise.
+    fn check_canonical(&self, canonical: &str) -> WebResult<()> {
+        if self.req.path() == canonical {
+            Ok(())
+        } else {
+            Err(WebError::RedirectCanonical(canonical.to_owned()))
+        }
+    }
+
+    /// Get the path string.
+    fn path(&self) -> &str {
+        &self.path
     }
 
     /// Get the file name portion of the path.

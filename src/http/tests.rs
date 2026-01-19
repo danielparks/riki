@@ -185,6 +185,7 @@ async fn test_directory_page_get() {
     check!(Response::redirect("/") == get(&app, "/.").await);
     check!(Response::redirect("/") == get(&app, "/index").await);
     check!(Response::page_source("index") == get(&app, "/index.md").await);
+    check!(Response::redirect("/index.md") == get(&app, "/index.md/").await);
 
     check!(
         Response::page_html(
