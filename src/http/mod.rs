@@ -158,23 +158,23 @@ impl<'a> Router<'a> {
     /// }
     ///
     /// index.html canonical("${dirname($path)}/") # FIXME interpolation
-    /// if file_exists("$path/index.html") {
-    ///     canonical("${path}/")
-    ///     $path/index.html
-    /// }
     /// if file_exists("$path") {
     ///     canonical($path)
     ///     $path
     /// }
+    /// if file_exists("$path/index.html") {
+    ///     canonical("${path}/")
+    ///     $path/index.html
+    /// }
     ///
     /// index canonical("${dirname($path)}/") # FIXME interpolation
-    /// if file_exists("$path/index.md") {
-    ///     canonical("${path}/")
-    ///     render(markdown("$path/index.md"))
-    /// }
     /// if file_exists("${path}.md") {
     ///     canonical($path)
     ///     render(markdown("${path}.md"))
+    /// }
+    /// if file_exists("$path/index.md") {
+    ///     canonical("${path}/")
+    ///     render(markdown("$path/index.md"))
     /// }
     ///
     /// error(404)
@@ -203,29 +203,57 @@ impl<'a> Router<'a> {
                 // else, fall through.
             } else {
                 // RULE: index.html canonical("${dirname($path)}/")
+                // if file_exists("$path") {
+                //     canonical($path)
+                //     $path
+                // }
                 if path.file_name() == Some("index.html") {
+                    // FIXME? this should *always* redirect.
                     path.check_canonical(path.parent_with_slash())?;
+                } else {
+                    path.check_canonical(path.path())?;
                 }
                 return ret.into_response(path.req);
             }
         }
 
         if let Some(ret) = path.join("index.html").open(&self.context)? {
+            // RULE: if file_exists("$path/index.html") {
+            //     canonical("${path}/")
+            //     $path/index.html
+            // }
+            path.check_canonical(&path.path_with_slash())?;
             return ret.into_response(path.req);
         }
 
         if let Some(md_path) = path.with_extension(".md")
             && let Some(ret) = md_path.open(&self.context)?
-            && let Some(ret) = markdown_to_html(&self.context, ret)?
-            && let Some(ret) = render(&self.context, Some(path.req), ret)?
         {
-            return ret.into_response(path.req);
+            if path.file_name() == Some("index") {
+                // RULE: index canonical("${dirname($path)}/")
+                // FIXME? this should *always* redirect.
+                path.check_canonical(path.parent_with_slash())?;
+            } else if let Some(ret) = markdown_to_html(&self.context, ret)?
+                && let Some(ret) = render(&self.context, Some(path.req), ret)?
+            {
+                // RULE: if file_exists("${path}.md") {
+                //     canonical($path)
+                //     render(markdown("${path}.md"))
+                // }
+                path.check_canonical(path.path())?;
+                return ret.into_response(path.req);
+            }
         }
 
         if let Some(ret) = path.join("index.md").open(&self.context)?
             && let Some(ret) = markdown_to_html(&self.context, ret)?
             && let Some(ret) = render(&self.context, Some(path.req), ret)?
         {
+            // RULE: if file_exists("$path/index.md") {
+            //     canonical("${path}/")
+            //     render(markdown("$path/index.md"))
+            // }
+            path.check_canonical(&path.path_with_slash())?;
             return ret.into_response(path.req);
         }
 
@@ -345,6 +373,15 @@ impl<'a> RequestPath<'a> {
     /// Get the path string.
     fn path(&self) -> &str {
         &self.path
+    }
+
+    /// Get the path string with a trailing slash.
+    fn path_with_slash(&self) -> String {
+        if self.path.ends_with('/') {
+            self.path.clone()
+        } else {
+            format!("{}/", &self.path)
+        }
     }
 
     /// Get the file name portion of the path.
