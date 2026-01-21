@@ -344,16 +344,6 @@ impl<'a> RequestPath<'a> {
             Err(error) if is_not_found(&error) => Ok(None),
             Err(error) => Err(error.into()),
         }
-
-        /*
-        FIXME Part of old code to check canonical path
-
-            let canonical_path = if clean_path.ends_with("/index.html") {
-                clean_path.strip_suffix("index.html").unwrap()
-            } else {
-                clean_path
-            };
-        */
     }
 
     /// Redirect to a canonical path if necessary.
@@ -506,14 +496,6 @@ pub fn render<R: Return>(
     ret.body = document.html().to_string();
 
     Ok(Some(ret))
-
-    /* FIXME
-        let canonical_path = if clean_path.ends_with("/index") {
-            clean_path.strip_suffix("index").unwrap()
-        } else {
-            clean_path
-        };
-    */
 }
 
 /// Load metadata and convert body to HTML.
