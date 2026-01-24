@@ -442,7 +442,7 @@ pub fn render<R: Return>(
     context: &Context<'_>,
     req: Option<&HttpRequest>,
     ret: R,
-) -> WebResult<Option<ContentReturn<String>>> {
+) -> WebResult<Option<ContentReturn>> {
     // FIXME: caching headers based on template and Page.
     // FIXME: add cache-busting to href, src, etc. in HTML.
     let mut ret = ret.into_content_return()?;
@@ -453,6 +453,7 @@ pub fn render<R: Return>(
         .map(String::as_str)
         .unwrap_or_else(|| "default");
 
+    // FIXME ensure ret.body can be rendered as string.
     let document =
         Document::from(context.tpls.render(template, &ret).map_err(
             |error| Error::TemplateRender {
@@ -485,7 +486,7 @@ pub fn render<R: Return>(
     }
 
     ret.content_type = MediaType::TEXT_HTML_UTF8;
-    ret.body = document.html().to_string();
+    ret.body = document.html().into();
 
     Ok(Some(ret))
 }
@@ -499,18 +500,18 @@ pub fn render<R: Return>(
 pub fn markdown_to_html<R: Return>(
     _context: &Context<'_>,
     ret: R,
-) -> WebResult<Option<ContentReturn<String>>> {
+) -> WebResult<Option<ContentReturn>> {
     let mut ret = ret.into_content_return()?;
-    let raw_page = mem::take(&mut ret.body);
+    let raw_page = mem::take(&mut ret.body).into_string()?;
     let (header, body) = crate::pages::split_raw_page(&raw_page);
 
     ret.metadata.extend(
         crate::pages::metadata_from_string(header)
             .map_err(crate::Error::from)?,
     );
-    ret.body = crate::pages::render_markdown(body);
+    ret.body = crate::pages::render_markdown(body).into();
     ret.content_type = MediaType::TEXT_HTML_UTF8;
-    ret.ensure_metadata_title();
+    ret.ensure_metadata_title()?;
 
     Ok(Some(ret))
 }
@@ -523,11 +524,11 @@ pub fn markdown_to_html<R: Return>(
 pub fn redact_source<R: Return>(
     _context: &Context<'_>,
     ret: R,
-) -> WebResult<Option<ContentReturn<String>>> {
+) -> WebResult<Option<ContentReturn>> {
     // FIXME: caching headers based on template and Page.
     // FIXME: add cache-busting to href, src, etc. in HTML.
     let mut ret = ret.into_content_return()?;
-    ret.body = render_source_to_string(ret.body);
+    ret.body = render_source_to_string(ret.body.into_string()?).into();
     ret.content_type = MediaType::TEXT_MARKDOWN_UTF8;
     Ok(Some(ret))
 }

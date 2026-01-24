@@ -66,7 +66,7 @@ pub struct Context<'a> {
     pub document: &'a Document,
 
     /// Page information.
-    pub page: &'a ContentReturn<String>,
+    pub page: &'a ContentReturn,
 
     /// Request information, if part of an HTTP request/response.
     pub req: Option<&'a HttpRequest>,

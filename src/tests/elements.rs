@@ -19,7 +19,7 @@ fn render(html: &str) -> WebResult<String> {
 
     let ref_time: Timestamp = "2001-09-08 18:46:40-0700".parse().unwrap();
     let ret = ContentReturn {
-        body: html.to_owned(),
+        body: html.to_owned().into(),
         source: Source::File {
             path: PathBuf::from("memory"),
             modified: Some(ref_time),
@@ -30,7 +30,7 @@ fn render(html: &str) -> WebResult<String> {
     };
 
     match http::render(&CONTEXT, None, ret) {
-        Ok(Some(ret)) => Ok(ret.body),
+        Ok(Some(ret)) => Ok(ret.body.into_string()?),
         Ok(None) => Err(WebError::NotFound),
         Err(error) => Err(error),
     }

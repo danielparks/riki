@@ -60,6 +60,10 @@ pub enum Error {
     /// File was too large to load into memory
     #[error("File ({0:?}) was too large to load into memory")]
     FileTooLarge(PathBuf),
+
+    /// Could not convert binary data to UTF-8
+    #[error("Found non-UTF-8 data")]
+    NotUtf8(#[from] std::string::FromUtf8Error),
 }
 
 /// `Result` type for this crate.

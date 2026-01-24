@@ -3,16 +3,23 @@
 use crate::http::{WebError, WebResult, util};
 use crate::{Error, Result};
 use actix_files::NamedFile;
+use actix_web::body::BodySize;
 use actix_web::http::header::{
     HeaderValue, InvalidHeaderValue, TryIntoHeaderValue,
 };
+use actix_web::web::Bytes;
 use actix_web::{HttpRequest, HttpResponse};
 use jiff::Timestamp;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::convert::Infallible;
 use std::fs::File;
 use std::io::{self, Read};
+use std::mem;
 use std::path::PathBuf;
+use std::pin::Pin;
+use std::task;
+use tendril::StrTendril;
 
 /// A file on the file system.
 #[derive(Debug)]
@@ -90,7 +97,7 @@ impl PathReturn {
 }
 
 impl Return for PathReturn {
-    fn into_content_return(self) -> WebResult<ContentReturn<String>> {
+    fn into_content_return(self) -> WebResult<ContentReturn> {
         let Self { mut file, path, created, modified } = self;
 
         let mut body = String::with_capacity(
@@ -107,7 +114,7 @@ impl Return for PathReturn {
         file.read_to_string(&mut body)?;
 
         Ok(ContentReturn {
-            body,
+            body: body.into(),
             content_type: MediaType::APPLICATION_OCTET_STREAM,
             source: Source::File { path, modified, created },
             metadata: Metadata::new(),
@@ -120,10 +127,10 @@ impl Return for PathReturn {
 }
 
 /// A draft response that can be further processed or returned to the client.
-#[derive(Clone, Debug, Serialize)]
-pub struct ContentReturn<C: Content> {
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct ContentReturn {
     /// The body of the response
-    pub body: C,
+    pub body: Content,
 
     /// The content type of the response body
     pub content_type: MediaType,
@@ -135,32 +142,28 @@ pub struct ContentReturn<C: Content> {
     pub metadata: Metadata,
 }
 
-impl ContentReturn<String> {
+impl ContentReturn {
     /// Try to load the title from HTML if it’s not in the metadata.
-    pub fn ensure_metadata_title(&mut self) {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NotUtf8`] if the content is not UTF-8.
+    pub fn ensure_metadata_title(&mut self) -> Result<()> {
         if !self.metadata.contains_key("title") {
-            let fragment = dom_query::Document::fragment(self.body.clone());
+            let fragment = dom_query::Document::fragment(StrTendril::try_from(
+                self.body.clone(),
+            )?);
             let h1 = fragment.select_single("h1");
             if h1.length() > 0 {
                 self.metadata.insert("title".into(), h1.text().into());
             }
         }
+        Ok(())
     }
 }
 
-impl<C: Content + Default> Default for ContentReturn<C> {
-    fn default() -> Self {
-        Self {
-            body: Default::default(),
-            content_type: MediaType::default(),
-            source: Source::default(),
-            metadata: Metadata::default(),
-        }
-    }
-}
-
-impl Return for ContentReturn<String> {
-    fn into_content_return(self) -> WebResult<ContentReturn<String>> {
+impl Return for ContentReturn {
+    fn into_content_return(self) -> WebResult<ContentReturn> {
         Ok(self)
     }
 
@@ -182,7 +185,7 @@ pub trait Return {
     ///   * <code>Err([WebError])</code> for an error to be converted into an
     ///     appropriate HTTP response.
     #[expect(clippy::missing_errors_doc, reason = "Returns is more useful")]
-    fn into_content_return(self) -> WebResult<ContentReturn<String>>;
+    fn into_content_return(self) -> WebResult<ContentReturn>;
 
     /// Generate a response (or an error)
     ///
@@ -193,9 +196,123 @@ pub trait Return {
 }
 
 /// Content for the response
-pub trait Content {}
+#[derive(Clone, Debug, Serialize, derive_more::From)]
+#[serde(untagged)]
+pub enum Content {
+    /// UTF-8 content
+    String(String),
 
-impl Content for String {}
+    /// Binary content
+    Bytes(Vec<u8>),
+}
+
+impl Content {
+    /// Get the length of the content in bytes.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        match self {
+            Self::String(string) => string.len(),
+            Self::Bytes(bytes) => bytes.len(),
+        }
+    }
+
+    /// Is this content empty?
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Try to get the content as a `String`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::NotUtf8` if the content isn’t valid UTF-8.
+    pub fn into_string(self) -> Result<String> {
+        String::try_from(self)
+    }
+
+    /// Get the content as `&str` or panic.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the content isn’t stored as a string.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::String(string) => string.as_str(),
+            Self::Bytes(_) => panic!("Content is not UTF-8"),
+        }
+    }
+}
+
+impl Default for Content {
+    fn default() -> Self {
+        Self::String(String::default())
+    }
+}
+
+impl actix_http::body::MessageBody for Content {
+    type Error = Infallible;
+
+    #[inline]
+    fn size(&self) -> BodySize {
+        BodySize::Sized(self.len().try_into().expect("usize into u64"))
+    }
+
+    #[inline]
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _cx: &mut task::Context<'_>,
+    ) -> task::Poll<Option<Result<Bytes, Self::Error>>> {
+        if self.is_empty() {
+            task::Poll::Ready(None)
+        } else {
+            task::Poll::Ready(Some(Ok(mem::take(self.get_mut()).into())))
+        }
+    }
+
+    #[inline]
+    fn try_into_bytes(self) -> Result<Bytes, Self> {
+        match self {
+            Self::String(string) => Ok(Bytes::from(string)),
+            Self::Bytes(vec) => Ok(Bytes::from(vec)),
+        }
+    }
+}
+
+impl From<Content> for actix_web::web::Bytes {
+    fn from(content: Content) -> Self {
+        match content {
+            Content::String(string) => string.into(),
+            Content::Bytes(vec) => vec.into(),
+        }
+    }
+}
+
+impl TryFrom<Content> for StrTendril {
+    type Error = Error;
+
+    fn try_from(content: Content) -> Result<Self, Self::Error> {
+        String::try_from(content).map(Into::into)
+    }
+}
+
+impl TryFrom<Content> for String {
+    type Error = Error;
+
+    fn try_from(content: Content) -> Result<Self, Self::Error> {
+        match content {
+            Content::String(string) => Ok(string),
+            Content::Bytes(vec) => Ok(Self::from_utf8(vec)?),
+        }
+    }
+}
+
+impl From<StrTendril> for Content {
+    fn from(input: StrTendril) -> Self {
+        Self::String(input.to_string())
+    }
+}
 
 /// A MIME/Media type
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

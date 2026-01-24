@@ -59,7 +59,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             let ret = http::render(&context, None, ret)?
                 .ok_or(http::WebError::NotFound)?;
 
-            print!("{}", ret.body);
+            print!("{}", ret.body.into_string()?);
         }
         Command::Info { page_path } => {
             let ret = http::markdown_to_html(
