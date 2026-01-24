@@ -231,6 +231,24 @@ impl Content {
         String::try_from(self)
     }
 
+    /// Ensure that the content is a `String`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::NotUtf8` if the content isn’t valid UTF-8.
+    pub fn ensure_string(&mut self) -> Result<&String> {
+        match self {
+            Self::String(string) => Ok(string),
+            Self::Bytes(vec) => {
+                *self = Self::String(String::from_utf8(mem::take(vec))?);
+                match self {
+                    Self::String(string) => Ok(string),
+                    Self::Bytes(_) => unreachable!("just set to String"),
+                }
+            }
+        }
+    }
+
     /// Get the content as `&str` or panic.
     ///
     /// # Panics
@@ -311,6 +329,12 @@ impl TryFrom<Content> for String {
 impl From<StrTendril> for Content {
     fn from(input: StrTendril) -> Self {
         Self::String(input.to_string())
+    }
+}
+
+impl<const N: usize> From<&[u8; N]> for Content {
+    fn from(input: &[u8; N]) -> Self {
+        Self::Bytes(input.to_vec())
     }
 }
 

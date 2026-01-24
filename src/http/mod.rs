@@ -453,7 +453,7 @@ pub fn render<R: Return>(
         .map(String::as_str)
         .unwrap_or_else(|| "default");
 
-    // FIXME ensure ret.body can be rendered as string.
+    ret.body.ensure_string()?;
     let document =
         Document::from(context.tpls.render(template, &ret).map_err(
             |error| Error::TemplateRender {

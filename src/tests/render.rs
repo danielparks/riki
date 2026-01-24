@@ -1,7 +1,7 @@
 //! Test Markdown parsing and rendering.
 
 use super::util::parse_md;
-use crate::http::WebError;
+use crate::http::{Context, WebError, markdown_to_html};
 use crate::{ContentReturn, Error};
 use assert2::{check, let_assert};
 
@@ -15,6 +15,17 @@ fn empty_page() {
     let_assert!(Ok(ret) = parse_md(""));
     check!(get_metadata(&ret, "title") == None);
     check!(ret.body.as_str() == "");
+}
+
+#[test]
+fn non_utf8_page() {
+    check!(
+        let Err(WebError::Internal(Error::NotUtf8(_)))
+            = markdown_to_html(&Context::default(), ContentReturn {
+                body: b"title: foo\xff\n----".into(),
+                ..ContentReturn::default()
+            })
+    );
 }
 
 #[test]
