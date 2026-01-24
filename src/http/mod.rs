@@ -509,6 +509,7 @@ pub fn markdown_to_html<R: Return>(
             .map_err(crate::Error::from)?,
     );
     ret.body = crate::pages::render_markdown(body);
+    ret.content_type = MediaType::TEXT_HTML_UTF8;
     ret.ensure_metadata_title();
 
     Ok(Some(ret))
