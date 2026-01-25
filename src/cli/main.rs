@@ -5,7 +5,7 @@ mod params;
 
 use anyhow::anyhow;
 use params::{Command, Params, Parser};
-use riki::{PathReturn, http, templates_from_directory};
+use riki::{PathReturn, http, render};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -42,7 +42,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
     match &params.command {
         Command::Render { templates_dir, page_path } => {
             let context = http::Context {
-                tpls: templates_from_directory(
+                tpls: render::templates_from_directory(
                     templates_dir
                         .clone()
                         .or_else(|| find_templates_dir(page_path))

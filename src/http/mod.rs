@@ -23,13 +23,12 @@ mod tests;
 pub use errors::*;
 pub mod util;
 
-use crate::elements::{
+use crate::errors::{Error, Result};
+use crate::render::elements::{
     self, ElementError, handle_a_email, handle_last_modified,
 };
-use crate::errors::{Error, Result};
-use crate::pages::render_source_to_string;
+use crate::render::{self, render_source_to_string, templates_from_directory};
 use crate::response::{ContentReturn, MediaType, PathReturn, Return};
-use crate::templates::templates_from_directory;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
@@ -503,13 +502,12 @@ pub fn markdown_to_html<R: Return>(
 ) -> WebResult<Option<ContentReturn>> {
     let mut ret = ret.into_content_return()?;
     let raw_page = mem::take(&mut ret.body).into_string()?;
-    let (header, body) = crate::pages::split_raw_page(&raw_page);
+    let (header, body) = render::split_raw_page(&raw_page);
 
     ret.metadata.extend(
-        crate::pages::metadata_from_string(header)
-            .map_err(crate::Error::from)?,
+        render::metadata_from_string(header).map_err(crate::Error::from)?,
     );
-    ret.body = crate::pages::render_markdown(body).into();
+    ret.body = render::render_markdown(body).into();
     ret.content_type = MediaType::TEXT_HTML_UTF8;
     ret.ensure_metadata_title()?;
 

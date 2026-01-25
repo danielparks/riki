@@ -2,7 +2,8 @@
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
 use crate::http::{Context, WebError, WebResult};
-use crate::{ContentReturn, MediaType, Source, http, render_source_to_string};
+use crate::render::{self, render_source_to_string};
+use crate::{ContentReturn, MediaType, Source, http};
 use assert2::check;
 use jiff::Timestamp;
 use regex::Regex;
@@ -11,7 +12,7 @@ use std::sync::LazyLock;
 
 fn render(html: &str) -> WebResult<String> {
     static CONTEXT: LazyLock<Context> = LazyLock::new(|| {
-        let mut tpls = crate::templates();
+        let mut tpls = render::templates();
         tpls.register_template_string("default", "{{{body}}}")
             .unwrap();
         Context { tpls, ..Context::default() }

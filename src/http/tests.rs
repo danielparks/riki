@@ -28,7 +28,7 @@ async fn init_app() -> (
     let temp_dir = TempDir::new().unwrap();
     let config = Configuration::default_in(temp_dir.path());
 
-    let mut tpls = crate::templates();
+    let mut tpls = crate::render::templates();
     tpls.clear_templates();
     tpls.register_template_string("default", "{{{ body }}}")
         .unwrap();

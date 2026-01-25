@@ -1,6 +1,6 @@
 //! Handle rendering a Markdown “page”.
 
-use crate::elements::handle_a_email_source;
+use super::elements::handle_a_email_source;
 use crate::response::Metadata;
 use dom_query::Document;
 use pulldown_cmark::{Options, Parser};

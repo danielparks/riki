@@ -2,7 +2,7 @@
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
 use super::util::parse_md;
-use crate::{ContentReturn, MediaType, Source};
+use crate::{ContentReturn, MediaType, Source, render};
 use assert2::{check, let_assert};
 use jiff::Timestamp;
 use std::fs;
@@ -22,7 +22,7 @@ const AS_STR: for<'a> fn(&'a String) -> &'a str = String::as_str;
 
 #[test]
 fn empty_template() {
-    let mut tpls = crate::templates();
+    let mut tpls = render::templates();
     tpls.register_template_string("empty", "").unwrap();
 
     let_assert!(Ok(page) = parse_md("title: page\n---\n# Page"));
@@ -31,7 +31,7 @@ fn empty_template() {
 
 #[test]
 fn override_template() {
-    let mut tpls = crate::templates();
+    let mut tpls = render::templates();
     // Override embedded default template
     tpls.register_template_string("default", "").unwrap();
 
@@ -41,7 +41,7 @@ fn override_template() {
 
 #[test]
 fn embedded_template() {
-    let tpls = crate::templates();
+    let tpls = render::templates();
     let mut embedded_names: Vec<_> = tpls.get_templates().keys().collect();
     embedded_names.sort();
     check!(
@@ -66,7 +66,7 @@ fn embedded_template() {
 
 \t</body>
 </html>
-") = crate::templates().render("default", &page).as_ref().map(AS_STR));
+") = render::templates().render("default", &page).as_ref().map(AS_STR));
 }
 
 #[test]
@@ -74,7 +74,7 @@ fn basic_template() {
     let temp = TempDir::new().unwrap();
     create_file(&temp, "default.hbs", "{{ metadata.title }} {{{ body }}}");
 
-    let tpls = crate::templates_from_directory(temp.path()).unwrap();
+    let tpls = render::templates_from_directory(temp.path()).unwrap();
 
     let_assert!(Ok(page) = parse_md("title: title<test>\n---\n# heading"));
     check!(
@@ -91,7 +91,7 @@ fn basic_template_twice() {
     let temp = TempDir::new().unwrap();
     create_file(&temp, "default.hbs", "{{{ body }}}");
 
-    let tpls = crate::templates_from_directory(temp.path()).unwrap();
+    let tpls = render::templates_from_directory(temp.path()).unwrap();
 
     let_assert!(Ok(page) = parse_md("# 1"));
     check!(
@@ -112,7 +112,7 @@ fn multiple_templates() {
     create_file(&temp, "default.hbs", "{{{ body }}}");
     create_file(&temp, "weird.hbs", "strange {{{ body }}}");
 
-    let tpls = crate::templates_from_directory(temp.path()).unwrap();
+    let tpls = render::templates_from_directory(temp.path()).unwrap();
 
     let_assert!(Ok(page) = parse_md("# 1"));
     check!(
@@ -141,7 +141,7 @@ fn strftime_helper() {
         ..ContentReturn::default()
     };
 
-    let mut tpls = crate::templates();
+    let mut tpls = render::templates();
 
     tpls.register_template_string(
         "la_tz",
