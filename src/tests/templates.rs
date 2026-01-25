@@ -1,9 +1,10 @@
 //! Test template manager.
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
+use super::util::parse_md;
+use crate::{ContentReturn, MediaType, Source};
 use assert2::{check, let_assert};
 use jiff::Timestamp;
-use crate::{Page, Source};
 use std::fs;
 use std::path::{Path, PathBuf};
 use temp_dir::TempDir;
@@ -24,7 +25,7 @@ fn empty_template() {
     let mut tpls = crate::templates();
     tpls.register_template_string("empty", "").unwrap();
 
-    let_assert!(Ok(page) = Page::from_memory("title: page\n---\n# Page"));
+    let_assert!(Ok(page) = parse_md("title: page\n---\n# Page"));
     check!(let Ok("") = tpls.render("empty", &page).as_ref().map(AS_STR));
 }
 
@@ -34,7 +35,7 @@ fn override_template() {
     // Override embedded default template
     tpls.register_template_string("default", "").unwrap();
 
-    let_assert!(Ok(page) = Page::from_memory("title: page\n---\n# Page"));
+    let_assert!(Ok(page) = parse_md("title: page\n---\n# Page"));
     check!(let Ok("") = tpls.render("default", &page).as_ref().map(AS_STR));
 }
 
@@ -54,7 +55,7 @@ fn embedded_template() {
             ]
     );
 
-    let_assert!(Ok(page) = Page::from_memory("title: page\n---\n# Page"));
+    let_assert!(Ok(page) = parse_md("title: page\n---\n# Page"));
     check!(let Ok("<!DOCTYPE html>
 <html>
 \t<head>
@@ -75,15 +76,13 @@ fn basic_template() {
 
     let tpls = crate::templates_from_directory(temp.path()).unwrap();
 
-    let_assert!(
-        Ok(page) = Page::from_memory("title: title<test>\n---\n# heading")
-    );
+    let_assert!(Ok(page) = parse_md("title: title<test>\n---\n# heading"));
     check!(
         let Ok("title&lt;test&gt; <h1>heading</h1>\n")
             = tpls.render("default", &page).as_ref().map(AS_STR)
     );
 
-    let_assert!(Ok(page) = Page::from_memory("title: t2\n---\n"));
+    let_assert!(Ok(page) = parse_md("title: t2\n---\n"));
     check!(let Ok("t2 ") = tpls.render("default", &page).as_ref().map(AS_STR));
 }
 
@@ -94,13 +93,13 @@ fn basic_template_twice() {
 
     let tpls = crate::templates_from_directory(temp.path()).unwrap();
 
-    let_assert!(Ok(page) = Page::from_memory("# 1"));
+    let_assert!(Ok(page) = parse_md("# 1"));
     check!(
         let Ok("<h1>1</h1>\n")
             = tpls.render("default", &page).as_ref().map(AS_STR)
     );
 
-    let_assert!(Ok(page) = Page::from_memory("# 2"));
+    let_assert!(Ok(page) = parse_md("# 2"));
     check!(
         let Ok("<h1>2</h1>\n")
             = tpls.render("default", &page).as_ref().map(AS_STR)
@@ -115,13 +114,13 @@ fn multiple_templates() {
 
     let tpls = crate::templates_from_directory(temp.path()).unwrap();
 
-    let_assert!(Ok(page) = Page::from_memory("# 1"));
+    let_assert!(Ok(page) = parse_md("# 1"));
     check!(
         let Ok("<h1>1</h1>\n")
             = tpls.render("default", &page).as_ref().map(AS_STR)
     );
 
-    let_assert!(Ok(page) = Page::from_memory("# 2"));
+    let_assert!(Ok(page) = parse_md("# 2"));
     check!(
         let Ok("strange <h1>2</h1>\n")
             = tpls.render("weird", &page).as_ref().map(AS_STR)
@@ -131,12 +130,16 @@ fn multiple_templates() {
 #[test]
 fn strftime_helper() {
     let ref_time: Timestamp = "2001-09-08 18:46:40-0700".parse().unwrap();
-    let source = Source::File {
-        path: PathBuf::from("memory"),
-        modified: Some(ref_time),
-        created: Some(ref_time),
+    let ret = ContentReturn {
+        body: "".to_owned(),
+        source: Source::File {
+            path: PathBuf::from("memory"),
+            modified: Some(ref_time),
+            created: Some(ref_time),
+        },
+        content_type: MediaType::TEXT_HTML_UTF8,
+        ..ContentReturn::default()
     };
-    let_assert!(Ok(page) = Page::from_source(source, ""));
 
     let mut tpls = crate::templates();
 
@@ -147,7 +150,7 @@ fn strftime_helper() {
     )
     .unwrap();
     check!(let Ok("2001-09-08 18:46:40 -0700")
-        = tpls.render("la_tz", &page).as_ref().map(AS_STR));
+        = tpls.render("la_tz", &ret).as_ref().map(AS_STR));
 
     tpls.register_template_string(
         "chicago_tz",
@@ -156,21 +159,21 @@ fn strftime_helper() {
     )
     .unwrap();
     check!(let Ok("2001-09-08 20:46:40 -0500")
-        = tpls.render("chicago_tz", &page).as_ref().map(AS_STR));
+        = tpls.render("chicago_tz", &ret).as_ref().map(AS_STR));
 
     tpls.register_template_string(
         "local",
         r#"{{ strftime source.File.modified "%Y" }}"#,
     )
     .unwrap();
-    check!(let Ok("2001") = tpls.render("local", &page).as_ref().map(AS_STR));
+    check!(let Ok("2001") = tpls.render("local", &ret).as_ref().map(AS_STR));
 
     tpls.register_template_string(
         "broken",
         r#"{{ strftime source.File.modified "" tz="broken" }}"#,
     )
     .unwrap();
-    let result = tpls.render("broken", &page);
+    let result = tpls.render("broken", &ret);
     let_assert!(Err(error) = result.as_ref().map(AS_STR));
     check!(error.to_string().contains(" strftime helper: "));
 }

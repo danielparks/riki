@@ -447,14 +447,6 @@ pub fn render<R: Return>(
     // FIXME: add cache-busting to href, src, etc. in HTML.
     let mut ret = ret.into_content_return()?;
 
-    if !ret.metadata.contains_key("title") {
-        let fragment = Document::fragment(ret.body.clone());
-        let h1 = fragment.select_single("h1");
-        if h1.length() > 0 {
-            ret.metadata.insert("title".into(), h1.text().into());
-        }
-    }
-
     let template = ret
         .metadata
         .get("template")
@@ -517,6 +509,7 @@ pub fn markdown_to_html<R: Return>(
             .map_err(crate::Error::from)?,
     );
     ret.body = crate::pages::render_markdown(body);
+    ret.ensure_metadata_title();
 
     Ok(Some(ret))
 }

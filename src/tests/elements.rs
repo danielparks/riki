@@ -1,74 +1,68 @@
 //! Test custom elements.
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
-use assert2::{check, let_assert};
+use crate::http::{Context, WebError, WebResult};
+use crate::{ContentReturn, MediaType, Source, http, render_source_to_string};
+use assert2::check;
 use jiff::Timestamp;
 use regex::Regex;
-use crate::{Page, Result, Source, render_source_to_string};
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
-/// Makes error output more legible.
-const AS_STR: for<'a> fn(&'a String) -> &'a str = String::as_str;
+fn render(html: &str) -> WebResult<String> {
+    static CONTEXT: LazyLock<Context> = LazyLock::new(|| {
+        let mut tpls = crate::templates();
+        tpls.register_template_string("default", "{{{body}}}")
+            .unwrap();
+        Context { tpls, ..Context::default() }
+    });
 
-fn ref_page(content: &str) -> Result<Page> {
     let ref_time: Timestamp = "2001-09-08 18:46:40-0700".parse().unwrap();
-    let source = Source::File {
-        path: PathBuf::from("memory"),
-        modified: Some(ref_time),
-        created: Some(ref_time),
+    let ret = ContentReturn {
+        body: html.to_owned(),
+        source: Source::File {
+            path: PathBuf::from("memory"),
+            modified: Some(ref_time),
+            created: Some(ref_time),
+        },
+        content_type: MediaType::TEXT_HTML_UTF8,
+        ..ContentReturn::default()
     };
-    Page::from_source(source, content)
+
+    match http::render(&CONTEXT, None, ret) {
+        Ok(Some(ret)) => Ok(ret.body),
+        Ok(None) => Err(WebError::NotFound),
+        Err(error) => Err(error),
+    }
 }
 
 #[test]
 fn last_modified_tz() {
-    let mut tpls = crate::templates();
-    tpls.register_template_string("default", "{{{body}}}")
-        .unwrap();
+    check!(let Ok(_) = render("<last-modified></last-modified>"));
 
-    let_assert!(Ok(page) = ref_page("<last-modified></last-modified>"));
-    check!(let Ok(_) = page.render_to_string(&tpls, None).as_ref().map(AS_STR));
-
-    let_assert!(
-        Ok(page) = ref_page(
-            r#"<last-modified tz="America/Los_Angeles"></last-modified>"#
-        )
-    );
     check!(
-        let Ok("<html><head></head><body><p><span>2001-09-08T18:46:40-07:00[America/Los_Angeles]</span></p>\n</body></html>")
-            = page.render_to_string(&tpls, None).as_ref().map(AS_STR)
+        render(r#"<last-modified tz="America/Los_Angeles"></last-modified>"#)
+            .unwrap()
+            == "<html><head></head><body><span>2001-09-08T18:46:40-07:00[America/Los_Angeles]</span></body></html>"
     );
 
-    let_assert!(
-        Ok(page) =
-            ref_page(r#"<last-modified tz="America/Chicago"></last-modified>"#)
-    );
     check!(
-        let Ok("<html><head></head><body><p><span>2001-09-08T20:46:40-05:00[America/Chicago]</span></p>\n</body></html>")
-            = page.render_to_string(&tpls, None).as_ref().map(AS_STR)
+        render(r#"<last-modified tz="America/Chicago"></last-modified>"#)
+            .unwrap()
+            == "<html><head></head><body><span>2001-09-08T20:46:40-05:00[America/Chicago]</span></body></html>"
     );
 
-    let_assert!(
-        Ok(page) = ref_page(r#"<last-modified tz="broken"></last-modified>"#)
-    );
     check!(
-        let Ok("<html><head></head><body><p><b>last-modified element: failed to find time zone `broken` in time zone database</b></p>\n</body></html>")
-            = page.render_to_string(&tpls, None).as_ref().map(AS_STR)
+        render(r#"<last-modified tz="broken"></last-modified>"#).unwrap()
+            == "<html><head></head><body><b>last-modified element: failed to find time zone `broken` in time zone database</b></body></html>"
     );
 }
 
 #[test]
 fn last_modified_format() {
-    let mut tpls = crate::templates();
-    tpls.register_template_string("default", "{{{body}}}")
-        .unwrap();
-
-    let_assert!(
-        Ok(page) = ref_page(r#"<last-modified format="%Y"></last-modified>"#)
-    );
     check!(
-        let Ok("<html><head></head><body><p><span>2001</span></p>\n</body></html>")
-            = page.render_to_string(&tpls, None).as_ref().map(AS_STR)
+        render(r#"<last-modified format="%Y"></last-modified>"#).unwrap()
+            == "<html><head></head><body><span>2001</span></body></html>"
     );
 }
 
@@ -81,60 +75,39 @@ fn regex_assert(re: &str, input: &str) {
 
 #[test]
 fn a_email() {
-    let mut tpls = crate::templates();
-    tpls.register_template_string("default", "{{{body}}}")
-        .unwrap();
-
-    let_assert!(
-        Ok(page) =
-            ref_page(r#"<a-email href="mailto:abc@example.com"></a-email>"#)
-    );
-    let_assert!(Ok(html) = page.render_to_string(&tpls, None));
     regex_assert(
-        "^<html><head></head><body><p><a href=\"mailto:abc-[a-zA-Z0-9_-]+@example.com\">abc<span class=\"hidden\">-[a-zA-Z0-9_-]+</span>@example.com</a></p>\n</body></html>$",
-        &html,
+        "^<html><head></head><body><a href=\"mailto:abc-[a-zA-Z0-9_-]+@example.com\">abc<span class=\"hidden\">-[a-zA-Z0-9_-]+</span>@example.com</a></body></html>$",
+        &render(r#"<a-email href="mailto:abc@example.com"></a-email>"#)
+            .unwrap(),
     );
 
-    let_assert!(
-        Ok(page) = ref_page(
-            r#"<a-email href="mailto:abc@example.com?subject=foo"></a-email>"#
+    regex_assert(
+        "^<html><head></head><body><a href=\"mailto:abc-[a-zA-Z0-9_-]+@example.com\\?subject=foo\">abc<span class=\"hidden\">-[a-zA-Z0-9_-]+</span>@example.com</a></body></html>$",
+        &render(
+            r#"<a-email href="mailto:abc@example.com?subject=foo"></a-email>"#,
         )
+        .unwrap(),
     );
-    let_assert!(Ok(html) = page.render_to_string(&tpls, None));
+
     regex_assert(
-        "^<html><head></head><body><p><a href=\"mailto:abc-[a-zA-Z0-9_-]+@example.com\\?subject=foo\">abc<span class=\"hidden\">-[a-zA-Z0-9_-]+</span>@example.com</a></p>\n</body></html>$",
-        &html,
+        "^<html><head></head><body><a href=\"mailto:abc-[a-zA-Z0-9_-]+@example.com\">text</a></body></html>$",
+        &render(r#"<a-email href="mailto:abc@example.com">text</a-email>"#)
+            .unwrap(),
     );
 
-    let_assert!(
-        Ok(page) = ref_page(
-            r#"<a-email href="mailto:abc@example.com">text</a-email>"#
-        )
-    );
-    let_assert!(Ok(html) = page.render_to_string(&tpls, None));
-    regex_assert(
-        "^<html><head></head><body><p><a href=\"mailto:abc-[a-zA-Z0-9_-]+@example.com\">text</a></p>\n</body></html>$",
-        &html,
-    );
-
-    let_assert!(
-        Ok(page) = ref_page(r#"<a-email href="abc@example.com"></a-email>"#)
-    );
     check!(
-        let Ok("<html><head></head><body><p><b>Invalid URL in href attribute on &lt;a-email&gt;</b></p>\n</body></html>")
-            = page.render_to_string(&tpls, None).as_ref().map(AS_STR)
+        render(r#"<a-email href="abc@example.com"></a-email>"#).unwrap()
+            == "<html><head></head><body><b>Invalid URL in href attribute on &lt;a-email&gt;</b></body></html>"
     );
 
-    let_assert!(Ok(page) = ref_page("<a-email></a-email>"));
     check!(
-        let Ok("<html><head></head><body><p><b>No href attribute on &lt;a-email&gt;</b></p>\n</body></html>")
-            = page.render_to_string(&tpls, None).as_ref().map(AS_STR)
+        render("<a-email></a-email>").unwrap()
+            == "<html><head></head><body><b>No href attribute on &lt;a-email&gt;</b></body></html>"
     );
 
-    let_assert!(Ok(page) = ref_page(r#"<a-email href=""></a-email>"#));
     check!(
-        let Ok("<html><head></head><body><p><b>Invalid URL in href attribute on &lt;a-email&gt;</b></p>\n</body></html>")
-            = page.render_to_string(&tpls, None).as_ref().map(AS_STR)
+        render(r#"<a-email href=""></a-email>"#).unwrap()
+            == "<html><head></head><body><b>Invalid URL in href attribute on &lt;a-email&gt;</b></body></html>"
     );
 }
 

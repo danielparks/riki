@@ -135,6 +135,30 @@ pub struct ContentReturn<C: Content> {
     pub metadata: Metadata,
 }
 
+impl ContentReturn<String> {
+    /// Try to load the title from HTML if it’s not in the metadata.
+    pub fn ensure_metadata_title(&mut self) {
+        if !self.metadata.contains_key("title") {
+            let fragment = dom_query::Document::fragment(self.body.clone());
+            let h1 = fragment.select_single("h1");
+            if h1.length() > 0 {
+                self.metadata.insert("title".into(), h1.text().into());
+            }
+        }
+    }
+}
+
+impl<C: Content + Default> Default for ContentReturn<C> {
+    fn default() -> Self {
+        Self {
+            body: Default::default(),
+            content_type: MediaType::default(),
+            source: Source::default(),
+            metadata: Metadata::default(),
+        }
+    }
+}
+
 impl Return for ContentReturn<String> {
     fn into_content_return(self) -> WebResult<ContentReturn<String>> {
         Ok(self)
