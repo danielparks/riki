@@ -2,7 +2,7 @@
 
 use super::{Interpolation, ParsedString};
 use crate::actions::VariableMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// A value that will evaluate to a path.
 ///
@@ -25,13 +25,16 @@ impl<'src> ParsedPath<'src> {
     pub fn content<'vars, V: VariableMap<'vars>>(
         &self,
         variables: &'vars V,
-    ) -> PathBuf {
-        let path = self.0.as_pathbuf(variables);
+    ) -> String {
+        let path = self.0.content(variables);
         if self.starts_with_variable() {
             // FIXME handle Windows absolute/root paths
-            path.strip_prefix("/")
-                .map(Path::to_path_buf)
-                .unwrap_or(path)
+            let new_path = path.trim_start_matches('/');
+            if new_path == path {
+                path
+            } else {
+                new_path.to_owned()
+            }
         } else {
             path
         }

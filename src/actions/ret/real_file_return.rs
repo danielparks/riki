@@ -1,8 +1,8 @@
 //! A return of a real, on-disk file.
 
 use super::{
-    ActionReturn, ContentReturn, Context, Error, MediaType, Metadata,
-    RequestContext, Result, Return, Source, StringReturn, VariableMap,
+    ActionReturn, ContentReturn, Context, Error, MediaType, RequestContext,
+    Result, Return, Source, StringReturn, VariableMap,
 };
 use actix_files::NamedFile;
 use actix_web::HttpResponse;
@@ -156,7 +156,7 @@ impl Return for RealFileReturn {
             body: body.into(),
             content_type: MediaType::APPLICATION_OCTET_STREAM,
             source: Source::File { url_path, modified, created },
-            metadata: Metadata::new(),
+            ..Default::default()
         })
     }
 

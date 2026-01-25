@@ -42,15 +42,6 @@ impl<'src> ParsedString<'src> {
             .collect()
     }
 
-    /// Return the content of this string as a [`PathBuf`].
-    pub fn as_pathbuf<'a, V: VariableMap<'a>>(
-        &self,
-        variables: &'a V,
-    ) -> PathBuf {
-        // FIXME non-UTF-8 paths
-        PathBuf::from(self.content(variables))
-    }
-
     /// Append a character to the end of the string.
     pub fn push(&mut self, c: char) {
         self.unescaped.to_mut().push(c);

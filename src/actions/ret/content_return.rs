@@ -4,9 +4,9 @@ use super::{
     ActionReturn, Context, Error, MediaType, RequestContext, Result, Return,
     StringReturn, VariableMap,
 };
-use actix_web::HttpResponse;
 use actix_web::body::BodySize;
 use actix_web::web::Bytes;
+use actix_web::{HttpResponse, HttpResponseBuilder};
 use jiff::Timestamp;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -25,6 +25,10 @@ pub struct ContentReturn {
     /// The content type of the response body
     pub content_type: MediaType,
 
+    /// The status of the response
+    #[serde(with = "StatusSerde")]
+    pub status: Status,
+
     /// The original source of the response
     pub source: Source,
 
@@ -38,6 +42,7 @@ impl ContentReturn {
         Self {
             body: Content::String(body.into()),
             content_type: MediaType::TEXT_PLAIN_UTF8,
+            status: Status::OK,
             source: Source::Memory,
             metadata: Metadata::new(),
         }
@@ -46,6 +51,13 @@ impl ContentReturn {
     /// HTML content from memory.
     pub fn html<S: Into<String>>(body: S) -> Self {
         Self::plain_text(body).with_content_type(MediaType::TEXT_HTML_UTF8)
+    }
+
+    /// Set the status and return `self`.
+    #[must_use]
+    pub const fn with_status(mut self, status: Status) -> Self {
+        self.status = status;
+        self
     }
 
     /// Try to load the title from HTML if it’s not in the metadata.
@@ -118,7 +130,7 @@ impl Return for ContentReturn {
         self,
         context: &'a RequestContext<'a>,
     ) -> Result<HttpResponse> {
-        Ok(HttpResponse::Ok()
+        Ok(HttpResponseBuilder::new(self.status)
             .content_type(&self.content_type)
             .body(self.into_content_return(context)?.body))
     }
@@ -364,6 +376,16 @@ impl Source {
         }
     }
 }
+
+/// Remote type definition of [`actix_web::http::StatusCode`] for `serde`.
+#[derive(Serialize)]
+#[serde(remote = "actix_web::http::StatusCode")]
+struct StatusSerde(
+    #[serde(getter = "actix_web::http::StatusCode::as_u16")] u16,
+);
+
+/// Status code type, abstracted slightly.
+pub type Status = actix_web::http::StatusCode;
 
 /// Page metadata.
 ///
