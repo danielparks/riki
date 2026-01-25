@@ -10,7 +10,7 @@ use crate::{ContentReturn, MediaType};
 /// Might return `WebError`.
 pub fn parse_md(raw: &str) -> WebResult<ContentReturn> {
     let ret = ContentReturn {
-        body: raw.to_owned().into(),
+        body: raw.into(),
         content_type: MediaType::TEXT_MARKDOWN_UTF8,
         ..ContentReturn::default()
     };

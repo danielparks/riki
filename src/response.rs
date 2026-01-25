@@ -332,6 +332,18 @@ impl From<StrTendril> for Content {
     }
 }
 
+impl From<&str> for Content {
+    fn from(input: &str) -> Self {
+        Self::String(input.to_owned())
+    }
+}
+
+impl From<&[u8]> for Content {
+    fn from(input: &[u8]) -> Self {
+        Self::Bytes(input.to_owned())
+    }
+}
+
 impl<const N: usize> From<&[u8; N]> for Content {
     fn from(input: &[u8; N]) -> Self {
         Self::Bytes(input.to_vec())

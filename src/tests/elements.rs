@@ -19,7 +19,7 @@ fn render(html: &str) -> WebResult<String> {
 
     let ref_time: Timestamp = "2001-09-08 18:46:40-0700".parse().unwrap();
     let ret = ContentReturn {
-        body: html.to_owned().into(),
+        body: html.into(),
         source: Source::File {
             path: PathBuf::from("memory"),
             modified: Some(ref_time),
