@@ -1,4 +1,4 @@
-//! Handle rendering a page.
+//! Handle rendering a Markdown “page”.
 
 use crate::elements::handle_a_email_source;
 use crate::response::Metadata;
@@ -11,6 +11,9 @@ use std::result;
 use std::sync::LazyLock;
 
 /// Render a page source to a string.
+///
+/// This is used to redact private data, e.g. `a-email` elements, from a page
+/// source file.
 #[must_use]
 #[expect(clippy::needless_pass_by_value, reason = "ToString accepts borrows")]
 pub fn render_source_to_string<S: ToString>(source: S) -> String {
@@ -29,6 +32,17 @@ pub fn render_source_to_string<S: ToString>(source: S) -> String {
 }
 
 /// Split the raw page string into metadata and body.
+///
+/// Pages are just Markdown files with YAML headers separated by a `---` line.
+///
+/// ```yaml
+/// title: Example page
+/// other_metadata: foobar
+///
+/// ---
+///
+/// # Markdown page here
+/// ```
 pub fn split_raw_page(raw: &str) -> (&str, &str) {
     static SPLIT_RE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"(?:^|\s*[\r\n])---(?:$|[\r\n]\s*)").unwrap()
@@ -43,6 +57,9 @@ pub fn split_raw_page(raw: &str) -> (&str, &str) {
 
 /// Load metadata from string.
 ///
+/// This expects the header of a page without the trailing `---`. Metadata is
+/// limited to string values (arrays and other structured data is not allowed).
+///
 /// # Errors
 ///
 /// Returns [`YamlError`] if the YAML is invalid.
@@ -54,7 +71,7 @@ pub fn metadata_from_string(raw: &str) -> result::Result<Metadata, YamlError> {
     }
 }
 
-/// Render `markdown` as HTML.
+/// Render Markdown as HTML.
 #[must_use]
 pub fn render_markdown(markdown: &str) -> String {
     let mut buffer = String::new();

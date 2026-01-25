@@ -1,4 +1,21 @@
-//! Values returned by actions.
+//! A draft response that can be further processed or returned to the client.
+//!
+//! These can be passed from action to action for processing, and then converted
+//! into an [`HttpResponse`] and returned to the client.
+//!
+//!   * A [`PathReturn`] represents a path of the firesystem that is guaranteed
+//!     to be a file — it opens the file and holds its descriptor.
+//!   * A [`ContentReturn`] holds actual content, possibly with a path and other
+//!     metadata attached to it. It does not hold open a file descriptor.
+//!
+//! ### Very large files
+//!
+//! A [`PathReturn`] can be transformed into a [`NamedFile`], which Actix can
+//! stream back to the client.
+//!
+//! However, to do any transformations, e.g. converting Markdown to HTML or
+//! rendering HTML into a template, the entire file must be loaded into memory
+//! as a [`ContentReturn`].
 
 use crate::http::{WebError, WebResult, util};
 use crate::{Error, Result};
@@ -195,7 +212,10 @@ pub trait Return {
     fn into_response(self, req: &HttpRequest) -> WebResult<HttpResponse>;
 }
 
-/// Content for the response
+/// Content for the response.
+///
+/// Can either be binary or a UTF-8 string. Use [`Self::ensure_string()`] to
+/// ensure that `Content::Binary` doesn’t hold valid UTF-8.
 #[derive(Clone, Debug, Serialize, derive_more::From)]
 #[serde(untagged)]
 pub enum Content {
