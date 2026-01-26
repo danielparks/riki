@@ -1,7 +1,7 @@
 //! # Miscellaneous utility functions.
 
-use crate::errors::{Error, Result};
-use crate::http::errors::is_not_found;
+use crate::actions::is_not_found;
+use crate::{Error, Result};
 use std::fs;
 use std::io::{self, Read, Seek};
 use std::path::Path;

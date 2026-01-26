@@ -6,7 +6,7 @@ mod params;
 use anyhow::anyhow;
 use params::{Command, Params, Parser};
 use riki::actions::PathReturn;
-use riki::{http, render};
+use riki::{actions, http, render};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -56,9 +56,9 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
 
             let ret = PathReturn::new(page_path.clone())?;
             let ret = http::markdown_to_html(&context, ret)?
-                .ok_or(http::WebError::NotFound)?;
+                .ok_or(actions::Error::NotFound)?;
             let ret = http::render(&context, None, ret)?
-                .ok_or(http::WebError::NotFound)?;
+                .ok_or(actions::Error::NotFound)?;
 
             print!("{}", ret.body.into_string()?);
         }
@@ -67,7 +67,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
                 &http::Context::default(),
                 PathReturn::new(page_path.clone())?,
             )?
-            .ok_or(http::WebError::NotFound)?;
+            .ok_or(actions::Error::NotFound)?;
             print!("{}", serde_yaml::to_string(&ret.metadata)?);
         }
         Command::Serve { base_dir, bind } => {

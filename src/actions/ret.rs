@@ -2,8 +2,8 @@
 //!
 //! See discussion in the parent module.
 
-use crate::http::{WebError, WebResult, util};
-use crate::{Error, Result};
+use super::{Error, Result};
+use crate::http::util;
 use actix_files::NamedFile;
 use actix_web::body::BodySize;
 use actix_web::http::header::{
@@ -74,9 +74,9 @@ impl PathReturn {
     /// # Errors
     ///
     ///   * Mapped `io::Error`s from [`NamedFile::from_file()`].
-    ///   * [`WebError::InternalString`] if the constructed content-type cannot
-    ///     be parsed (should never happen).
-    fn into_named_file(self) -> WebResult<NamedFile> {
+    ///   * [`Error::InternalString`] if the constructed content-type cannot be
+    ///     parsed (should never happen).
+    fn into_named_file(self) -> Result<NamedFile> {
         let file = NamedFile::from_file(self.file, &self.path)?;
         let content_type = file.content_type();
         if content_type.type_() != mime::TEXT
@@ -89,7 +89,7 @@ impl PathReturn {
 
         Ok(file.set_content_type(new_content_type.parse().map_err(
             |error| {
-                WebError::InternalString(format!(
+                Error::InternalString(format!(
                     "Parsing constructed content type {new_content_type:?}: \
                         {error}"
                 ))
@@ -99,14 +99,14 @@ impl PathReturn {
 }
 
 impl Return for PathReturn {
-    fn into_content_return(self) -> WebResult<ContentReturn> {
+    fn into_content_return(self) -> Result<ContentReturn> {
         let Self { mut file, path, created, modified } = self;
 
         let mut body = String::with_capacity(
             file.metadata()?
                 .len()
                 .try_into()
-                .map_err(|_| Error::FileTooLarge(path.clone()))?,
+                .map_err(|_| crate::Error::FileTooLarge(path.clone()))?,
         );
 
         #[expect(
@@ -123,7 +123,7 @@ impl Return for PathReturn {
         })
     }
 
-    fn into_response(self, req: &HttpRequest) -> WebResult<HttpResponse> {
+    fn into_response(self, req: &HttpRequest) -> Result<HttpResponse> {
         Ok(self.into_named_file()?.into_response(req))
     }
 }
@@ -149,8 +149,8 @@ impl ContentReturn {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::NotUtf8`] if the content is not UTF-8.
-    pub fn ensure_metadata_title(&mut self) -> Result<()> {
+    /// Returns [`crate::Error::NotUtf8`] if the content is not UTF-8.
+    pub fn ensure_metadata_title(&mut self) -> crate::Result<()> {
         if !self.metadata.contains_key("title") {
             let fragment = dom_query::Document::fragment(StrTendril::try_from(
                 self.body.clone(),
@@ -165,11 +165,11 @@ impl ContentReturn {
 }
 
 impl Return for ContentReturn {
-    fn into_content_return(self) -> WebResult<ContentReturn> {
+    fn into_content_return(self) -> Result<ContentReturn> {
         Ok(self)
     }
 
-    fn into_response(self, _req: &HttpRequest) -> WebResult<HttpResponse> {
+    fn into_response(self, _req: &HttpRequest) -> Result<HttpResponse> {
         Ok(HttpResponse::Ok()
             .content_type(&self.content_type)
             .body(self.into_content_return()?.body))
@@ -184,17 +184,17 @@ pub trait Return {
     ///
     ///   * `Ok(Some(ret))` for a regular response
     ///   * `Ok(None)` to fall through to the next rule
-    ///   * <code>Err([WebError])</code> for an error to be converted into an
+    ///   * <code>Err([Error])</code> for an error to be converted into an
     ///     appropriate HTTP response.
     #[expect(clippy::missing_errors_doc, reason = "Returns is more useful")]
-    fn into_content_return(self) -> WebResult<ContentReturn>;
+    fn into_content_return(self) -> Result<ContentReturn>;
 
     /// Generate a response (or an error)
     ///
     /// # Errors
     ///
     /// Returned errors will be converted to appropriate HTTP responses.
-    fn into_response(self, req: &HttpRequest) -> WebResult<HttpResponse>;
+    fn into_response(self, req: &HttpRequest) -> Result<HttpResponse>;
 }
 
 /// Content for the response.
@@ -231,8 +231,8 @@ impl Content {
     ///
     /// # Errors
     ///
-    /// Returns `Error::NotUtf8` if the content isn’t valid UTF-8.
-    pub fn into_string(self) -> Result<String> {
+    /// Returns `crate::Error::NotUtf8` if the content isn’t valid UTF-8.
+    pub fn into_string(self) -> crate::Result<String> {
         String::try_from(self)
     }
 
@@ -240,8 +240,8 @@ impl Content {
     ///
     /// # Errors
     ///
-    /// Returns `Error::NotUtf8` if the content isn’t valid UTF-8.
-    pub fn ensure_string(&mut self) -> Result<&String> {
+    /// Returns `crate::Error::NotUtf8` if the content isn’t valid UTF-8.
+    pub fn ensure_string(&mut self) -> crate::Result<&String> {
         match self {
             Self::String(string) => Ok(string),
             Self::Bytes(vec) => {
@@ -313,7 +313,7 @@ impl From<Content> for actix_web::web::Bytes {
 }
 
 impl TryFrom<Content> for StrTendril {
-    type Error = Error;
+    type Error = crate::Error;
 
     fn try_from(content: Content) -> Result<Self, Self::Error> {
         String::try_from(content).map(Into::into)
@@ -321,7 +321,7 @@ impl TryFrom<Content> for StrTendril {
 }
 
 impl TryFrom<Content> for String {
-    type Error = Error;
+    type Error = crate::Error;
 
     fn try_from(content: Content) -> Result<Self, Self::Error> {
         match content {

@@ -1,9 +1,8 @@
 //! Test Markdown parsing and rendering.
 
 use super::util::parse_md;
-use crate::Error;
-use crate::actions::ContentReturn;
-use crate::http::{Context, WebError, markdown_to_html};
+use crate::actions::{ContentReturn, Error};
+use crate::http::{Context, markdown_to_html};
 use assert2::{check, let_assert};
 
 /// Get metadata value from ret in format that’s easy to compare.
@@ -21,7 +20,7 @@ fn empty_page() {
 #[test]
 fn non_utf8_page() {
     check!(
-        let Err(WebError::Internal(Error::NotUtf8(_)))
+        let Err(Error::Internal(crate::Error::NotUtf8(_)))
             = markdown_to_html(&Context::default(), ContentReturn {
                 body: b"title: foo\xff\n----".into(),
                 ..ContentReturn::default()
@@ -45,7 +44,7 @@ fn empty_page_with_just_separator_and_whitespace() {
 
 #[test]
 fn empty_page_with_bad_metadata() {
-    check!(let Err(WebError::Internal(Error::ParsePageMetadata(_)))
+    check!(let Err(Error::Internal(crate::Error::ParsePageMetadata(_)))
         = parse_md("bad_yaml\n---"));
 }
 

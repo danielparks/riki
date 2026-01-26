@@ -18,13 +18,10 @@
 //! | `static/static.html`    | `/static.html`   |
 //! | `static/dir/index.html` | `/dir/`          |
 
-mod errors;
 mod tests;
-pub use errors::*;
 pub mod util;
 
-use crate::actions::{ContentReturn, MediaType, PathReturn, Return};
-use crate::errors::{Error, Result};
+use crate::actions::{self, ContentReturn, MediaType, PathReturn, Return};
 use crate::render::elements::{
     self, ElementError, handle_a_email, handle_last_modified,
 };
@@ -77,7 +74,7 @@ impl Configuration {
 pub async fn serve<S: AsRef<str>>(
     config: Configuration,
     address: S,
-) -> Result<()> {
+) -> crate::Result<()> {
     let address = address.as_ref();
 
     util::check_dir(&config.root_path)?;
@@ -94,13 +91,13 @@ pub async fn serve<S: AsRef<str>>(
             .service(path_handler)
     })
     .bind(address)
-    .map_err(|error| Error::BindError {
+    .map_err(|error| crate::Error::BindError {
         source: error,
         address: String::from(address),
     })?
     .run()
     .await
-    .map_err(Error::Io)
+    .map_err(crate::Error::Io)
 }
 
 /// Handle all GET requests
@@ -114,7 +111,7 @@ pub async fn path_handler(
         Ok(path) => router.route(path).await,
         Err(error) => Err(error),
     }
-    .unwrap_or_else(|error: WebError| {
+    .unwrap_or_else(|error: actions::Error| {
         tracing::error!("{}: {error:?}", req.path());
         error.render(&req, &router.context().tpls)
     })
@@ -187,7 +184,7 @@ impl<'a> Router<'a> {
     pub async fn route(
         &self,
         path: RequestPath<'_>,
-    ) -> WebResult<HttpResponse> {
+    ) -> actions::Result<HttpResponse> {
         if let Some(ret) = path.open(&self.context)? {
             // RULE: *.md {
             //     canonical($path)
@@ -256,7 +253,7 @@ impl<'a> Router<'a> {
             return ret.into_response(path.req);
         }
 
-        Err(WebError::NotFound)
+        Err(actions::Error::NotFound)
     }
 }
 
@@ -285,21 +282,21 @@ impl<'a> RequestPath<'a> {
     ///
     /// # Errors
     ///
-    ///   * [`WebError::InternalString`] if the path doesn’t start with / or if
-    ///     the path contains a .. segment.
+    ///   * [`actions::Error::InternalString`] if the path doesn’t start with /
+    ///     or if the path contains a .. segment.
     ///
-    /// This will not return [`WebError::RedirectCanonical`] because we want to
-    /// check the matching page or static file to ensure there actually is a
-    /// canonical path, and to determine what it is (e.g. it might match a
+    /// This will not return [`actions::Error::RedirectCanonical`] because we
+    /// want to check the matching page or static file to ensure there actually
+    /// is a canonical path, and to determine what it is (e.g. it might match a
     /// directory and thus end with '/').
-    fn clean_path(path: &str) -> WebResult<String> {
+    fn clean_path(path: &str) -> actions::Result<String> {
         // TODO? Actix seems to do deal with .. and maybe // for us. Simplify?
         if !path.starts_with('/') {
-            Err(WebError::InternalString(format!(
+            Err(actions::Error::InternalString(format!(
                 "request path {path:?} does not start with /"
             )))
         } else if path.split('/').any(|v| v == "..") {
-            Err(WebError::InternalString(format!(
+            Err(actions::Error::InternalString(format!(
                 "request path {path:?} contains .."
             )))
         } else {
@@ -321,9 +318,9 @@ impl<'a> RequestPath<'a> {
     ///
     /// # Errors
     ///
-    ///   * [`WebError::InternalString`] if the path doesn’t start with / or if
-    ///     the path contains a .. segment.
-    pub fn new(path: &str, req: &'a HttpRequest) -> WebResult<Self> {
+    ///   * [`actions::Error::InternalString`] if the path doesn’t start with /
+    ///     or if the path contains a .. segment.
+    pub fn new(path: &str, req: &'a HttpRequest) -> actions::Result<Self> {
         let path = Self::clean_path(path)?;
         Ok(Self { path, req })
     }
@@ -334,13 +331,13 @@ impl<'a> RequestPath<'a> {
     ///
     ///   * `Ok(Some(ret))` for file
     ///   * `Ok(None)` if the file is not found
-    ///   * <code>Err([WebError])</code> for other IO errors.
-    fn open(&self, context: &Context) -> WebResult<Option<PathReturn>> {
+    ///   * <code>Err([actions::Error])</code> for other IO errors.
+    fn open(&self, context: &Context) -> actions::Result<Option<PathReturn>> {
         // Convert not found error to `Ok(None)` indicating that we should try
         // the next rule.
         match PathReturn::new(context.config.root_path.join(&self.path[1..])) {
             Ok(ret) => Ok(Some(ret)),
-            Err(error) if is_not_found(&error) => Ok(None),
+            Err(error) if actions::is_not_found(&error) => Ok(None),
             Err(error) => Err(error.into()),
         }
     }
@@ -349,13 +346,13 @@ impl<'a> RequestPath<'a> {
     ///
     /// # Errors
     ///
-    /// Returns [`WebError::RedirectCanonical`] if a redirect is required, and
+    /// Returns [`actions::Error::RedirectCanonical`] if a redirect is required, and
     /// `Ok(())` otherwise.
-    fn check_canonical(&self, canonical: &str) -> WebResult<()> {
+    fn check_canonical(&self, canonical: &str) -> actions::Result<()> {
         if self.req.path() == canonical {
             Ok(())
         } else {
-            Err(WebError::RedirectCanonical(canonical.to_owned()))
+            Err(actions::Error::RedirectCanonical(canonical.to_owned()))
         }
     }
 
@@ -435,13 +432,13 @@ impl<'a> RequestPath<'a> {
 ///
 /// # Errors
 ///
-/// Will return [`WebError`] if there is a problem getting content from `ret` or
-/// rendering the template.
+/// Will return [`actions::Error`] if there is a problem getting content from
+/// `ret` or rendering the template.
 pub fn render<R: Return>(
     context: &Context<'_>,
     req: Option<&HttpRequest>,
     ret: R,
-) -> WebResult<Option<ContentReturn>> {
+) -> actions::Result<Option<ContentReturn>> {
     // FIXME: caching headers based on template and Page.
     // FIXME: add cache-busting to href, src, etc. in HTML.
     let mut ret = ret.into_content_return()?;
@@ -455,7 +452,7 @@ pub fn render<R: Return>(
     ret.body.ensure_string()?;
     let document =
         Document::from(context.tpls.render(template, &ret).map_err(
-            |error| Error::TemplateRender {
+            |error| crate::Error::TemplateRender {
                 source: error,
                 page_source: Box::new(ret.source.clone()),
             },
@@ -494,12 +491,12 @@ pub fn render<R: Return>(
 ///
 /// # Errors
 ///
-/// Will return [`WebError`] if there is a problem getting content from `ret` or
-/// parsing page metadata from the content.
+/// Will return [`actions::Error`] if there is a problem getting content from
+/// `ret` or parsing page metadata from the content.
 pub fn markdown_to_html<R: Return>(
     _context: &Context<'_>,
     ret: R,
-) -> WebResult<Option<ContentReturn>> {
+) -> actions::Result<Option<ContentReturn>> {
     let mut ret = ret.into_content_return()?;
     let raw_page = mem::take(&mut ret.body).into_string()?;
     let (header, body) = render::split_raw_page(&raw_page);
@@ -518,11 +515,11 @@ pub fn markdown_to_html<R: Return>(
 ///
 /// # Errors
 ///
-/// Will return [`WebError`] if there is a problem getting content from `ret`.
+/// Returns [`actions::Error`] for problems getting content from `ret`.
 pub fn redact_source<R: Return>(
     _context: &Context<'_>,
     ret: R,
-) -> WebResult<Option<ContentReturn>> {
+) -> actions::Result<Option<ContentReturn>> {
     // FIXME: caching headers based on template and Page.
     // FIXME: add cache-busting to href, src, etc. in HTML.
     let mut ret = ret.into_content_return()?;
@@ -540,7 +537,7 @@ mod unit_tests {
     /// For easier comparisons.
     fn wrapped_clean_path(path: &str) -> Result<String, String> {
         RequestPath::clean_path(path).map_err(|error| match error {
-            WebError::InternalString(msg) => msg,
+            actions::Error::InternalString(msg) => msg,
             other => panic!("unexpected error: {other:?}"),
         })
     }

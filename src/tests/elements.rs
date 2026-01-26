@@ -1,8 +1,8 @@
 //! Test custom elements.
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
-use crate::actions::{ContentReturn, MediaType, Source};
-use crate::http::{self, Context, WebError, WebResult};
+use crate::actions::{ContentReturn, Error, MediaType, Result, Source};
+use crate::http::{self, Context};
 use crate::render::{self, render_source_to_string};
 use assert2::check;
 use jiff::Timestamp;
@@ -10,7 +10,7 @@ use regex::Regex;
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
-fn render(html: &str) -> WebResult<String> {
+fn render(html: &str) -> Result<String> {
     static CONTEXT: LazyLock<Context> = LazyLock::new(|| {
         let mut tpls = render::templates();
         tpls.register_template_string("default", "{{{body}}}")
@@ -32,7 +32,7 @@ fn render(html: &str) -> WebResult<String> {
 
     match http::render(&CONTEXT, None, ret) {
         Ok(Some(ret)) => Ok(ret.body.into_string()?),
-        Ok(None) => Err(WebError::NotFound),
+        Ok(None) => Err(Error::NotFound),
         Err(error) => Err(error),
     }
 }

@@ -1,23 +1,24 @@
-//! Render error pages.
+//! Control flow for actions.
 
-use crate::errors::Error;
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, http};
 use handlebars::Handlebars;
 use htmlize::escape_text;
 use http::{StatusCode, header};
 use maplit::hashmap;
 use std::io::{self, ErrorKind};
-use std::result::Result;
+use std::result;
 
-/// `Result` type for `WebError`.
-pub type WebResult<T, E = WebError> = Result<T, E>;
+/// `Result` type for [`Error`].
+pub type Result<T, E = Error> = result::Result<T, E>;
 
-/// An error that will be reported to the user as a web page.
+/// An error from an action.
+///
+/// These might be passed back to the client as an error page.
 #[derive(Debug, thiserror::Error)]
-pub enum WebError {
+pub enum Error {
     /// Internal server error.
     #[error("internal server error: {0}")]
-    Internal(#[from] crate::errors::Error),
+    Internal(#[from] crate::Error),
 
     /// Internal server error.
     ///
@@ -43,22 +44,22 @@ pub enum WebError {
     RedirectCanonical(String),
 }
 
-impl From<io::Error> for WebError {
-    /// Convert [`io::Error`] into [`WebError`]. Handles fall-through logic.
+impl From<io::Error> for Error {
+    /// Convert [`io::Error`] into [`Error`]. Handles fall-through logic.
     ///
-    /// See [`WebError::NotFound`].
+    /// See [`Error::NotFound`].
     fn from(error: io::Error) -> Self {
         if is_not_found(&error) {
             Self::NotFound
         } else if error.kind() == ErrorKind::PermissionDenied {
             Self::Forbidden
         } else {
-            Self::Internal(Error::Io(error))
+            Self::Internal(crate::Error::Io(error))
         }
     }
 }
 
-impl WebError {
+impl Error {
     /// Render the error into an `HttpResponse`.
     #[must_use]
     pub fn render(&self, req: &HttpRequest, tpls: &Handlebars) -> HttpResponse {
