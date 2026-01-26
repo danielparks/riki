@@ -25,9 +25,6 @@ async fn init_app() -> (
         Error = actix_web::Error,
     >,
 ) {
-    let temp_dir = TempDir::new().unwrap();
-    let config = Configuration::default_in(temp_dir.path());
-
     let mut tpls = crate::render::templates();
     tpls.clear_templates();
     tpls.register_template_string("default", "{{{ body }}}")
@@ -42,10 +39,12 @@ async fn init_app() -> (
     )
     .unwrap();
 
-    let router = Data::new(Router::new(tpls, config.clone()));
+    let temp_dir = TempDir::new().unwrap();
+    let config = Configuration::default_in(temp_dir.path());
+    let router = Data::new(Router::new(tpls, config.root_path.clone()));
     (
         temp_dir,
-        config.clone(),
+        config,
         test::init_service(App::new().app_data(router).service(path_handler))
             .await,
     )

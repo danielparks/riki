@@ -1,8 +1,8 @@
 //! Test Markdown parsing and rendering.
 
 use super::util::parse_md;
-use crate::actions::{ContentReturn, Error};
-use crate::http::functions::{Context, markdown_to_html};
+use crate::actions::{ContentReturn, Error, StaticContext};
+use crate::http::functions::markdown_to_html;
 use assert2::{check, let_assert};
 
 /// Get metadata value from ret in format that’s easy to compare.
@@ -21,7 +21,7 @@ fn empty_page() {
 fn non_utf8_page() {
     check!(
         let Err(Error::Internal(crate::Error::NotUtf8(_)))
-            = markdown_to_html(&Context::default(), ContentReturn {
+            = markdown_to_html(&StaticContext::default(), ContentReturn {
                 body: b"title: foo\xff\n----".into(),
                 ..ContentReturn::default()
             })

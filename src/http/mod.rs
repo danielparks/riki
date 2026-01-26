@@ -22,15 +22,15 @@ pub mod functions;
 mod tests;
 pub mod util;
 
-pub use functions::Configuration;
-
-use crate::actions::{self, PathReturn, Return};
+use crate::actions::{self, Context, PathReturn, Return, StaticContext};
 use crate::render::templates_from_directory;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
-use functions::{Context, markdown_to_html, redact_source, render};
+use functions::{markdown_to_html, redact_source, render};
 use handlebars::Handlebars;
+use std::fmt;
+use std::path::PathBuf;
 use tracing;
 use tracing_actix_web::TracingLogger;
 
@@ -52,10 +52,7 @@ pub async fn serve<S: AsRef<str>>(
 
     util::check_dir(&config.root_path)?;
 
-    let router = Data::new(Router::new(
-        templates_from_directory(&config.templates_path)?,
-        config,
-    ));
+    let router = Data::new(Router::try_from_configuration(config)?);
 
     HttpServer::new(move || {
         App::new()
@@ -78,7 +75,7 @@ pub async fn serve<S: AsRef<str>>(
 #[get("/{path:.*}")]
 pub async fn path_handler(
     req: HttpRequest,
-    router: Data<Router<'_>>,
+    router: Data<Router<StaticContext<'_>>>,
 ) -> impl Responder {
     match RequestPath::new(req.path(), &req) {
         Ok(path) => router.route(path).await,
@@ -86,28 +83,40 @@ pub async fn path_handler(
     }
     .unwrap_or_else(|error: actions::Error| {
         tracing::error!("{}: {error:?}", req.path());
-        error.render(&req, &router.context().tpls)
+        error.render(&req, router.context().tpls())
     })
 }
 
 /// Route requests to the right actions
-#[derive(Debug)]
-pub struct Router<'a> {
+pub struct Router<C: Context> {
     /// Context for actions
-    context: Context<'a>,
+    context: C,
 }
 
-impl<'a> Router<'a> {
+impl<'a> Router<StaticContext<'a>> {
     /// Create a new router.
     #[must_use]
-    pub const fn new(tpls: Handlebars<'a>, config: Configuration) -> Self {
-        let context = Context { config, tpls };
-        Self { context }
+    pub const fn new(tpls: Handlebars<'a>, working_path: PathBuf) -> Self {
+        Self { context: StaticContext { working_path, tpls } }
     }
 
+    /// Create a router from a [`Configuration`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is a problem loading templates.
+    pub fn try_from_configuration(
+        config: Configuration,
+    ) -> crate::Result<Self> {
+        let tpls = templates_from_directory(&config.templates_path)?;
+        Ok(Self::new(tpls, config.root_path))
+    }
+}
+
+impl<C: Context> Router<C> {
     /// Get the context
     #[must_use]
-    pub const fn context(&self) -> &Context<'a> {
+    pub const fn context(&self) -> &C {
         &self.context
     }
 
@@ -230,6 +239,39 @@ impl<'a> Router<'a> {
     }
 }
 
+impl<C: Context + fmt::Debug> fmt::Debug for Router<C> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Router")
+            .field("context", &self.context)
+            .finish()
+    }
+}
+
+/// Application configuration.
+#[derive(Debug, Clone)]
+pub struct Configuration {
+    /// The path to the directory containing pages and static assets.
+    pub root_path: PathBuf,
+    /// The path to the directory containing templates.
+    pub templates_path: PathBuf,
+}
+
+impl Default for Configuration {
+    /// Create a configuration using the default subdirectories names in the
+    /// current directory.
+    fn default() -> Self {
+        Self::default_in(".")
+    }
+}
+
+impl Configuration {
+    /// Create a configuration using the default subdirectories under `root`.
+    pub fn default_in<P: Into<PathBuf>>(root: P) -> Self {
+        let root: PathBuf = root.into();
+        Self { templates_path: root.join("templates"), root_path: root }
+    }
+}
+
 /// A request for a path
 pub struct RequestPath<'a> {
     /// The clean request path. Starts with `'/'`.
@@ -295,10 +337,13 @@ impl<'a> RequestPath<'a> {
     ///   * `Ok(Some(ret))` for file
     ///   * `Ok(None)` if the file is not found
     ///   * <code>Err([actions::Error])</code> for other IO errors.
-    fn open(&self, context: &Context) -> actions::Result<Option<PathReturn>> {
+    fn open<C: Context>(
+        &self,
+        context: &C,
+    ) -> actions::Result<Option<PathReturn>> {
         // Convert not found error to `Ok(None)` indicating that we should try
         // the next rule.
-        match PathReturn::new(context.config.root_path.join(&self.path[1..])) {
+        match PathReturn::new(context.working_path().join(&self.path[1..])) {
             Ok(ret) => Ok(Some(ret)),
             Err(error) if actions::is_not_found(&error) => Ok(None),
             Err(error) => Err(error.into()),

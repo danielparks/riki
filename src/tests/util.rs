@@ -1,7 +1,7 @@
 //! Utility functions for tests
 
-use crate::actions::{ContentReturn, Error, MediaType, Result};
-use crate::http::functions::{Context, markdown_to_html};
+use crate::actions::{ContentReturn, Error, MediaType, Result, StaticContext};
+use crate::http::functions::markdown_to_html;
 
 /// Parse markdown into `ContentReturn`.
 ///
@@ -15,7 +15,7 @@ pub fn parse_md(raw: &str) -> Result<ContentReturn> {
         ..ContentReturn::default()
     };
 
-    match markdown_to_html(&Context::default(), ret) {
+    match markdown_to_html(&StaticContext::default(), ret) {
         Ok(Some(ret)) => Ok(ret),
         Ok(None) => Err(Error::NotFound),
         Err(error) => Err(error),

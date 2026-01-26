@@ -1,8 +1,10 @@
 //! Test custom elements.
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
-use crate::actions::{ContentReturn, Error, MediaType, Result, Source};
-use crate::http::functions::{self, Context};
+use crate::actions::{
+    ContentReturn, Error, MediaType, Result, Source, StaticContext,
+};
+use crate::http::functions;
 use crate::render::{self, render_source_to_string};
 use assert2::check;
 use jiff::Timestamp;
@@ -11,11 +13,11 @@ use std::path::PathBuf;
 use std::sync::LazyLock;
 
 fn render(html: &str) -> Result<String> {
-    static CONTEXT: LazyLock<Context> = LazyLock::new(|| {
+    static CONTEXT: LazyLock<StaticContext> = LazyLock::new(|| {
         let mut tpls = render::templates();
         tpls.register_template_string("default", "{{{body}}}")
             .unwrap();
-        Context { tpls, ..Context::default() }
+        StaticContext { tpls, ..StaticContext::default() }
     });
 
     let ref_time: Timestamp = "2001-09-08 18:46:40-0700".parse().unwrap();
@@ -30,7 +32,7 @@ fn render(html: &str) -> Result<String> {
         ..ContentReturn::default()
     };
 
-    match functions::render(&CONTEXT, None, ret) {
+    match functions::render(&*CONTEXT, None, ret) {
         Ok(Some(ret)) => Ok(ret.body.into_string()?),
         Ok(None) => Err(Error::NotFound),
         Err(error) => Err(error),

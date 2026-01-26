@@ -42,7 +42,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
 
     match &params.command {
         Command::Render { templates_dir, page_path } => {
-            let context = http::functions::Context {
+            let context = actions::StaticContext {
                 tpls: render::templates_from_directory(
                     templates_dir
                         .clone()
@@ -64,7 +64,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
         }
         Command::Info { page_path } => {
             let ret = http::functions::markdown_to_html(
-                &http::functions::Context::default(),
+                &actions::StaticContext::default(),
                 PathReturn::new(page_path.clone())?,
             )?
             .ok_or(actions::Error::NotFound)?;
