@@ -2,7 +2,7 @@
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
 use crate::actions::{ContentReturn, Error, MediaType, Result, Source};
-use crate::http::{self, Context};
+use crate::http::functions::{self, Context};
 use crate::render::{self, render_source_to_string};
 use assert2::check;
 use jiff::Timestamp;
@@ -30,7 +30,7 @@ fn render(html: &str) -> Result<String> {
         ..ContentReturn::default()
     };
 
-    match http::render(&CONTEXT, None, ret) {
+    match functions::render(&CONTEXT, None, ret) {
         Ok(Some(ret)) => Ok(ret.body.into_string()?),
         Ok(None) => Err(Error::NotFound),
         Err(error) => Err(error),

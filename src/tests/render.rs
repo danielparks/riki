@@ -2,7 +2,7 @@
 
 use super::util::parse_md;
 use crate::actions::{ContentReturn, Error};
-use crate::http::{Context, markdown_to_html};
+use crate::http::functions::{Context, markdown_to_html};
 use assert2::{check, let_assert};
 
 /// Get metadata value from ret in format that’s easy to compare.
