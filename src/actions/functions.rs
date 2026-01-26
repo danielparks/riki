@@ -1,26 +1,28 @@
 //! Functions that will become actions.
 
-use crate::actions::{self, ContentReturn, Context, MediaType, Return};
+use super::{ContentReturn, MediaType, Result, Return};
 use crate::render::elements::{
     self, ElementError, handle_a_email, handle_last_modified,
 };
 use crate::render::{self, render_source_to_string};
 use actix_web::{self, HttpRequest};
 use dom_query::Document;
+use handlebars::Handlebars;
 use std::mem;
+use std::path::{Path, PathBuf};
 use tracing;
 
 /// Render passed content in a template.
 ///
 /// # Errors
 ///
-/// Will return [`actions::Error`] if there is a problem getting content from
+/// Will return [`super::Error`] if there is a problem getting content from
 /// `ret` or rendering the template.
 pub fn render<C: Context, R: Return>(
     context: &C,
     req: Option<&HttpRequest>,
     ret: R,
-) -> actions::Result<Option<ContentReturn>> {
+) -> Result<Option<ContentReturn>> {
     // FIXME: caching headers based on template and Page.
     // FIXME: add cache-busting to href, src, etc. in HTML.
     let mut ret = ret.into_content_return()?;
@@ -73,12 +75,12 @@ pub fn render<C: Context, R: Return>(
 ///
 /// # Errors
 ///
-/// Will return [`actions::Error`] if there is a problem getting content from
+/// Will return [`super::Error`] if there is a problem getting content from
 /// `ret` or parsing page metadata from the content.
 pub fn markdown_to_html<C: Context, R: Return>(
     _context: &C,
     ret: R,
-) -> actions::Result<Option<ContentReturn>> {
+) -> Result<Option<ContentReturn>> {
     let mut ret = ret.into_content_return()?;
     let raw_page = mem::take(&mut ret.body).into_string()?;
     let (header, body) = render::split_raw_page(&raw_page);
@@ -97,15 +99,44 @@ pub fn markdown_to_html<C: Context, R: Return>(
 ///
 /// # Errors
 ///
-/// Returns [`actions::Error`] for problems getting content from `ret`.
+/// Returns [`super::Error`] for problems getting content from `ret`.
 pub fn redact_source<C: Context, R: Return>(
     _context: &C,
     ret: R,
-) -> actions::Result<Option<ContentReturn>> {
+) -> Result<Option<ContentReturn>> {
     // FIXME: caching headers based on template and Page.
     // FIXME: add cache-busting to href, src, etc. in HTML.
     let mut ret = ret.into_content_return()?;
     ret.body = render_source_to_string(ret.body.into_string()?).into();
     ret.content_type = MediaType::TEXT_MARKDOWN_UTF8;
     Ok(Some(ret))
+}
+
+/// Context for actions
+pub trait Context {
+    /// Get templates
+    fn tpls(&self) -> &Handlebars<'_>;
+
+    /// Get the path to the current working directory
+    fn working_path(&self) -> &Path;
+}
+
+/// Static context with preset configuration.
+#[derive(Debug, Default, Clone)]
+pub struct StaticContext<'a> {
+    /// Working directory
+    pub working_path: PathBuf,
+
+    /// Templates for rendering pages
+    pub tpls: Handlebars<'a>,
+}
+
+impl Context for StaticContext<'_> {
+    fn tpls(&self) -> &Handlebars<'_> {
+        &self.tpls
+    }
+
+    fn working_path(&self) -> &Path {
+        &self.working_path
+    }
 }

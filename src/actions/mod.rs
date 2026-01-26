@@ -20,40 +20,11 @@
 //! rendering HTML into a template, the entire file must be loaded into memory
 //! as a [`ContentReturn`].
 
-mod ret;
-pub use ret::*;
-
 mod errors;
 pub use errors::*;
 
-use handlebars::Handlebars;
-use std::path::{Path, PathBuf};
+mod functions;
+pub use functions::*;
 
-/// Context for actions
-pub trait Context {
-    /// Get templates
-    fn tpls(&self) -> &Handlebars<'_>;
-
-    /// Get the path to the current working directory
-    fn working_path(&self) -> &Path;
-}
-
-/// Static context with preset configuration.
-#[derive(Debug, Default, Clone)]
-pub struct StaticContext<'a> {
-    /// Working directory
-    pub working_path: PathBuf,
-
-    /// Templates for rendering pages
-    pub tpls: Handlebars<'a>,
-}
-
-impl Context for StaticContext<'_> {
-    fn tpls(&self) -> &Handlebars<'_> {
-        &self.tpls
-    }
-
-    fn working_path(&self) -> &Path {
-        &self.working_path
-    }
-}
+mod ret;
+pub use ret::*;

@@ -55,15 +55,15 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             };
 
             let ret = PathReturn::new(page_path.clone())?;
-            let ret = http::functions::markdown_to_html(&context, ret)?
+            let ret = actions::markdown_to_html(&context, ret)?
                 .ok_or(actions::Error::NotFound)?;
-            let ret = http::functions::render(&context, None, ret)?
+            let ret = actions::render(&context, None, ret)?
                 .ok_or(actions::Error::NotFound)?;
 
             print!("{}", ret.body.into_string()?);
         }
         Command::Info { page_path } => {
-            let ret = http::functions::markdown_to_html(
+            let ret = actions::markdown_to_html(
                 &actions::StaticContext::default(),
                 PathReturn::new(page_path.clone())?,
             )?

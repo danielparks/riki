@@ -18,16 +18,17 @@
 //! | `static/static.html`    | `/static.html`   |
 //! | `static/dir/index.html` | `/dir/`          |
 
-pub mod functions;
 mod tests;
 pub mod util;
 
-use crate::actions::{self, Context, PathReturn, Return, StaticContext};
+use crate::actions::{
+    self, Context, PathReturn, Return, StaticContext, markdown_to_html,
+    redact_source, render,
+};
 use crate::render::templates_from_directory;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
-use functions::{markdown_to_html, redact_source, render};
 use handlebars::Handlebars;
 use std::fmt;
 use std::path::PathBuf;
