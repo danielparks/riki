@@ -34,7 +34,7 @@
 //!
 //! [Conversion specifications]: jiff::fmt::strtime#conversion-specifications
 
-use crate::response::ContentReturn;
+use crate::actions::ContentReturn;
 use actix_web::HttpRequest;
 use dom_query::{Document, NodeRef};
 use jiff::Timestamp;

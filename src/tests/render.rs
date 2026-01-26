@@ -1,8 +1,9 @@
 //! Test Markdown parsing and rendering.
 
 use super::util::parse_md;
+use crate::Error;
+use crate::actions::ContentReturn;
 use crate::http::{Context, WebError, markdown_to_html};
-use crate::{ContentReturn, Error};
 use assert2::{check, let_assert};
 
 /// Get metadata value from ret in format that’s easy to compare.

@@ -5,7 +5,8 @@ mod params;
 
 use anyhow::anyhow;
 use params::{Command, Params, Parser};
-use riki::{PathReturn, http, render};
+use riki::actions::PathReturn;
+use riki::{http, render};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;

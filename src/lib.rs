@@ -2,12 +2,11 @@
 
 mod embeds;
 mod errors;
-mod response;
 
+pub mod actions;
 pub mod http;
 pub mod render;
 
 pub use errors::*;
-pub use response::*;
 
 mod tests;

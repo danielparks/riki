@@ -1,7 +1,7 @@
 //! Handle rendering a Markdown “page”.
 
 use super::elements::handle_a_email_source;
-use crate::response::Metadata;
+use crate::actions::Metadata;
 use dom_query::Document;
 use pulldown_cmark::{Options, Parser};
 use regex::Regex;

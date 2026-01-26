@@ -1,7 +1,7 @@
 //! Utility functions for tests
 
+use crate::actions::{ContentReturn, MediaType};
 use crate::http::{Context, WebError, WebResult, markdown_to_html};
-use crate::{ContentReturn, MediaType};
 
 /// Parse markdown into `ContentReturn`.
 ///

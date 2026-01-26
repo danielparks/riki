@@ -23,12 +23,12 @@ mod tests;
 pub use errors::*;
 pub mod util;
 
+use crate::actions::{ContentReturn, MediaType, PathReturn, Return};
 use crate::errors::{Error, Result};
 use crate::render::elements::{
     self, ElementError, handle_a_email, handle_last_modified,
 };
 use crate::render::{self, render_source_to_string, templates_from_directory};
-use crate::response::{ContentReturn, MediaType, PathReturn, Return};
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };

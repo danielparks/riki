@@ -2,7 +2,8 @@
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
 use super::util::parse_md;
-use crate::{ContentReturn, MediaType, Source, render};
+use crate::actions::{ContentReturn, MediaType, Source};
+use crate::render;
 use assert2::{check, let_assert};
 use jiff::Timestamp;
 use std::fs;

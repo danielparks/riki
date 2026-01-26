@@ -1,6 +1,6 @@
 //! Errors returned by the crate.
 
-use crate::response::Source;
+use crate::actions::Source;
 use std::io;
 use std::path::PathBuf;
 use std::result;

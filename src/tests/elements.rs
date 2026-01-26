@@ -1,9 +1,9 @@
 //! Test custom elements.
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
-use crate::http::{Context, WebError, WebResult};
+use crate::actions::{ContentReturn, MediaType, Source};
+use crate::http::{self, Context, WebError, WebResult};
 use crate::render::{self, render_source_to_string};
-use crate::{ContentReturn, MediaType, Source, http};
 use assert2::check;
 use jiff::Timestamp;
 use regex::Regex;
