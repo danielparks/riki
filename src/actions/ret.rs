@@ -3,7 +3,6 @@
 //! See discussion in the parent module.
 
 use super::{Error, Result};
-use crate::http::util;
 use actix_files::NamedFile;
 use actix_web::body::BodySize;
 use actix_web::http::header::{
@@ -15,9 +14,11 @@ use jiff::Timestamp;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::fs;
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::{self, Read, Seek};
 use std::mem;
+use std::path::Path;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::task;
@@ -47,8 +48,7 @@ impl PathReturn {
     /// Returns [`io::Error`] if the path doesn’t exist, isn’t a file, or
     /// otherwise couldn’t be read.
     pub fn new(path: PathBuf) -> io::Result<Self> {
-        // FIXME? move out of util?
-        let file = util::open_confirmed_file(&path)?;
+        let file = open_confirmed_file(&path)?;
         let metadata = file.metadata().ok();
 
         Ok(Self {
@@ -472,3 +472,22 @@ impl Source {
 /// If not present, the `title` will be set to the contents of the first `<h1>`
 /// on the page.
 pub type Metadata = HashMap<String, String>;
+
+/// Open a file and confirm that it is a file.
+///
+/// This reads one byte to check if the file is a directory (using `is_dir()`
+/// would create a race condition.)
+///
+/// Returns the opened file (rewound).
+///
+/// # Errors
+///
+///   * [`io::Error`] resulting from opening the file, reading a byte, or
+///     seeking to the start of the file.
+pub fn open_confirmed_file<P: AsRef<Path>>(path: P) -> io::Result<fs::File> {
+    let mut file = fs::File::open(path)?;
+    let mut buffer: [u8; 1] = [0];
+    _ = file.read(&mut buffer)?;
+    file.rewind()?;
+    Ok(file)
+}
