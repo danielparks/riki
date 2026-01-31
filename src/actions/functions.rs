@@ -1,15 +1,13 @@
 //! Functions that will become actions.
 
-use super::{ContentReturn, MediaType, Result, Return};
+use super::{ContentReturn, Context, MediaType, Result, Return, VariableMap};
 use crate::render::elements::{
     self, ElementError, handle_a_email, handle_last_modified,
 };
 use crate::render::{self, render_source_to_string};
 use actix_web::{self, HttpRequest};
 use dom_query::Document;
-use handlebars::Handlebars;
 use std::mem;
-use std::path::{Path, PathBuf};
 use tracing;
 
 /// Render passed content in a template.
@@ -18,8 +16,8 @@ use tracing;
 ///
 /// Will return [`super::Error`] if there is a problem getting content from
 /// `ret` or rendering the template.
-pub fn render<C: Context, R: Return>(
-    context: &C,
+pub fn render<'a, V: VariableMap<'a>, R: Return>(
+    context: &Context<'a, V>,
     req: Option<&HttpRequest>,
     ret: R,
 ) -> Result<Option<ContentReturn>> {
@@ -35,7 +33,7 @@ pub fn render<C: Context, R: Return>(
 
     ret.body.ensure_string()?;
     let document =
-        Document::from(context.tpls().render(template, &ret).map_err(
+        Document::from(context.tpls.render(template, &ret).map_err(
             |error| crate::Error::TemplateRender {
                 source: error,
                 page_source: Box::new(ret.source.clone()),
@@ -77,8 +75,8 @@ pub fn render<C: Context, R: Return>(
 ///
 /// Will return [`super::Error`] if there is a problem getting content from
 /// `ret` or parsing page metadata from the content.
-pub fn markdown_to_html<C: Context, R: Return>(
-    _context: &C,
+pub fn markdown_to_html<'a, V: VariableMap<'a>, R: Return>(
+    _context: &Context<'a, V>,
     ret: R,
 ) -> Result<Option<ContentReturn>> {
     let mut ret = ret.into_content_return()?;
@@ -100,8 +98,8 @@ pub fn markdown_to_html<C: Context, R: Return>(
 /// # Errors
 ///
 /// Returns [`super::Error`] for problems getting content from `ret`.
-pub fn redact_source<C: Context, R: Return>(
-    _context: &C,
+pub fn redact_source<'a, V: VariableMap<'a>, R: Return>(
+    _context: &Context<'a, V>,
     ret: R,
 ) -> Result<Option<ContentReturn>> {
     // FIXME: caching headers based on template and Page.
@@ -110,33 +108,4 @@ pub fn redact_source<C: Context, R: Return>(
     ret.body = render_source_to_string(ret.body.into_string()?).into();
     ret.content_type = MediaType::TEXT_MARKDOWN_UTF8;
     Ok(Some(ret))
-}
-
-/// Context for actions
-pub trait Context {
-    /// Get templates
-    fn tpls(&self) -> &Handlebars<'_>;
-
-    /// Get the path to the current working directory
-    fn working_path(&self) -> &Path;
-}
-
-/// Static context with preset configuration.
-#[derive(Debug, Default, Clone)]
-pub struct StaticContext<'a> {
-    /// Working directory
-    pub working_path: PathBuf,
-
-    /// Templates for rendering pages
-    pub tpls: Handlebars<'a>,
-}
-
-impl Context for StaticContext<'_> {
-    fn tpls(&self) -> &Handlebars<'_> {
-        &self.tpls
-    }
-
-    fn working_path(&self) -> &Path {
-        &self.working_path
-    }
 }

@@ -50,7 +50,8 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
                         .ok_or_else(|| {
                             anyhow!("Could not find templates directory")
                         })?,
-                )?,
+                )?
+                .into(),
                 ..Default::default()
             };
 

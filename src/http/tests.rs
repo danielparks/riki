@@ -25,23 +25,21 @@ async fn init_app() -> (
         Error = actix_web::Error,
     >,
 ) {
-    let mut tpls = crate::render::templates();
-    tpls.clear_templates();
-    tpls.register_template_string("default", "{{{ body }}}")
-        .unwrap();
-    tpls.register_template_string("error403", "403").unwrap();
-    tpls.register_template_string("error404", "404").unwrap();
-    tpls.register_template_string("error500", "{{{ error_debug }}}")
-        .unwrap();
-    tpls.register_template_string(
-        "redirect301",
+    let temp_dir = TempDir::new().unwrap();
+    let config = Configuration::default_in(temp_dir.path());
+    let tpls_dir = &config.templates_path;
+    fs::create_dir(tpls_dir).unwrap();
+    fs::write(tpls_dir.join("default.hbs"), "{{{ body }}}").unwrap();
+    fs::write(tpls_dir.join("error403.hbs"), "403").unwrap();
+    fs::write(tpls_dir.join("error404.hbs"), "404").unwrap();
+    fs::write(tpls_dir.join("error500.hbs"), "{{{ error_debug }}}").unwrap();
+    fs::write(
+        tpls_dir.join("redirect301.hbs"),
         "redirect {{ canonical_url }}",
     )
     .unwrap();
 
-    let temp_dir = TempDir::new().unwrap();
-    let config = Configuration::default_in(temp_dir.path());
-    let router = Data::new(Router::new(tpls, config.root_path.clone()));
+    let router = Data::new(Router::from_configuration(config.clone()));
     (
         temp_dir,
         config,

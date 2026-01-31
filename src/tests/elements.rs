@@ -13,10 +13,10 @@ use std::sync::LazyLock;
 
 fn render(html: &str) -> Result<String> {
     static CONTEXT: LazyLock<StaticContext> = LazyLock::new(|| {
-        let mut tpls = render::templates();
+        let mut tpls = render::base_templates();
         tpls.register_template_string("default", "{{{body}}}")
             .unwrap();
-        StaticContext { tpls, ..StaticContext::default() }
+        StaticContext { tpls: tpls.into(), ..StaticContext::default() }
     });
 
     let ref_time: Timestamp = "2001-09-08 18:46:40-0700".parse().unwrap();

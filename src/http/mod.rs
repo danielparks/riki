@@ -22,15 +22,13 @@ mod tests;
 pub mod util;
 
 use crate::actions::{
-    self, Context, PathReturn, Return, StaticContext, markdown_to_html,
-    redact_source, render,
+    self, PathReturn, RequestContext, Return, markdown_to_html, redact_source,
+    render,
 };
-use crate::render::templates_from_directory;
+use crate::render::{TemplatesManager, base_templates};
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
-use handlebars::Handlebars;
-use std::fmt;
 use std::path::PathBuf;
 use tracing;
 use tracing_actix_web::TracingLogger;
@@ -53,7 +51,7 @@ pub async fn serve<S: AsRef<str>>(
 
     util::check_dir(&config.root_path)?;
 
-    let router = Data::new(Router::try_from_configuration(config)?);
+    let router = Data::new(Router::from_configuration(config));
 
     HttpServer::new(move || {
         App::new()
@@ -76,7 +74,7 @@ pub async fn serve<S: AsRef<str>>(
 #[get("/{path:.*}")]
 pub async fn path_handler(
     req: HttpRequest,
-    router: Data<Router<StaticContext<'_>>>,
+    router: Data<Router<'_>>,
 ) -> impl Responder {
     match RequestPath::new(req.path(), &req) {
         Ok(path) => router.route(path).await,
@@ -84,41 +82,61 @@ pub async fn path_handler(
     }
     .unwrap_or_else(|error: actions::Error| {
         tracing::error!("{}: {error:?}", req.path());
-        error.render(&req, router.context().tpls())
+        match router.context(&req) {
+            Ok(context) => error.render(&req, &context.tpls),
+            Err(error2) => {
+                tracing::error!(
+                    "{} failed to get context: {error2:?}",
+                    req.path()
+                );
+                error.render(&req, &base_templates())
+            }
+        }
     })
 }
 
 /// Route requests to the right actions
-pub struct Router<C: Context> {
-    /// Context for actions
-    context: C,
+#[derive(Debug, Default)]
+pub struct Router<'tpls> {
+    /// Root path and template paths
+    config: Configuration,
+
+    /// Manage template registries
+    manager: TemplatesManager<'tpls>,
 }
 
-impl<'a> Router<StaticContext<'a>> {
-    /// Create a new router.
-    #[must_use]
-    pub const fn new(tpls: Handlebars<'a>, working_path: PathBuf) -> Self {
-        Self { context: StaticContext { working_path, tpls } }
-    }
-
+impl Router<'_> {
     /// Create a router from a [`Configuration`].
     ///
     /// # Errors
     ///
     /// Returns an error if there is a problem loading templates.
-    pub fn try_from_configuration(
-        config: Configuration,
-    ) -> crate::Result<Self> {
-        let tpls = templates_from_directory(&config.templates_path)?;
-        Ok(Self::new(tpls, config.root_path))
+    #[must_use]
+    pub fn from_configuration(config: Configuration) -> Self {
+        Self { config, manager: TemplatesManager::default() }
     }
 }
 
-impl<C: Context> Router<C> {
-    /// Get the context
-    #[must_use]
-    pub const fn context(&self) -> &C {
-        &self.context
+impl<'tpls> Router<'tpls> {
+    /// Get the [`actions::Context`] for a request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configured templates directory doesn’t exist or
+    /// a template fails to compile.
+    pub fn context<'req>(
+        &self,
+        req: &'req HttpRequest,
+    ) -> crate::Result<RequestContext<'req>>
+    where
+        'tpls: 'req,
+    {
+        Ok(RequestContext::new(
+            self.config.root_path.clone(),
+            self.manager
+                .templates_for_directory(&self.config.templates_path)?,
+            req,
+        ))
     }
 
     /// Route a request
@@ -168,7 +186,9 @@ impl<C: Context> Router<C> {
         &self,
         path: RequestPath<'_>,
     ) -> actions::Result<HttpResponse> {
-        if let Some(ret) = path.open(&self.context)? {
+        let context = self.context(path.req)?;
+
+        if let Some(ret) = path.open(&context)? {
             // RULE: *.md {
             //     canonical($path)
             //     redact_source($path)
@@ -176,7 +196,7 @@ impl<C: Context> Router<C> {
             if path.ends_with_ignore_case(".md") {
                 path.check_canonical(path.path())?;
 
-                if let Some(ret) = redact_source(&self.context, ret)? {
+                if let Some(ret) = redact_source(&context, ret)? {
                     return ret.into_response(path.req);
                 }
                 // else, fall through.
@@ -196,7 +216,7 @@ impl<C: Context> Router<C> {
             }
         }
 
-        if let Some(ret) = path.join("index.html").open(&self.context)? {
+        if let Some(ret) = path.join("index.html").open(&context)? {
             // RULE: if file_exists("$path/index.html") {
             //     canonical("${path}/")
             //     $path/index.html
@@ -206,14 +226,14 @@ impl<C: Context> Router<C> {
         }
 
         if let Some(md_path) = path.with_extension(".md")
-            && let Some(ret) = md_path.open(&self.context)?
+            && let Some(ret) = md_path.open(&context)?
         {
             if path.file_name() == Some("index") {
                 // RULE: index canonical("${dirname($path)}/")
                 // FIXME? this should *always* redirect.
                 path.check_canonical(path.parent_with_slash())?;
-            } else if let Some(ret) = markdown_to_html(&self.context, ret)?
-                && let Some(ret) = render(&self.context, Some(path.req), ret)?
+            } else if let Some(ret) = markdown_to_html(&context, ret)?
+                && let Some(ret) = render(&context, Some(path.req), ret)?
             {
                 // RULE: if file_exists("${path}.md") {
                 //     canonical($path)
@@ -224,9 +244,9 @@ impl<C: Context> Router<C> {
             }
         }
 
-        if let Some(ret) = path.join("index.md").open(&self.context)?
-            && let Some(ret) = markdown_to_html(&self.context, ret)?
-            && let Some(ret) = render(&self.context, Some(path.req), ret)?
+        if let Some(ret) = path.join("index.md").open(&context)?
+            && let Some(ret) = markdown_to_html(&context, ret)?
+            && let Some(ret) = render(&context, Some(path.req), ret)?
         {
             // RULE: if file_exists("$path/index.md") {
             //     canonical("${path}/")
@@ -237,14 +257,6 @@ impl<C: Context> Router<C> {
         }
 
         Err(actions::Error::NotFound)
-    }
-}
-
-impl<C: Context + fmt::Debug> fmt::Debug for Router<C> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Router")
-            .field("context", &self.context)
-            .finish()
     }
 }
 
@@ -274,16 +286,16 @@ impl Configuration {
 }
 
 /// A request for a path
-pub struct RequestPath<'a> {
+pub struct RequestPath<'req> {
     /// The clean request path. Starts with `'/'`.
     path: String,
 
     /// The HTTP request.
-    pub req: &'a HttpRequest,
+    pub req: &'req HttpRequest,
     // FIXME add original path to detect when we need a 301 redirect?
 }
 
-impl<'a> RequestPath<'a> {
+impl<'req> RequestPath<'req> {
     /// Get a clean path from the request path.
     ///
     /// # Errors
@@ -326,7 +338,7 @@ impl<'a> RequestPath<'a> {
     ///
     ///   * [`actions::Error::InternalString`] if the path doesn’t start with /
     ///     or if the path contains a .. segment.
-    pub fn new(path: &str, req: &'a HttpRequest) -> actions::Result<Self> {
+    pub fn new(path: &str, req: &'req HttpRequest) -> actions::Result<Self> {
         let path = Self::clean_path(path)?;
         Ok(Self { path, req })
     }
@@ -338,13 +350,13 @@ impl<'a> RequestPath<'a> {
     ///   * `Ok(Some(ret))` for file
     ///   * `Ok(None)` if the file is not found
     ///   * <code>Err([actions::Error])</code> for other IO errors.
-    fn open<C: Context>(
+    fn open(
         &self,
-        context: &C,
+        context: &RequestContext<'_>,
     ) -> actions::Result<Option<PathReturn>> {
         // Convert not found error to `Ok(None)` indicating that we should try
         // the next rule.
-        match PathReturn::new(context.working_path().join(&self.path[1..])) {
+        match PathReturn::new(context.working_path.join(&self.path[1..])) {
             Ok(ret) => Ok(Some(ret)),
             Err(error) if actions::is_not_found(&error) => Ok(None),
             Err(error) => Err(error.into()),

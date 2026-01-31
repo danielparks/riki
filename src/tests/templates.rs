@@ -3,7 +3,7 @@
 
 use super::util::parse_md;
 use crate::actions::{ContentReturn, MediaType, Source};
-use crate::render;
+use crate::render::{base_templates, templates_from_directory};
 use assert2::{check, let_assert};
 use jiff::Timestamp;
 use std::fs;
@@ -23,7 +23,7 @@ const AS_STR: for<'a> fn(&'a String) -> &'a str = String::as_str;
 
 #[test]
 fn empty_template() {
-    let mut tpls = render::templates();
+    let mut tpls = base_templates();
     tpls.register_template_string("empty", "").unwrap();
 
     let_assert!(Ok(page) = parse_md("title: page\n---\n# Page"));
@@ -32,7 +32,7 @@ fn empty_template() {
 
 #[test]
 fn override_template() {
-    let mut tpls = render::templates();
+    let mut tpls = base_templates();
     // Override embedded default template
     tpls.register_template_string("default", "").unwrap();
 
@@ -42,7 +42,7 @@ fn override_template() {
 
 #[test]
 fn embedded_template() {
-    let tpls = render::templates();
+    let tpls = base_templates();
     let mut embedded_names: Vec<_> = tpls.get_templates().keys().collect();
     embedded_names.sort();
     check!(
@@ -67,7 +67,7 @@ fn embedded_template() {
 
 \t</body>
 </html>
-") = render::templates().render("default", &page).as_ref().map(AS_STR));
+") = tpls.render("default", &page).as_ref().map(AS_STR));
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn basic_template() {
     let temp = TempDir::new().unwrap();
     create_file(&temp, "default.hbs", "{{ metadata.title }} {{{ body }}}");
 
-    let tpls = render::templates_from_directory(temp.path()).unwrap();
+    let tpls = templates_from_directory(temp.path()).unwrap();
 
     let_assert!(Ok(page) = parse_md("title: title<test>\n---\n# heading"));
     check!(
@@ -92,7 +92,7 @@ fn basic_template_twice() {
     let temp = TempDir::new().unwrap();
     create_file(&temp, "default.hbs", "{{{ body }}}");
 
-    let tpls = render::templates_from_directory(temp.path()).unwrap();
+    let tpls = templates_from_directory(temp.path()).unwrap();
 
     let_assert!(Ok(page) = parse_md("# 1"));
     check!(
@@ -113,7 +113,7 @@ fn multiple_templates() {
     create_file(&temp, "default.hbs", "{{{ body }}}");
     create_file(&temp, "weird.hbs", "strange {{{ body }}}");
 
-    let tpls = render::templates_from_directory(temp.path()).unwrap();
+    let tpls = templates_from_directory(temp.path()).unwrap();
 
     let_assert!(Ok(page) = parse_md("# 1"));
     check!(
@@ -142,7 +142,7 @@ fn strftime_helper() {
         ..ContentReturn::default()
     };
 
-    let mut tpls = render::templates();
+    let mut tpls = base_templates();
 
     tpls.register_template_string(
         "la_tz",
