@@ -1,4 +1,11 @@
-//! Functions that will become actions.
+//! # Functions
+//!
+//! These will eventually become actions, which will be callable from a
+//! configuration file:
+//!
+//!   * [`render()`]
+//!   * [`markdown_to_html()`]
+//!   * [`redact_source()`]
 
 use super::{ContentReturn, Context, MediaType, Result, Return, VariableMap};
 use crate::render::elements::{

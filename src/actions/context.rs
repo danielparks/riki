@@ -1,4 +1,15 @@
-//! Context information for actions
+//! # Context
+//!
+//! The context in which actions run — the working directory, the
+//! [variable map][VariableMap], and the current templates.
+//!
+//! [`Context`] has two type aliases:
+//!
+//!   * [`RequestContext`] is a context that uses [`RequestVariables`] to
+//!     extract variables from an HTTP request. It is used by
+//!     [`Router`][crate::http::Router].
+//!   * [`StaticContext`] is a context that has static variable values stored in
+//!     [`StaticVariables`]. It’s useful for testing.
 
 use actix_web::HttpRequest;
 use handlebars::Handlebars;

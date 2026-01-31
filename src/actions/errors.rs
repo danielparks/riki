@@ -1,4 +1,6 @@
-//! Control flow for actions.
+//! # Errors
+//!
+//! The variants of [`Error`] correspond to real HTTP error responses.
 
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, http};
 use handlebars::Handlebars;
