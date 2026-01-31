@@ -28,7 +28,7 @@ pub trait VariableMap<'a> {
     /// Get a variable value by name.
     ///
     /// ```
-    /// use riki::actions::context::{StaticVariables, Variable, VariableMap};
+    /// use riki::actions::{StaticVariables, Variable, VariableMap};
     ///
     /// let vars = StaticVariables {
     ///     path: "/example",

@@ -20,7 +20,7 @@
 //! rendering HTML into a template, the entire file must be loaded into memory
 //! as a [`ContentReturn`].
 
-pub mod context;
+mod context;
 pub use context::*;
 
 mod errors;
