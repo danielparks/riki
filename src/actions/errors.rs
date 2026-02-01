@@ -1,6 +1,11 @@
 //! # Errors
 //!
-//! The variants of [`Error`] correspond to real HTTP error responses.
+//! Actions have their own [`Error`] type because action results usually become
+//! HTTP responses (represented by variants on the type).
+//!
+//! The [`Error::NotFound`] variant is special in that it generally means that
+//! the action should be canceled and the request should fall through to the
+//! next configuration rule.
 
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, http};
 use handlebars::Handlebars;
