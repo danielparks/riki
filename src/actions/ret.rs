@@ -8,6 +8,8 @@
 //!     to be a file — it opens the file and holds its descriptor.
 //!   * A [`ContentReturn`] holds actual content, possibly with a path and other
 //!     metadata attached to it. It does not hold open a file descriptor.
+//!   * [`ActionReturn`] is just an enum that can hold either `PathReturn` or
+//!     `ContentReturn`.
 //!
 //! ### Very large files
 //!
@@ -39,6 +41,40 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::task;
 use tendril::StrTendril;
+
+/// Return from any action
+#[derive(Debug, derive_more::From)]
+pub enum ActionReturn {
+    /// A returned path.
+    PathReturn(PathReturn),
+
+    /// Returned content (possibly associated with a path).
+    ContentReturn(ContentReturn),
+}
+
+impl Return for ActionReturn {
+    fn into_content_return(self) -> Result<ContentReturn> {
+        match self {
+            Self::PathReturn(ret) => ret.into_content_return(),
+            Self::ContentReturn(ret) => Ok(ret),
+        }
+    }
+
+    fn into_response(self, req: &HttpRequest) -> Result<HttpResponse> {
+        match self {
+            Self::PathReturn(ret) => ret.into_response(req),
+            Self::ContentReturn(ret) => ret.into_response(req),
+        }
+    }
+}
+
+impl TryFrom<PathBuf> for ActionReturn {
+    type Error = Error;
+
+    fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
+        Ok(Self::PathReturn(path.try_into()?))
+    }
+}
 
 /// A file on the file system.
 #[derive(Debug)]
@@ -141,6 +177,14 @@ impl Return for PathReturn {
 
     fn into_response(self, req: &HttpRequest) -> Result<HttpResponse> {
         Ok(self.into_named_file()?.into_response(req))
+    }
+}
+
+impl TryFrom<PathBuf> for PathReturn {
+    type Error = io::Error;
+
+    fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
+        Self::new(path)
     }
 }
 

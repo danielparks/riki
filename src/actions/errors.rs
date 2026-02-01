@@ -16,7 +16,7 @@ use std::io::{self, ErrorKind};
 use std::result;
 
 /// `Result` type for [`Error`].
-pub type Result<T, E = Error> = result::Result<T, E>;
+pub type Result<T = super::ActionReturn, E = Error> = result::Result<T, E>;
 
 /// An error from an action.
 ///
