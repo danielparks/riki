@@ -1,8 +1,8 @@
 //! Handle strings of various types in the configuration
 
 use super::{ParseError, ParseResult, SpannedErrors, StringToken, StringType};
+use crate::actions::{Variable, VariableMap};
 use crate::config::bitfilter::BitFilter;
-use crate::config::is_valid_variable;
 use logos::Logos;
 use std::borrow::Cow;
 use std::ops::Range;
@@ -31,21 +31,23 @@ impl<'src> ParsedString<'src> {
         }
     }
 
-    /// Return the content of this string
-    #[must_use]
-    pub fn content(&self) -> String {
-        // FIXME variables
-        self.unescaped.to_string()
+    /// Return the content of this string.
+    pub fn content<'a, V: VariableMap<'a>>(&self, variables: &'a V) -> String {
+        self.split_on_variables()
+            .map(|part| match part {
+                StringPart::Fixed(fixed) => fixed,
+                StringPart::Variable(var) => variables.get(var.variable),
+            })
+            .collect()
     }
 
     /// Return the content of this string as a [`PathBuf`].
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ParseError`]s if there are problems interpolating variables.
-    pub fn as_pathbuf(&self) -> ParseResult<'src, PathBuf> {
-        // FIXME variables
-        Ok(PathBuf::from(self.content()))
+    pub fn as_pathbuf<'a, V: VariableMap<'a>>(
+        &self,
+        variables: &'a V,
+    ) -> PathBuf {
+        // FIXME non-UTF-8 paths
+        PathBuf::from(self.content(variables))
     }
 
     /// Append a character to the end of the string.
@@ -68,6 +70,7 @@ impl<'src> ParsedString<'src> {
         self.variables.extend(other.variables.iter().map(|var| {
             Interpolation::<'src> {
                 variable: var.variable,
+                span: var.span,
                 range: Range {
                     start: var
                         .range
@@ -134,8 +137,9 @@ impl<'src> ParsedString<'src> {
     pub fn split_on_variables(&self) -> VariableSplitIter<'_, 'src> {
         VariableSplitIter {
             source: &self.unescaped,
-            variable_iter: self.variables.iter(),
-            last_variable_end: 0,
+            iter: self.variables.iter(),
+            current: None,
+            last_end: 0,
         }
     }
 
@@ -152,12 +156,7 @@ impl<'src> ParsedString<'src> {
         let mut out = String::with_capacity(add(self.unescaped.len(), 2));
         out.push('"');
         // FIXME: be smart check for quote characters or something
-        out.extend(self.split_on_variables().map(|(fixed, var)| match var {
-            Some(var) => {
-                format!("{}${{{}}}", escape_quoted(fixed, b'"'), var.variable)
-            }
-            None => escape_quoted(fixed, b'"').to_string(),
-        }));
+        out.extend(self.split_on_variables().map(StringPart::canonical));
         out.push('"');
         out
     }
@@ -324,28 +323,52 @@ pub struct VariableSplitIter<'cow, 'src> {
     /// The source string.
     source: &'cow Cow<'src, str>,
     /// The variable interpolations in the source string.
-    variable_iter: slice::Iter<'cow, Interpolation<'src>>,
+    iter: slice::Iter<'cow, Interpolation<'src>>,
+    /// Current variable.
+    current: Option<&'cow Interpolation<'src>>,
     /// The end of the last variable.
-    last_variable_end: usize,
+    last_end: usize,
 }
 
 impl<'cow, 'src> Iterator for VariableSplitIter<'cow, 'src> {
-    type Item = (&'cow str, Option<&'cow Interpolation<'src>>);
+    type Item = StringPart<'cow, 'src>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.variable_iter.next() {
-            Some(var) => {
-                let value =
-                    &self.source[self.last_variable_end..var.range.start];
-                self.last_variable_end = var.range.end;
-                Some((value, Some(var)))
-            }
-            None if self.last_variable_end < self.source.len() => {
-                let value = &self.source[self.last_variable_end..];
-                self.last_variable_end = self.source.len();
-                Some((value, None))
-            }
-            None => None,
+        if let Some(current) = self.current.take() {
+            // Already outputted fixed prefix
+            Some(StringPart::Variable(current))
+        } else if let Some(next) = self.iter.next() {
+            let fixed = &self.source[self.last_end..next.range.start];
+            self.last_end = next.range.end;
+            self.current = Some(next);
+            Some(StringPart::Fixed(fixed))
+        } else if self.last_end < self.source.len() {
+            let fixed = &self.source[self.last_end..];
+            self.last_end = self.source.len();
+            Some(StringPart::Fixed(fixed))
+        } else {
+            None
+        }
+    }
+}
+
+/// Part of a string returned by [`ParsedString::split_on_variables()`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StringPart<'cow, 'src> {
+    /// A fixed string
+    Fixed(&'cow str),
+    /// An interpolated variable
+    Variable(&'cow Interpolation<'src>),
+}
+
+impl StringPart<'_, '_> {
+    /// Canonical representation of this part of the string.
+    #[must_use]
+    pub fn canonical(self) -> String {
+        match self {
+            // FIXME return Cow?
+            Self::Fixed(fixed) => escape_quoted(fixed, b'"').to_string(),
+            Self::Variable(var) => format!("${{{}}}", var.variable),
         }
     }
 }
@@ -399,10 +422,13 @@ pub fn escape_quoted(input: &str, quote: u8) -> Cow<'_, str> {
 /// Interpolated variable
 ///
 /// This only implements `Default` for [`TinyVec`].
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Interpolation<'src> {
-    /// The name of the variable.
-    variable: &'src str,
+    /// The variable.
+    variable: Variable,
+
+    /// The span of the source representing the variable name.
+    span: &'src str,
 
     /// The range in the string to replace.
     range: Range<usize>,
@@ -411,7 +437,14 @@ pub struct Interpolation<'src> {
 impl Interpolation<'_> {
     /// This should only be used to initialize `TinyVec`.
     const fn empty() -> Self {
-        Self { variable: "", range: 0..0 }
+        Self { variable: Variable::Host, span: "", range: 0..0 }
+    }
+}
+
+impl Default for Interpolation<'_> {
+    /// This should only be used to initialize `TinyVec`.
+    fn default() -> Self {
+        Self::empty()
     }
 }
 
@@ -419,13 +452,12 @@ impl<'src> TryFrom<(&'src str, Range<usize>)> for Interpolation<'src> {
     type Error = ParseError<'src>;
 
     fn try_from(
-        (variable, range): (&'src str, Range<usize>),
+        (name, range): (&'src str, Range<usize>),
     ) -> Result<Self, Self::Error> {
-        if is_valid_variable(variable) {
-            Ok(Interpolation { variable, range })
-        } else {
-            Err(ParseError::UnknownVariable(variable))
-        }
+        let variable = name
+            .try_into()
+            .map_err(|_| ParseError::UnknownVariable(name))?;
+        Ok(Interpolation { variable, span: name, range })
     }
 }
 
@@ -491,6 +523,7 @@ const fn add(a: usize, b: isize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actions::StaticVariables;
     use assert2::{check, let_assert};
 
     /// Create a [`ParsedString`] easily.
@@ -518,7 +551,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_just_var_no_braces() {
-        let_assert!(Ok(s) = parse_str("$path"));
+        let_assert!(Ok(s) = parse_str("$clean_path"));
         check!(s.starts_with_variable());
         check!(s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -527,7 +560,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_just_var_braces() {
-        let_assert!(Ok(s) = parse_str("${path}"));
+        let_assert!(Ok(s) = parse_str("${clean_path}"));
         check!(s.starts_with_variable());
         check!(s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -536,7 +569,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_no_braces() {
-        let_assert!(Ok(s) = parse_str("$path/foo"));
+        let_assert!(Ok(s) = parse_str("$clean_path/foo"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -546,7 +579,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_braces() {
-        let_assert!(Ok(s) = parse_str("${path}bar"));
+        let_assert!(Ok(s) = parse_str("${clean_path}bar"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -556,7 +589,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_no_braces_c() {
-        let_assert!(Ok(s) = parse_str("$path/"));
+        let_assert!(Ok(s) = parse_str("$clean_path/"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -566,7 +599,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_braces_c() {
-        let_assert!(Ok(s) = parse_str("${path}/"));
+        let_assert!(Ok(s) = parse_str("${clean_path}/"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -576,7 +609,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_no_braces_escape() {
-        let_assert!(Ok(s) = parse_str(r"$path\z"));
+        let_assert!(Ok(s) = parse_str(r"$clean_path\z"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -586,7 +619,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_no_braces_escape2() {
-        let_assert!(Ok(s) = parse_str(r"$path\z\z"));
+        let_assert!(Ok(s) = parse_str(r"$clean_path\z\z"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -596,7 +629,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_braces_escape() {
-        let_assert!(Ok(s) = parse_str(r"${path}\z"));
+        let_assert!(Ok(s) = parse_str(r"${clean_path}\z"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -606,7 +639,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_braces_escape2() {
-        let_assert!(Ok(s) = parse_str(r"${path}\z\z"));
+        let_assert!(Ok(s) = parse_str(r"${clean_path}\z\z"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -616,7 +649,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_end_var_no_braces() {
-        let_assert!(Ok(s) = parse_str("/foo/$path"));
+        let_assert!(Ok(s) = parse_str("/foo/$clean_path"));
         check!(!s.starts_with_variable());
         check!(s.ends_with_variable());
         check!(s.starts_with('/') == Some(true));
@@ -626,7 +659,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_end_var_braces() {
-        let_assert!(Ok(s) = parse_str("/foo/${path}"));
+        let_assert!(Ok(s) = parse_str("/foo/${clean_path}"));
         check!(!s.starts_with_variable());
         check!(s.ends_with_variable());
         check!(s.starts_with('/') == Some(true));
@@ -636,7 +669,7 @@ mod tests {
 
     #[test_log::test]
     fn push_c() {
-        let mut s = parse_str("/foo/${path}").unwrap();
+        let mut s = parse_str("/foo/${clean_path}").unwrap();
         s.push('Z');
         check!(s.ends_with('Z') == Some(true));
     }
@@ -652,18 +685,26 @@ mod tests {
 
     #[test_log::test]
     fn push_string_both_vars() {
-        let mut a = parse_str("/foo/${path}").unwrap();
-        let b = parse_str("${path}/foo").unwrap();
+        let mut a = parse_str("/foo/${clean_path}").unwrap();
+        let b = parse_str("${clean_path}/foo").unwrap();
         a.push_string(&b);
-        check!(a.unescaped == "/foo/${path}${path}/foo");
+        check!(a.unescaped == "/foo/${clean_path}${clean_path}/foo");
         let mut iter = a.variables.iter();
         check!(
             iter.next()
-                == Some(&Interpolation { variable: "path", range: 5..12 })
+                == Some(&Interpolation {
+                    variable: Variable::CleanPath,
+                    span: "clean_path",
+                    range: 5..18
+                })
         );
         check!(
             iter.next()
-                == Some(&Interpolation { variable: "path", range: 12..19 })
+                == Some(&Interpolation {
+                    variable: Variable::CleanPath,
+                    span: "clean_path",
+                    range: 18..31
+                })
         );
         check!(iter.next() == None);
     }
@@ -671,15 +712,51 @@ mod tests {
     #[test_log::test]
     fn push_string_b_var() {
         let mut a = parse_str("/foo/").unwrap();
-        let b = parse_str("${path}/foo").unwrap();
+        let b = parse_str("${clean_path}/foo").unwrap();
         a.push_string(&b);
-        check!(a.unescaped == "/foo/${path}/foo");
+        check!(a.unescaped == "/foo/${clean_path}/foo");
         let mut iter = a.variables.iter();
         check!(
             iter.next()
-                == Some(&Interpolation { variable: "path", range: 5..12 })
+                == Some(&Interpolation {
+                    variable: Variable::CleanPath,
+                    span: "clean_path",
+                    range: 5..18
+                })
         );
         check!(iter.next() == None);
+    }
+
+    /// Test variables
+    const VARS: StaticVariables = StaticVariables {
+        request_path: "/abc/",
+        clean_path: "/abc",
+        verb: "GET",
+        host: "example.com",
+    };
+
+    #[test_log::test]
+    fn string_content() {
+        let string = parse_str("/foo/").unwrap();
+        check!(string.content(&VARS) == "/foo/");
+    }
+
+    #[test_log::test]
+    fn string_content_1_var() {
+        let string = parse_str("/foo/${clean_path}/").unwrap();
+        check!(string.content(&VARS) == "/foo//abc/");
+    }
+
+    #[test_log::test]
+    fn string_content_2_vars() {
+        let string = parse_str("/foo/$verb${clean_path}").unwrap();
+        check!(string.content(&VARS) == "/foo/GET/abc");
+    }
+
+    #[test_log::test]
+    fn string_content_3_vars() {
+        let string = parse_str("${host}/$verb/$clean_path").unwrap();
+        check!(string.content(&VARS) == "example.com/GET//abc");
     }
 
     #[test_log::test]

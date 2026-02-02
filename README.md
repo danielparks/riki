@@ -66,7 +66,7 @@ match `/foo/**/bar`.
 
 Each rule ends with an action:
 
-  * `$path` — return the path as a static file
+  * `$clean_path` — return the path as a static file
     * [ ] TODO: real variable interpolation
     * [ ] TODO: some way to distinguish this from a path matcher? This could
       be confusing.
@@ -94,16 +94,16 @@ braces. So, every rule within `/foo { ... }` effectively has `/foo` prepended.
       # Use the same templates
 
       *.html error(403)
-      render("$path.html")
+      render("$clean_path.html")
       # *.md files will be served with status 200
-      $path
+      $clean_path
     }
 
     *.md error(403)
     /templates error(403)
 
-    render(markdown("$path.md"))
-    $path
+    render(markdown("$clean_path.md"))
+    $clean_path
     error(404)
 
 [glob syntax]: https://docs.rs/globset/latest/globset/index.html#syntax
