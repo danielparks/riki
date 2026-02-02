@@ -117,17 +117,17 @@ fn bad_var() {
             == err_str("found unescaped '$' without variable in string 8..9")
     );
     check!(
-        canonicalize("/ '$bad1$path$bad2'")
+        canonicalize("/ '$bad1$clean_path$bad2'")
             == err_str(
                 "found unknown variable \"bad1\" 3..8\n\
-                found unknown variable \"bad2\" 13..18"
+                found unknown variable \"bad2\" 19..24"
             )
     );
 }
 
 #[test_log::test]
 fn good_var() {
-    check!(canonicalize("/ $path") == ok_str(r#"/** "${path}""#));
+    check!(canonicalize("/ $clean_path") == ok_str(r#"/** "${clean_path}""#));
 }
 
 #[test_log::test]
@@ -176,17 +176,50 @@ fn bad_setting() {
                 0..4"
             )
     );
+    check!(
+        canonicalize("root = $clean_path")
+            == err_str(
+                "path cannot start with variable; try prepending \"/\" or \
+                \"./\" 7..18"
+            )
+    );
 }
 
 #[test_log::test]
 fn good_setting() {
     check!(
-        canonicalize("root = /tmp\ntemplates = /templates\n/ $path")
-            == ok_str(
-                "/** root = \"/tmp\"\n\
-                /** templates = \"/templates\"\n\
-                /** \"${path}\""
-            )
+        canonicalize(
+            "root = /tmp
+            templates = /templates
+            / $clean_path"
+        ) == ok_str(
+            "/** root = \"/tmp\"\n\
+            /** templates = \"/templates\"\n\
+            /** \"${clean_path}\""
+        )
+    );
+    check!(
+        canonicalize(
+            "root = /foo
+            root = ./$clean_path
+            templates = templates
+            / $clean_path"
+        ) == ok_str(
+            "/** root = \"/foo/./${clean_path}\"\n\
+            /** templates = \"/foo/./${clean_path}/templates\"\n\
+            /** \"${clean_path}\""
+        )
+    );
+    check!(
+        canonicalize(
+            "root = /$clean_path/
+            templates = templates
+            / $clean_path"
+        ) == ok_str(
+            "/** root = \"/${clean_path}/\"\n\
+            /** templates = \"/${clean_path}/templates\"\n\
+            /** \"${clean_path}\""
+        )
     );
 }
 
@@ -195,7 +228,7 @@ fn config_matches_simple() {
     let config = parse(
         "root = /srv\n\
         templates = templates\n\
-        / $path",
+        / $clean_path",
     )
     .unwrap();
     let_assert!([rule] = &config.matches("/foo/bar")[..]);
@@ -210,7 +243,7 @@ fn relative_settings() {
         "root = /srv
         templates = tmpl
         root = web
-        / $path",
+        / $clean_path",
     )
     .unwrap();
     let_assert!([rule] = &config.matches("/")[..]);
@@ -224,7 +257,7 @@ fn absolute_settings() {
         "root = /srv
         templates = /tpl
         root = /www
-        / $path",
+        / $clean_path",
     )
     .unwrap();
     let_assert!([rule] = &config.matches("/")[..]);
