@@ -42,6 +42,6 @@ repos:
       - id: cargo fmt
         name: cargo fmt
         language: system
-        entry: cargo fmt --check
+        entry: cargo +nightly fmt --check
         files: (\.rs|rustfmt\.toml)$
         pass_filenames: false

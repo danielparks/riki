@@ -367,8 +367,8 @@ impl<'req> RequestPath<'req> {
     ///
     /// # Errors
     ///
-    /// Returns [`actions::Error::RedirectCanonical`] if a redirect is required, and
-    /// `Ok(())` otherwise.
+    /// Returns [`actions::Error::RedirectCanonical`] if a redirect is required,
+    /// and `Ok(())` otherwise.
     fn check_canonical(&self, canonical: &str) -> actions::Result<()> {
         if self.req.path() == canonical {
             Ok(())
