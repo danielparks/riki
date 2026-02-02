@@ -77,7 +77,7 @@ impl<'src> Function<'src> {
         let span = (name, rparen).into();
         match (name, parameters.next(), parameters.next()) {
             ("error", Some(value), None) => {
-                Ok(Function::Error(value.try_into()?, span))
+                Ok(Self::Error(value.try_into()?, span))
             }
             ("literal", Some(value), None) => {
                 Ok(Self::Literal(value.try_into()?, span))
