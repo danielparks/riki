@@ -31,7 +31,7 @@ fn render(html: &str) -> Result<String> {
         ..ContentReturn::default()
     };
 
-    match actions::render(&*CONTEXT, None, ret) {
+    match actions::render(&*CONTEXT, ret) {
         Ok(Some(ret)) => Ok(ret.body.into_string()?),
         Ok(None) => Err(Error::NotFound),
         Err(error) => Err(error),

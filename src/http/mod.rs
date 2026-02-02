@@ -233,7 +233,7 @@ impl<'tpls> Router<'tpls> {
                 // FIXME? this should *always* redirect.
                 path.check_canonical(path.parent_with_slash())?;
             } else if let Some(ret) = markdown_to_html(&context, ret)?
-                && let Some(ret) = render(&context, Some(path.req), ret)?
+                && let Some(ret) = render(&context, ret)?
             {
                 // RULE: if file_exists("${path}.md") {
                 //     canonical($path)
@@ -246,7 +246,7 @@ impl<'tpls> Router<'tpls> {
 
         if let Some(ret) = path.join("index.md").open(&context)?
             && let Some(ret) = markdown_to_html(&context, ret)?
-            && let Some(ret) = render(&context, Some(path.req), ret)?
+            && let Some(ret) = render(&context, ret)?
         {
             // RULE: if file_exists("$path/index.md") {
             //     canonical("${path}/")

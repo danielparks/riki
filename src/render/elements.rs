@@ -34,8 +34,7 @@
 //!
 //! [Conversion specifications]: jiff::fmt::strtime#conversion-specifications
 
-use crate::actions::ContentReturn;
-use actix_web::HttpRequest;
+use crate::actions::{ContentReturn, VariableMap};
 use dom_query::{Document, NodeRef};
 use jiff::Timestamp;
 use jiff::tz::TimeZone;
@@ -61,15 +60,15 @@ impl From<String> for ElementError {
 }
 
 /// Context information for an element handler.
-pub struct Context<'a> {
+pub struct Context<'a, 'vars, V: VariableMap<'vars>> {
     /// The document or fragment being processed.
     pub document: &'a Document,
 
     /// Page information.
     pub page: &'a ContentReturn,
 
-    /// Request information, if part of an HTTP request/response.
-    pub req: Option<&'a HttpRequest>,
+    /// Variables generated from HTTP request.
+    pub variables: &'vars V,
 
     /// Whether or not to show detailed error messages to the user.
     pub show_detailed_errors: bool,
@@ -83,7 +82,10 @@ pub type Result<T, E = ElementError> = result::Result<T, E>;
 /// # Errors
 ///
 /// Returns [`ElementError`] if there is a problem.
-pub fn handle_a_email(_ctx: &Context, node: &NodeRef) -> Result<()> {
+pub fn handle_a_email<'a, 'vars, V: VariableMap<'vars>>(
+    _ctx: &Context<'a, 'vars, V>,
+    node: &NodeRef,
+) -> Result<()> {
     let url: Url = node
         .attr("href")
         .ok_or("No href attribute on <a-email>")?
@@ -151,7 +153,10 @@ pub fn handle_a_email_source(node: &NodeRef) {
 /// # Errors
 ///
 /// Returns [`ElementError`] if there is a problem.
-pub fn handle_last_modified(ctx: &Context, node: &NodeRef) -> Result<()> {
+pub fn handle_last_modified<'a, 'vars, V: VariableMap<'vars>>(
+    ctx: &Context<'a, 'vars, V>,
+    node: &NodeRef,
+) -> Result<()> {
     let Some(time) = ctx.page.source.modified() else {
         // FIXME: docs say "Removes the selected node from its parent node, but
         // keeps it in the tree"; is this leaking?

@@ -12,7 +12,6 @@ use crate::render::elements::{
     self, ElementError, handle_a_email, handle_last_modified,
 };
 use crate::render::{self, render_source_to_string};
-use actix_web::{self, HttpRequest};
 use dom_query::Document;
 use std::mem;
 use tracing;
@@ -24,8 +23,7 @@ use tracing;
 /// Will return [`super::Error`] if there is a problem getting content from
 /// `ret` or rendering the template.
 pub fn render<'a, V: VariableMap<'a>, R: Return>(
-    context: &Context<'a, V>,
-    req: Option<&HttpRequest>,
+    context: &'a Context<'a, V>,
     ret: R,
 ) -> Result<Option<ContentReturn>> {
     // FIXME: caching headers based on template and Page.
@@ -50,7 +48,7 @@ pub fn render<'a, V: VariableMap<'a>, R: Return>(
     let ctx = elements::Context {
         document: &document,
         page: &ret,
-        req,
+        variables: &context.variables,
         show_detailed_errors: true,
     };
     for node in document.select("a-email").nodes() {
@@ -83,7 +81,7 @@ pub fn render<'a, V: VariableMap<'a>, R: Return>(
 /// Will return [`super::Error`] if there is a problem getting content from
 /// `ret` or parsing page metadata from the content.
 pub fn markdown_to_html<'a, V: VariableMap<'a>, R: Return>(
-    _context: &Context<'a, V>,
+    _context: &'a Context<'a, V>,
     ret: R,
 ) -> Result<Option<ContentReturn>> {
     let mut ret = ret.into_content_return()?;
@@ -106,7 +104,7 @@ pub fn markdown_to_html<'a, V: VariableMap<'a>, R: Return>(
 ///
 /// Returns [`super::Error`] for problems getting content from `ret`.
 pub fn redact_source<'a, V: VariableMap<'a>, R: Return>(
-    _context: &Context<'a, V>,
+    _context: &'a Context<'a, V>,
     ret: R,
 ) -> Result<Option<ContentReturn>> {
     // FIXME: caching headers based on template and Page.

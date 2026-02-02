@@ -58,7 +58,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             let ret = PathReturn::new(page_path.clone())?;
             let ret = actions::markdown_to_html(&context, ret)?
                 .ok_or(actions::Error::NotFound)?;
-            let ret = actions::render(&context, None, ret)?
+            let ret = actions::render(&context, ret)?
                 .ok_or(actions::Error::NotFound)?;
 
             print!("{}", ret.body.into_string()?);
