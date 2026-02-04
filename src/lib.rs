@@ -8,5 +8,3 @@ pub mod http;
 pub mod render;
 
 pub use errors::*;
-
-mod tests;

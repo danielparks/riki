@@ -4,4 +4,3 @@
 mod elements;
 mod render;
 mod templates;
-mod util;

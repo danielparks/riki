@@ -205,12 +205,27 @@ pub struct ContentReturn {
 }
 
 impl ContentReturn {
+    /// Plain text content from memory.
+    pub fn plain_text<S: Into<String>>(body: S) -> Self {
+        Self {
+            body: Content::String(body.into()),
+            content_type: MediaType::TEXT_PLAIN_UTF8,
+            source: Source::Memory,
+            metadata: Metadata::new(),
+        }
+    }
+
+    /// HTML content from memory.
+    pub fn html<S: Into<String>>(body: S) -> Self {
+        Self::plain_text(body).with_content_type(MediaType::TEXT_HTML_UTF8)
+    }
+
     /// Try to load the title from HTML if it’s not in the metadata.
     ///
     /// # Errors
     ///
     /// Returns [`crate::Error::NotUtf8`] if the content is not UTF-8.
-    pub fn ensure_metadata_title(&mut self) -> crate::Result<()> {
+    pub fn ensure_metadata_title(&mut self) -> crate::Result<&Self> {
         if !self.metadata.contains_key("title") {
             let fragment = dom_query::Document::fragment(StrTendril::try_from(
                 self.body.clone(),
@@ -220,7 +235,28 @@ impl ContentReturn {
                 self.metadata.insert("title".into(), h1.text().into());
             }
         }
-        Ok(())
+        Ok(self)
+    }
+
+    /// Set a metadata value.
+    #[must_use]
+    pub fn with_metadata<S1: Into<String>, S2: Into<String>>(
+        mut self,
+        key: S1,
+        value: S2,
+    ) -> Self {
+        self.metadata.insert(key.into(), value.into());
+        self
+    }
+
+    /// Set content type.
+    #[must_use]
+    pub fn with_content_type<T: Into<MediaType>>(
+        mut self,
+        media_type: T,
+    ) -> Self {
+        self.content_type = media_type.into();
+        self
     }
 }
 
@@ -233,6 +269,12 @@ impl Return for ContentReturn {
         Ok(HttpResponse::Ok()
             .content_type(&self.content_type)
             .body(self.into_content_return()?.body))
+    }
+}
+
+impl From<&str> for ContentReturn {
+    fn from(string: &str) -> Self {
+        Self::plain_text(string)
     }
 }
 

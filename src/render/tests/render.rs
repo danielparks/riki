@@ -1,8 +1,24 @@
 //! Test Markdown parsing and rendering.
+#![cfg(test)]
 
-use super::util::parse_md;
-use crate::actions::{ContentReturn, Error, StaticContext, markdown_to_html};
+use crate::actions::{
+    ContentReturn, Error, MediaType, Result, StaticContext, markdown_to_html,
+};
 use assert2::{check, let_assert};
+
+/// Parse markdown into `ContentReturn`.
+///
+/// # Errors
+///
+/// Might return `Error`.
+pub fn parse_md(raw: &str) -> Result<ContentReturn> {
+    markdown_to_html(
+        &StaticContext::default(),
+        ContentReturn::from(raw)
+            .with_content_type(MediaType::TEXT_MARKDOWN_UTF8),
+    )?
+    .ok_or(Error::NotFound)
+}
 
 /// Get metadata value from ret in format that’s easy to compare.
 fn get_metadata<'a>(ret: &'a ContentReturn, key: &'_ str) -> Option<&'a str> {

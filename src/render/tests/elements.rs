@@ -1,5 +1,6 @@
 //! Test custom elements.
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
+#![cfg(test)]
 
 use crate::actions::{
     self, ContentReturn, Error, MediaType, Result, Source, StaticContext,

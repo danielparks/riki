@@ -1,7 +1,6 @@
 //! Test template manager.
 #![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
-use super::util::parse_md;
 use crate::actions::{ContentReturn, MediaType, Source};
 use crate::render::{base_templates, templates_from_directory};
 use assert2::{check, let_assert};
@@ -10,12 +9,18 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use temp_dir::TempDir;
 
+/// Create a file in the temporary directory.
 fn create_file<P, C>(dir: &TempDir, name: P, contents: C)
 where
     P: AsRef<Path>,
     C: AsRef<[u8]>,
 {
     fs::write(dir.path().join(name.as_ref()), contents.as_ref()).unwrap();
+}
+
+/// Helper to produce an HTML `ContentReturn`.
+fn html_title(body: &str, title: &str) -> ContentReturn {
+    ContentReturn::html(body).with_metadata("title", title)
 }
 
 /// Makes error output more legible.
@@ -26,8 +31,11 @@ fn empty_template() {
     let mut tpls = base_templates();
     tpls.register_template_string("empty", "").unwrap();
 
-    let_assert!(Ok(page) = parse_md("title: page\n---\n# Page"));
-    check!(let Ok("") = tpls.render("empty", &page).as_ref().map(AS_STR));
+    check!(
+        let Ok("")
+            = tpls.render("empty", &html_title("<h1>Page</h1>", "page"))
+            .as_ref().map(AS_STR)
+    );
 }
 
 #[test]
@@ -36,8 +44,9 @@ fn override_template() {
     // Override embedded default template
     tpls.register_template_string("default", "").unwrap();
 
-    let_assert!(Ok(page) = parse_md("title: page\n---\n# Page"));
-    check!(let Ok("") = tpls.render("default", &page).as_ref().map(AS_STR));
+    check!(let Ok("")
+        = tpls.render("default", &html_title("<h1>Page</h1>", "page"))
+        .as_ref().map(AS_STR));
 }
 
 #[test]
@@ -56,7 +65,6 @@ fn embedded_template() {
             ]
     );
 
-    let_assert!(Ok(page) = parse_md("title: page\n---\n# Page"));
     check!(let Ok("<!DOCTYPE html>
 <html>
 \t<head>
@@ -64,10 +72,10 @@ fn embedded_template() {
 \t</head>
 \t<body>
 \t\t<h1>Page</h1>
-
 \t</body>
 </html>
-") = tpls.render("default", &page).as_ref().map(AS_STR));
+") = tpls.render("default", &html_title("<h1>Page</h1>", "page"))
+    .as_ref().map(AS_STR));
 }
 
 #[test]
@@ -77,14 +85,17 @@ fn basic_template() {
 
     let tpls = templates_from_directory(temp.path()).unwrap();
 
-    let_assert!(Ok(page) = parse_md("title: title<test>\n---\n# heading"));
     check!(
-        let Ok("title&lt;test&gt; <h1>heading</h1>\n")
-            = tpls.render("default", &page).as_ref().map(AS_STR)
+        let Ok("title&lt;test&gt; <h1>h1</h1>")
+            = tpls.render("default", &html_title("<h1>h1</h1>", "title<test>"))
+            .as_ref().map(AS_STR)
     );
 
-    let_assert!(Ok(page) = parse_md("title: t2\n---\n"));
-    check!(let Ok("t2 ") = tpls.render("default", &page).as_ref().map(AS_STR));
+    check!(
+        let Ok("t2 ")
+            = tpls.render("default", &html_title("", "t2"))
+            .as_ref().map(AS_STR)
+    );
 }
 
 #[test]
@@ -94,16 +105,16 @@ fn basic_template_twice() {
 
     let tpls = templates_from_directory(temp.path()).unwrap();
 
-    let_assert!(Ok(page) = parse_md("# 1"));
     check!(
-        let Ok("<h1>1</h1>\n")
-            = tpls.render("default", &page).as_ref().map(AS_STR)
+        let Ok("<h1>1</h1>")
+            = tpls.render("default", &html_title("<h1>1</h1>", ""))
+            .as_ref().map(AS_STR)
     );
 
-    let_assert!(Ok(page) = parse_md("# 2"));
     check!(
-        let Ok("<h1>2</h1>\n")
-            = tpls.render("default", &page).as_ref().map(AS_STR)
+        let Ok("<h1>2</h1>")
+            = tpls.render("default", &html_title("<h1>2</h1>", ""))
+            .as_ref().map(AS_STR)
     );
 }
 
@@ -115,16 +126,16 @@ fn multiple_templates() {
 
     let tpls = templates_from_directory(temp.path()).unwrap();
 
-    let_assert!(Ok(page) = parse_md("# 1"));
     check!(
-        let Ok("<h1>1</h1>\n")
-            = tpls.render("default", &page).as_ref().map(AS_STR)
+        let Ok("<h1>1</h1>")
+            = tpls.render("default", &html_title("<h1>1</h1>", ""))
+            .as_ref().map(AS_STR)
     );
 
-    let_assert!(Ok(page) = parse_md("# 2"));
     check!(
-        let Ok("strange <h1>2</h1>\n")
-            = tpls.render("weird", &page).as_ref().map(AS_STR)
+        let Ok("strange <h1>2</h1>")
+            = tpls.render("weird", &html_title("<h1>2</h1>", ""))
+            .as_ref().map(AS_STR)
     );
 }
 
