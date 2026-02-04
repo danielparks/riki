@@ -45,10 +45,10 @@ use tendril::StrTendril;
 /// Return from any action
 #[derive(Debug, derive_more::From)]
 pub enum ActionReturn {
-    /// A returned path.
+    /// A path to an readable file.
     PathReturn(PathReturn),
 
-    /// Returned content (possibly associated with a path).
+    /// Response body content (possibly associated with a path).
     ContentReturn(ContentReturn),
 }
 
@@ -188,7 +188,7 @@ impl TryFrom<PathBuf> for PathReturn {
     }
 }
 
-/// A draft response that can be further processed or returned to the client.
+/// Response body content (possibly associated with a path).
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct ContentReturn {
     /// The body of the response
@@ -238,15 +238,11 @@ impl Return for ContentReturn {
 
 /// A return from an action
 pub trait Return {
-    /// Ensure the return is a [`ContentReturn`].
+    /// Convert the return to a [`ContentReturn`].
     ///
-    /// # Returns
+    /// # Errors
     ///
-    ///   * `Ok(Some(ret))` for a regular response
-    ///   * `Ok(None)` to fall through to the next rule
-    ///   * <code>Err([Error])</code> for an error to be converted into an
-    ///     appropriate HTTP response.
-    #[expect(clippy::missing_errors_doc, reason = "Returns is more useful")]
+    /// Returns an [`Error`] if the path could not be read into memory.
     fn into_content_return(self) -> Result<ContentReturn>;
 
     /// Generate a response (or an error)
