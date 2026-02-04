@@ -35,7 +35,7 @@ pub enum Variable {
 /// Access variables containing request information used in configuration.
 ///
 /// These can be interpolated into the configuration, e.g. `/srv/$path`.
-pub trait VariableMap<'a> {
+pub trait VariableMap<'vars> {
     /// Get a variable value by name.
     ///
     /// ```
@@ -49,24 +49,24 @@ pub trait VariableMap<'a> {
     /// assert_eq!(vars.get("path".try_into().unwrap()), "/example");
     /// assert_eq!(vars.get(Variable::Verb), "POST");
     /// ```
-    fn get(&self, variable: Variable) -> &'a str;
+    fn get(&self, variable: Variable) -> &'vars str;
 }
 
 /// Static variable values (for testing).
 #[derive(Clone, Debug)]
-pub struct StaticVariables<'a> {
+pub struct StaticVariables<'vars> {
     /// Request path
-    pub path: &'a str,
+    pub path: &'vars str,
 
     /// Request verb
-    pub verb: &'a str,
+    pub verb: &'vars str,
 
     /// Request host
-    pub host: &'a str,
+    pub host: &'vars str,
 }
 
-impl<'a> VariableMap<'a> for StaticVariables<'a> {
-    fn get(&self, variable: Variable) -> &'a str {
+impl<'vars> VariableMap<'vars> for StaticVariables<'vars> {
+    fn get(&self, variable: Variable) -> &'vars str {
         match variable {
             Variable::Path => self.path,
             Variable::Verb => self.verb,
@@ -83,13 +83,13 @@ impl Default for StaticVariables<'static> {
 
 /// Variables from a request object.
 #[derive(Clone, Debug)]
-pub struct RequestVariables<'a> {
+pub struct RequestVariables<'vars> {
     /// The request object.
-    pub request: &'a HttpRequest,
+    pub request: &'vars HttpRequest,
 }
 
-impl<'a> VariableMap<'a> for RequestVariables<'a> {
-    fn get(&self, variable: Variable) -> &'a str {
+impl<'vars> VariableMap<'vars> for RequestVariables<'vars> {
+    fn get(&self, variable: Variable) -> &'vars str {
         match variable {
             Variable::Path => self.request.path(),
             Variable::Verb => self.request.method().as_str(),
