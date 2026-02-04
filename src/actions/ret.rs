@@ -4,12 +4,13 @@
 //! processing then converted into an [`actix_web::HttpResponse`] for return to
 //! the client.
 //!
+//!   * A [`StringReturn`] is a short string that might be part of a path, an
+//!     error code, etc.
 //!   * A [`PathReturn`] represents a path of the firesystem that is guaranteed
 //!     to be a file — it opens the file and holds its descriptor.
 //!   * A [`ContentReturn`] holds actual content, possibly with a path and other
 //!     metadata attached to it. It does not hold open a file descriptor.
-//!   * [`ActionReturn`] is just an enum that can hold either `PathReturn` or
-//!     `ContentReturn`.
+//!   * [`ActionReturn`] is an enum that can hold any of the other returns.
 //!
 //! ### Very large files
 //!
@@ -20,14 +21,14 @@
 //! rendering HTML into a template, the entire file must be loaded into memory
 //! as a [`ContentReturn`].
 
-use super::{Error, Result};
+use super::{Context, Error, RequestContext, Result, VariableMap};
 use actix_files::NamedFile;
+use actix_web::HttpResponse;
 use actix_web::body::BodySize;
 use actix_web::http::header::{
     HeaderValue, InvalidHeaderValue, TryIntoHeaderValue,
 };
 use actix_web::web::Bytes;
-use actix_web::{HttpRequest, HttpResponse};
 use jiff::Timestamp;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -45,6 +46,9 @@ use tendril::StrTendril;
 /// Return from any action
 #[derive(Debug, derive_more::From)]
 pub enum ActionReturn {
+    /// A short string.
+    StringReturn(StringReturn),
+
     /// A path to an readable file.
     PathReturn(PathReturn),
 
@@ -53,26 +57,188 @@ pub enum ActionReturn {
 }
 
 impl Return for ActionReturn {
-    fn into_content_return(self) -> Result<ContentReturn> {
+    fn ensure_file<'a, V: VariableMap<'a>>(
+        self,
+        context: &'a Context<'a, V>,
+    ) -> Result<ActionReturn> {
         match self {
-            Self::PathReturn(ret) => ret.into_content_return(),
+            Self::StringReturn(ret) => ret.ensure_file(context),
+            Self::PathReturn(_) | Self::ContentReturn(_) => Ok(self),
+        }
+    }
+
+    fn into_string_return(self) -> Result<StringReturn> {
+        match self {
+            Self::StringReturn(ret) => Ok(ret),
+            Self::PathReturn(ret) => ret.into_string_return(),
+            Self::ContentReturn(ret) => ret.into_string_return(),
+        }
+    }
+
+    fn into_content_return<'a, V: VariableMap<'a>>(
+        self,
+        context: &'a Context<'a, V>,
+    ) -> Result<ContentReturn> {
+        match self {
+            Self::StringReturn(ret) => ret.into_content_return(context),
+            Self::PathReturn(ret) => ret.into_content_return(context),
             Self::ContentReturn(ret) => Ok(ret),
         }
     }
 
-    fn into_response(self, req: &HttpRequest) -> Result<HttpResponse> {
+    fn into_response<'a>(
+        self,
+        context: &'a RequestContext<'a>,
+    ) -> Result<HttpResponse> {
         match self {
-            Self::PathReturn(ret) => ret.into_response(req),
-            Self::ContentReturn(ret) => ret.into_response(req),
+            Self::StringReturn(ret) => ret.into_response(context),
+            Self::PathReturn(ret) => ret.into_response(context),
+            Self::ContentReturn(ret) => ret.into_response(context),
         }
     }
 }
 
-impl TryFrom<PathBuf> for ActionReturn {
-    type Error = Error;
+impl From<&str> for ActionReturn {
+    fn from(string: &str) -> Self {
+        StringReturn::from(string).into()
+    }
+}
 
-    fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
-        Ok(Self::PathReturn(path.try_into()?))
+impl From<StringReturn> for Result {
+    fn from(ret: StringReturn) -> Self {
+        Ok(ret.into())
+    }
+}
+
+impl From<PathReturn> for Result {
+    fn from(ret: PathReturn) -> Self {
+        Ok(ret.into())
+    }
+}
+
+impl From<ContentReturn> for Result {
+    fn from(ret: ContentReturn) -> Self {
+        Ok(ret.into())
+    }
+}
+
+/// A short string.
+#[derive(Debug)]
+pub struct StringReturn(String);
+
+impl StringReturn {
+    /// Get the value as a `&str`.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Append `suffix` if this doesn’t already end with it.
+    #[must_use]
+    pub fn ensure_ends_with<S: AsRef<str>>(mut self, suffix: S) -> Self {
+        let suffix = suffix.as_ref();
+        if !self.0.ends_with(suffix) {
+            self.0.push_str(suffix);
+        }
+        self
+    }
+
+    /// Append `suffix` to the value.
+    #[must_use]
+    pub fn append<S: AsRef<str>>(mut self, suffix: S) -> Self {
+        let suffix = suffix.as_ref();
+        self.0.push_str(suffix);
+        self
+    }
+
+    /// Strip everything from the last `'/'` on.
+    ///
+    /// If there are no `'/'`s, this returns `""`.
+    #[must_use]
+    pub fn dirname(mut self) -> Self {
+        self.0.truncate(self.0.rfind('/').unwrap_or_default());
+        self
+    }
+
+    /// Append `suffix` after a `'/'`.
+    ///
+    /// Ensures there is only on `'/'`.
+    ///
+    /// Note that if `suffix` starts with `'/'`, this will still append it.
+    #[must_use]
+    pub fn join<S: AsRef<str>>(mut self, suffix: S) -> Self {
+        let suffix = suffix.as_ref();
+
+        if self.0.ends_with('/') {
+            if let Some(stripped) = suffix.strip_prefix('/') {
+                self.0.push_str(stripped);
+            } else {
+                self.0.push_str(suffix);
+            }
+        } else if suffix.starts_with('/') {
+            self.0.push_str(suffix);
+        } else {
+            self.0.push('/');
+            self.0.push_str(suffix);
+        }
+        self
+    }
+}
+
+impl Return for StringReturn {
+    fn ensure_file<'a, V: VariableMap<'a>>(
+        self,
+        context: &'a Context<'a, V>,
+    ) -> Result<ActionReturn> {
+        Ok(PathReturn::new(self.into(), context)?.into())
+    }
+
+    fn into_string_return(self) -> Result<StringReturn> {
+        Ok(self)
+    }
+
+    fn into_content_return<'a, V: VariableMap<'a>>(
+        self,
+        context: &'a Context<'a, V>,
+    ) -> Result<ContentReturn> {
+        PathReturn::new(self.into(), context)?.into_content_return(context)
+    }
+
+    fn into_response<'a>(
+        self,
+        context: &'a RequestContext<'a>,
+    ) -> Result<HttpResponse> {
+        PathReturn::new(self.into(), context)?.into_response(context)
+    }
+}
+
+impl From<&str> for StringReturn {
+    fn from(string: &str) -> Self {
+        Self(string.to_owned())
+    }
+}
+
+impl From<String> for StringReturn {
+    fn from(string: String) -> Self {
+        Self(string)
+    }
+}
+
+impl From<StringReturn> for String {
+    fn from(ret: StringReturn) -> Self {
+        ret.0
+    }
+}
+
+impl From<StringReturn> for PathBuf {
+    fn from(ret: StringReturn) -> Self {
+        ret.0.into()
+    }
+}
+
+impl AsRef<str> for StringReturn {
+    fn as_ref(&self) -> &str {
+        &self.0
     }
 }
 
@@ -99,8 +265,11 @@ impl PathReturn {
     ///
     /// Returns [`io::Error`] if the path doesn’t exist, isn’t a file, or
     /// otherwise couldn’t be read.
-    pub fn new(path: PathBuf) -> io::Result<Self> {
-        let file = open_confirmed_file(&path)?;
+    pub fn new<'a, V: VariableMap<'a>>(
+        path: PathBuf,
+        context: &'a Context<'a, V>,
+    ) -> io::Result<Self> {
+        let file = open_confirmed_file(context.real_path(&path))?;
         let metadata = file.metadata().ok();
 
         Ok(Self {
@@ -151,15 +320,37 @@ impl PathReturn {
 }
 
 impl Return for PathReturn {
-    fn into_content_return(self) -> Result<ContentReturn> {
+    fn ensure_file<'a, V: VariableMap<'a>>(
+        self,
+        _context: &'a Context<'a, V>,
+    ) -> Result<ActionReturn> {
+        Ok(self.into())
+    }
+
+    fn into_string_return(self) -> Result<StringReturn> {
+        // FIXME should this be OsStringReturn?
+        Ok(self
+            .path
+            .to_str()
+            .ok_or_else(|| {
+                Error::InternalString(
+                    "Could not convert non UTF-8 path to String".to_owned(),
+                )
+            })?
+            .to_owned()
+            .into())
+    }
+
+    fn into_content_return<'a, V: VariableMap<'a>>(
+        self,
+        context: &'a Context<'a, V>,
+    ) -> Result<ContentReturn> {
         let Self { mut file, path, created, modified } = self;
 
-        let mut body = String::with_capacity(
-            file.metadata()?
-                .len()
-                .try_into()
-                .map_err(|_| crate::Error::FileTooLarge(path.clone()))?,
-        );
+        let mut body =
+            String::with_capacity(file.metadata()?.len().try_into().map_err(
+                |_| crate::Error::FileTooLarge(context.real_path(&path)),
+            )?);
 
         #[expect(
             clippy::verbose_file_reads,
@@ -175,16 +366,13 @@ impl Return for PathReturn {
         })
     }
 
-    fn into_response(self, req: &HttpRequest) -> Result<HttpResponse> {
-        Ok(self.into_named_file()?.into_response(req))
-    }
-}
-
-impl TryFrom<PathBuf> for PathReturn {
-    type Error = io::Error;
-
-    fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
-        Self::new(path)
+    fn into_response<'a>(
+        self,
+        context: &'a RequestContext<'a>,
+    ) -> Result<HttpResponse> {
+        Ok(self
+            .into_named_file()?
+            .into_response(context.variables.request))
     }
 }
 
@@ -261,14 +449,47 @@ impl ContentReturn {
 }
 
 impl Return for ContentReturn {
-    fn into_content_return(self) -> Result<ContentReturn> {
+    fn ensure_file<'a, V: VariableMap<'a>>(
+        self,
+        _context: &'a Context<'a, V>,
+    ) -> Result<ActionReturn> {
+        Ok(self.into())
+    }
+
+    fn into_string_return(self) -> Result<StringReturn> {
+        if let Source::File { path, .. } = self.source {
+            // FIXME should this be OsStringReturn?
+            Ok(path
+                .to_str()
+                .ok_or_else(|| {
+                    Error::InternalString(
+                        "Could not convert non UTF-8 path to String".to_owned(),
+                    )
+                })?
+                .to_owned()
+                .into())
+        } else {
+            // FIXME make this error clearer; maybe track span?
+            Err(Error::InternalString(
+                "Could not get path from response".to_owned(),
+            ))
+        }
+    }
+
+    fn into_content_return<'a, V: VariableMap<'a>>(
+        self,
+        _context: &'a Context<'a, V>,
+    ) -> Result<ContentReturn> {
         Ok(self)
     }
 
-    fn into_response(self, _req: &HttpRequest) -> Result<HttpResponse> {
+    fn into_response<'a>(
+        self,
+        context: &'a RequestContext<'a>,
+    ) -> Result<HttpResponse> {
         Ok(HttpResponse::Ok()
             .content_type(&self.content_type)
-            .body(self.into_content_return()?.body))
+            .body(self.into_content_return(context)?.body))
     }
 }
 
@@ -280,19 +501,44 @@ impl From<&str> for ContentReturn {
 
 /// A return from an action
 pub trait Return {
+    /// Ensure that the return represents a real file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`Error`] if the path is not a file that can be opened.
+    fn ensure_file<'a, V: VariableMap<'a>>(
+        self,
+        context: &'a Context<'a, V>,
+    ) -> Result<ActionReturn>;
+
+    /// Convert the return to a [`StringReturn`].
+    ///
+    /// Uses the path from [`PathReturn`] and [`ContentReturn`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`Error`] if the path cannot be represented as a [`String`].
+    fn into_string_return(self) -> Result<StringReturn>;
+
     /// Convert the return to a [`ContentReturn`].
     ///
     /// # Errors
     ///
     /// Returns an [`Error`] if the path could not be read into memory.
-    fn into_content_return(self) -> Result<ContentReturn>;
+    fn into_content_return<'a, V: VariableMap<'a>>(
+        self,
+        context: &'a Context<'a, V>,
+    ) -> Result<ContentReturn>;
 
     /// Generate a response (or an error)
     ///
     /// # Errors
     ///
     /// Returned errors will be converted to appropriate HTTP responses.
-    fn into_response(self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn into_response<'a>(
+        self,
+        context: &'a RequestContext<'a>,
+    ) -> Result<HttpResponse>;
 }
 
 /// Content for the response.

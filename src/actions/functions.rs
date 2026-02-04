@@ -28,7 +28,7 @@ pub fn render<'a, V: VariableMap<'a>, R: Return>(
 ) -> Result<Option<ContentReturn>> {
     // FIXME: caching headers based on template and Page.
     // FIXME: add cache-busting to href, src, etc. in HTML.
-    let mut ret = ret.into_content_return()?;
+    let mut ret = ret.into_content_return(context)?;
 
     let template = ret
         .metadata
@@ -81,10 +81,10 @@ pub fn render<'a, V: VariableMap<'a>, R: Return>(
 /// Will return [`super::Error`] if there is a problem getting content from
 /// `ret` or parsing page metadata from the content.
 pub fn markdown_to_html<'a, V: VariableMap<'a>, R: Return>(
-    _context: &'a Context<'a, V>,
+    context: &'a Context<'a, V>,
     ret: R,
 ) -> Result<Option<ContentReturn>> {
-    let mut ret = ret.into_content_return()?;
+    let mut ret = ret.into_content_return(context)?;
     let raw_page = mem::take(&mut ret.body).into_string()?;
     let (header, body) = render::split_raw_page(&raw_page);
 
@@ -104,12 +104,12 @@ pub fn markdown_to_html<'a, V: VariableMap<'a>, R: Return>(
 ///
 /// Returns [`super::Error`] for problems getting content from `ret`.
 pub fn redact_source<'a, V: VariableMap<'a>, R: Return>(
-    _context: &'a Context<'a, V>,
+    context: &'a Context<'a, V>,
     ret: R,
 ) -> Result<Option<ContentReturn>> {
     // FIXME: caching headers based on template and Page.
     // FIXME: add cache-busting to href, src, etc. in HTML.
-    let mut ret = ret.into_content_return()?;
+    let mut ret = ret.into_content_return(context)?;
     ret.body = render_source_to_string(ret.body.into_string()?).into();
     ret.content_type = MediaType::TEXT_MARKDOWN_UTF8;
     Ok(Some(ret))

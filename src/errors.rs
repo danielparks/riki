@@ -64,6 +64,14 @@ pub enum Error {
     /// Could not convert binary data to UTF-8
     #[error("Found non-UTF-8 data")]
     NotUtf8(#[from] std::string::FromUtf8Error),
+
+    /// Request path did not start with '/'
+    #[error("Request path {0:?} did not start with '/'")]
+    RequestPathNotAbsolute(String),
+
+    /// Request path contained ".." segment
+    #[error("Request path {0:?} contained \"..\" segment")]
+    RequestPathContainsDotDot(String),
 }
 
 /// `Result` type for this crate.

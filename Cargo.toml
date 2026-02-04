@@ -31,6 +31,7 @@ base64 = "0.22.1"
 clap = { version = "4.5.27", features = ["derive"] }
 derive_more = { version = "2.1.1", features = ["from", "display"] }
 dom_query = "0.24.0"
+globset = "0.4.18"
 handlebars = { version = "6.3.2", features = ["dir_source", "rust-embed"] }
 htmlize = "1.0.6"
 jiff = { version = "0.2.15", features = ["serde"] }
@@ -49,13 +50,14 @@ termcolor = "1.4.1"
 thiserror = "2.0.15"
 tracing = "0.1.41"
 tracing-actix-web = "0.7.19"
-tracing-subscriber = { version = "0.3.20", features = ["chrono"] }
+tracing-subscriber = { version = "0.3.20", features = ["chrono", "env-filter"] }
 url = "2.5.7"
 
 [dev-dependencies]
 actix-http = "3.11.0"
 assert2 = "0.3.16"
 temp-dir = "0.1.16"
+test-log = { version = "0.2.19", default-features = false, features = ["color", "trace"] }
 tracing-test = "0.2.5"
 
 [lints]

@@ -6,5 +6,6 @@ mod errors;
 pub mod actions;
 pub mod http;
 pub mod render;
+pub mod rules;
 
 pub use errors::*;

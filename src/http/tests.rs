@@ -9,7 +9,7 @@ use actix_web::http::header::HeaderName;
 use actix_web::test::TestRequest;
 use actix_web::web::{Bytes, Data};
 use actix_web::{App, body, http, test};
-use assert2::check;
+use assert2::assert;
 use std::fs;
 use temp_dir::TempDir;
 use tracing_test::traced_test;
@@ -174,26 +174,26 @@ async fn test_directory_page_get() {
     fs::create_dir(config.root_path.join("dir")).unwrap();
     fs::write(config.root_path.join("dir/index.md"), "DIR").unwrap();
 
-    check!(
+    assert!(
         Response::page_html(
             "<html><head></head><body><p>index</p>\n</body></html>"
         ) == get(&app, "/").await
     );
-    check!(Response::redirect("/") == get(&app, "/.").await);
-    check!(Response::redirect("/") == get(&app, "/index").await);
-    check!(Response::page_source("index") == get(&app, "/index.md").await);
-    check!(Response::redirect("/index.md") == get(&app, "/index.md/").await);
+    assert!(Response::redirect("/") == get(&app, "/.").await);
+    assert!(Response::redirect("/") == get(&app, "/index").await);
+    assert!(Response::page_source("index") == get(&app, "/index.md").await);
+    assert!(Response::redirect("/index.md") == get(&app, "/index.md/").await);
 
-    check!(
+    assert!(
         Response::page_html(
             "<html><head></head><body><p>DIR</p>\n</body></html>"
         ) == get(&app, "/dir/").await
     );
-    check!(Response::redirect("/dir/") == get(&app, "/dir").await);
-    check!(Response::redirect("/dir/") == get(&app, "/dir/.").await);
-    check!(Response::redirect("/dir/") == get(&app, "/dir/index").await);
-    check!(Response::redirect("/dir/") == get(&app, "/dir/././index").await);
-    check!(Response::page_source("DIR") == get(&app, "/dir/index.md").await);
+    assert!(Response::redirect("/dir/") == get(&app, "/dir").await);
+    assert!(Response::redirect("/dir/") == get(&app, "/dir/.").await);
+    assert!(Response::redirect("/dir/") == get(&app, "/dir/index").await);
+    assert!(Response::redirect("/dir/") == get(&app, "/dir/././index").await);
+    assert!(Response::page_source("DIR") == get(&app, "/dir/index.md").await);
 }
 
 #[actix_web::test]
@@ -203,15 +203,15 @@ async fn test_file_page_get() {
 
     fs::write(config.root_path.join("page.md"), "PAGE").unwrap();
 
-    check!(
+    assert!(
         Response::page_html(
             "<html><head></head><body><p>PAGE</p>\n</body></html>"
         ) == get(&app, "/page").await
     );
-    check!(Response::redirect("/page") == get(&app, "/page/").await);
-    check!(Response::redirect("/page") == get(&app, "/page/.").await);
-    check!(Response::redirect("/page") == get(&app, "/page/././").await);
-    check!(Response::page_source("PAGE") == get(&app, "/page.md").await);
+    assert!(Response::redirect("/page") == get(&app, "/page/").await);
+    assert!(Response::redirect("/page") == get(&app, "/page/.").await);
+    assert!(Response::redirect("/page") == get(&app, "/page/././").await);
+    assert!(Response::page_source("PAGE") == get(&app, "/page.md").await);
 }
 
 #[actix_web::test]
@@ -221,13 +221,13 @@ async fn test_static_file_get() {
 
     fs::write(config.root_path.join("a.txt"), "AAA").unwrap();
 
-    check!(
+    assert!(
         Response::static_other("AAA", mime::TEXT_PLAIN_UTF_8)
             == get(&app, "/a.txt").await
     );
-    check!(Response::redirect("/a.txt") == get(&app, "/a.txt/").await);
-    check!(Response::redirect("/a.txt") == get(&app, "/a.txt/.").await);
-    check!(Response::redirect("/a.txt") == get(&app, "/a.txt/././").await);
+    assert!(Response::redirect("/a.txt") == get(&app, "/a.txt/").await);
+    assert!(Response::redirect("/a.txt") == get(&app, "/a.txt/.").await);
+    assert!(Response::redirect("/a.txt") == get(&app, "/a.txt/././").await);
 }
 
 #[actix_web::test]
@@ -238,10 +238,10 @@ async fn test_static_directory_get() {
     fs::create_dir(config.root_path.join("b")).unwrap();
     fs::write(config.root_path.join("b/index.html"), "BBB").unwrap();
 
-    check!(Response::static_html("BBB") == get(&app, "/b/").await);
-    check!(Response::redirect("/b/") == get(&app, "/b").await);
-    check!(Response::redirect("/b/") == get(&app, "/b/index.html").await);
-    check!(Response::redirect("/b/") == get(&app, "/b/././index.html").await);
+    assert!(Response::static_html("BBB") == get(&app, "/b/").await);
+    assert!(Response::redirect("/b/") == get(&app, "/b").await);
+    assert!(Response::redirect("/b/") == get(&app, "/b/index.html").await);
+    assert!(Response::redirect("/b/") == get(&app, "/b/././index.html").await);
 }
 
 #[actix_web::test]
@@ -253,17 +253,19 @@ async fn test_static_index_with_page() {
     fs::write(config.root_path.join("static/index.html"), "STATIC").unwrap();
     fs::write(config.root_path.join("static/page.md"), "PAGE").unwrap();
 
-    check!(Response::redirect("/static/") == get(&app, "/static").await);
-    check!(Response::static_html("STATIC") == get(&app, "/static/").await);
-    check!(
+    assert!(Response::redirect("/static/") == get(&app, "/static").await);
+    assert!(Response::static_html("STATIC") == get(&app, "/static/").await);
+    assert!(
         Response::page_html(
             "<html><head></head><body><p>PAGE</p>\n</body></html>"
         ) == get(&app, "/static/page").await
     );
-    check!(
+    assert!(
         Response::redirect("/static/page") == get(&app, "/static/page/").await
     );
-    check!(Response::page_source("PAGE") == get(&app, "/static/page.md").await);
+    assert!(
+        Response::page_source("PAGE") == get(&app, "/static/page.md").await
+    );
 }
 
 #[actix_web::test]
@@ -274,9 +276,9 @@ async fn test_static_hides_page() {
     fs::write(config.root_path.join("index.html"), "STATIC").unwrap();
     fs::write(config.root_path.join("index.md"), "PAGE").unwrap();
 
-    check!(Response::static_html("STATIC") == get(&app, "/").await);
-    check!(Response::redirect("/") == get(&app, "/index.html").await);
-    check!(Response::page_source("PAGE") == get(&app, "/index.md").await);
+    assert!(Response::static_html("STATIC") == get(&app, "/").await);
+    assert!(Response::redirect("/") == get(&app, "/index.html").await);
+    assert!(Response::page_source("PAGE") == get(&app, "/index.md").await);
 }
 
 #[actix_web::test]
@@ -292,7 +294,7 @@ async fn test_not_found_get() {
         etag: false,
         body: B(b"404"),
     };
-    check!(expected == received);
+    assert!(expected == received);
 }
 
 #[cfg(all(not(target_os = "hermit"), unix))]
@@ -314,7 +316,7 @@ async fn test_forbidden_page_get() {
         etag: false,
         body: B(b"403"),
     };
-    check!(expected == get(&app, "/forbidden").await);
+    assert!(expected == get(&app, "/forbidden").await);
 
     let expected = Response {
         status: http::StatusCode::FORBIDDEN,
@@ -323,7 +325,7 @@ async fn test_forbidden_page_get() {
         etag: false,
         body: B(b"403"),
     };
-    check!(expected == get(&app, "/forbidden.md").await);
+    assert!(expected == get(&app, "/forbidden.md").await);
 }
 
 #[cfg(all(not(target_os = "hermit"), unix))]
@@ -345,5 +347,5 @@ async fn test_forbidden_static_get() {
         etag: false,
         body: B(b"403"),
     };
-    check!(expected == get(&app, "/forbidden.txt").await);
+    assert!(expected == get(&app, "/forbidden.txt").await);
 }

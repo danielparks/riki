@@ -11,9 +11,11 @@
 //!   * [`StaticContext`] is a context that has static variable values stored in
 //!     [`StaticVariables`]. It’s useful for testing.
 
+use super::ActionReturn;
+use crate::Error;
 use actix_web::HttpRequest;
 use handlebars::Handlebars;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Variable names available to be used in configuration.
@@ -22,14 +24,30 @@ use std::sync::Arc;
 )]
 #[strum(serialize_all = "snake_case")]
 pub enum Variable {
-    /// The path of the request, not including a query string.
-    Path,
+    /// The cleaned path of the request, not including a query string.
+    ///
+    /// See [`clean_path()`].
+    CleanPath,
+
+    /// The raw path from the request.
+    RequestPath,
 
     /// The HTTP verb used, e.g. `"GET"`.
     Verb,
 
     /// The `Host` header, or `""` if its invalid or not set.
     Host,
+}
+
+impl Variable {
+    /// Calculate value of the variable.
+    #[inline]
+    pub fn evaluate<'vars, V: VariableMap<'vars>>(
+        self,
+        context: &'vars Context<'vars, V>,
+    ) -> ActionReturn {
+        context.variables.get(self).into()
+    }
 }
 
 /// Access variables containing request information used in configuration.
@@ -42,21 +60,39 @@ pub trait VariableMap<'vars> {
     /// use riki::actions::{StaticVariables, Variable, VariableMap};
     ///
     /// let vars = StaticVariables {
-    ///     path: "/example",
+    ///     request_path: "/example/",
+    ///     clean_path: "/example",
     ///     verb: "POST",
     ///     ..StaticVariables::default()
     /// };
-    /// assert_eq!(vars.get("path".try_into().unwrap()), "/example");
+    /// assert_eq!(vars.get("clean_path".try_into().unwrap()), "/example");
     /// assert_eq!(vars.get(Variable::Verb), "POST");
     /// ```
-    fn get(&self, variable: Variable) -> &'vars str;
+    fn get(&'vars self, variable: Variable) -> &'vars str;
+
+    /// Convenience function to get the clean request path.
+    #[inline]
+    fn clean_path(&'vars self) -> &'vars str {
+        self.get(Variable::CleanPath)
+    }
+
+    /// Convenience function to get the raw request path.
+    #[inline]
+    fn request_path(&'vars self) -> &'vars str {
+        self.get(Variable::RequestPath)
+    }
 }
 
 /// Static variable values (for testing).
 #[derive(Clone, Debug)]
 pub struct StaticVariables<'vars> {
-    /// Request path
-    pub path: &'vars str,
+    /// Cleaned request path
+    ///
+    /// This should always be clean. See [`clean_path()`].
+    pub clean_path: &'vars str,
+
+    /// Raw request path
+    pub request_path: &'vars str,
 
     /// Request verb
     pub verb: &'vars str,
@@ -66,9 +102,10 @@ pub struct StaticVariables<'vars> {
 }
 
 impl<'vars> VariableMap<'vars> for StaticVariables<'vars> {
-    fn get(&self, variable: Variable) -> &'vars str {
+    fn get(&'vars self, variable: Variable) -> &'vars str {
         match variable {
-            Variable::Path => self.path,
+            Variable::CleanPath => self.clean_path,
+            Variable::RequestPath => self.request_path,
             Variable::Verb => self.verb,
             Variable::Host => self.host,
         }
@@ -77,7 +114,12 @@ impl<'vars> VariableMap<'vars> for StaticVariables<'vars> {
 
 impl Default for StaticVariables<'static> {
     fn default() -> Self {
-        Self { path: "/", verb: "GET", host: "localhost" }
+        Self {
+            clean_path: "/",
+            request_path: "/",
+            verb: "GET",
+            host: "localhost",
+        }
     }
 }
 
@@ -86,12 +128,27 @@ impl Default for StaticVariables<'static> {
 pub struct RequestVariables<'vars> {
     /// The request object.
     pub request: &'vars HttpRequest,
+
+    /// The cleaned request path.
+    pub path: String,
+}
+
+impl<'vars> RequestVariables<'vars> {
+    /// Create from an [`HttpRequest`].
+    ///
+    /// # Errors
+    ///
+    /// See [`clean_path()`].
+    pub fn new(request: &'vars HttpRequest) -> crate::Result<Self> {
+        Ok(Self { request, path: clean_path(request.path())? })
+    }
 }
 
 impl<'vars> VariableMap<'vars> for RequestVariables<'vars> {
-    fn get(&self, variable: Variable) -> &'vars str {
+    fn get(&'vars self, variable: Variable) -> &'vars str {
         match variable {
-            Variable::Path => self.request.path(),
+            Variable::CleanPath => &self.path,
+            Variable::RequestPath => self.request.path(),
             Variable::Verb => self.request.method().as_str(),
             Variable::Host => self
                 .request
@@ -116,6 +173,17 @@ pub struct Context<'a, V: VariableMap<'a>> {
     pub variables: V,
 }
 
+impl<'a, V: VariableMap<'a>> Context<'a, V> {
+    /// Get the file system path for a request path (`path`).
+    ///
+    /// This assumes that `path` does not have any `/../` components.
+    pub fn real_path<P: AsRef<Path>>(&self, path: P) -> PathBuf {
+        let path: &Path = path.as_ref();
+        self.working_path
+            .join(path.strip_prefix("/").unwrap_or(path))
+    }
+}
+
 impl<'a, V: VariableMap<'a> + Default> Default for Context<'a, V> {
     fn default() -> Self {
         // FIXME
@@ -129,13 +197,20 @@ impl<'a, V: VariableMap<'a> + Default> Default for Context<'a, V> {
 
 impl<'a> Context<'a, RequestVariables<'a>> {
     /// Get a new context for a request.
-    #[must_use]
-    pub const fn new(
+    ///
+    /// # Errors
+    ///
+    /// See [`clean_path()`].
+    pub fn new(
         working_path: PathBuf,
         tpls: Arc<Handlebars<'a>>,
         request: &'a HttpRequest,
-    ) -> Self {
-        Self { working_path, tpls, variables: RequestVariables { request } }
+    ) -> crate::Result<Self> {
+        Ok(Self {
+            working_path,
+            tpls,
+            variables: RequestVariables::new(request)?,
+        })
     }
 }
 
@@ -144,3 +219,98 @@ pub type StaticContext = Context<'static, StaticVariables<'static>>;
 
 /// Convenient alias for a context with variables from a request.
 pub type RequestContext<'a> = Context<'a, RequestVariables<'a>>;
+
+/// Get a clean path from the request path.
+///
+/// # Errors
+///
+///   * [`Error::RequestPathNotAbsolute`] if the path doesn’t start with '/'.
+///   * [`Error::RequestPathContainsDotDot`] if the path contains a .. segment.
+pub fn clean_path(path: &str) -> crate::Result<String> {
+    // TODO? Actix seems to do deal with .. and maybe // for us. Simplify?
+    if !path.starts_with('/') {
+        Err(Error::RequestPathNotAbsolute(path.to_owned()))
+    } else if path.split('/').any(|v| v == "..") {
+        Err(Error::RequestPathContainsDotDot(path.to_owned()))
+    } else {
+        // This guarantees the returned path:
+        //   * either is "/" or doesn’t end with '/'
+        //   * doesn’t contain any "" or "." segments
+        #[expect(clippy::comparison_to_empty, reason = "clarity")]
+        Ok(format!(
+            "/{}",
+            path.split('/')
+                .filter(|part| *part != "." && *part != "")
+                .collect::<Vec<_>>()
+                .join("/")
+        ))
+    }
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use super::*;
+
+    use assert2::check;
+
+    /// For easier comparisons.
+    fn wrapped_clean_path(path: &str) -> Result<String, String> {
+        clean_path(path).map_err(|error| error.to_string())
+    }
+
+    /// Convenience; for easier comparisons.
+    #[expect(clippy::unnecessary_wraps, reason = "convenient comparisons")]
+    fn ok(value: &str) -> Result<String, String> {
+        Ok(value.to_owned())
+    }
+
+    /// Convenience; for easier comparisons.
+    fn err(value: &str) -> Result<String, String> {
+        Err(value.to_owned())
+    }
+
+    #[test]
+    fn clean_path_file() {
+        check!(wrapped_clean_path("/foo") == ok("/foo"));
+        check!(wrapped_clean_path("/a/b") == ok("/a/b"));
+    }
+
+    #[test]
+    fn clean_path_dir() {
+        check!(wrapped_clean_path("/dir/") == ok("/dir"));
+        check!(wrapped_clean_path("/a/b/") == ok("/a/b"));
+    }
+
+    #[test]
+    fn clean_path_root_self() {
+        check!(wrapped_clean_path("/") == ok("/"));
+        check!(wrapped_clean_path("/.") == ok("/"));
+        check!(wrapped_clean_path("/./") == ok("/"));
+        check!(wrapped_clean_path("/./.") == ok("/"));
+        check!(wrapped_clean_path("/././") == ok("/"));
+    }
+
+    #[test]
+    fn clean_path_root_multi_slash() {
+        check!(wrapped_clean_path("//") == ok("/"));
+        check!(wrapped_clean_path("/.//") == ok("/"));
+        check!(wrapped_clean_path("//./") == ok("/"));
+        check!(wrapped_clean_path("///") == ok("/"));
+    }
+
+    #[test]
+    fn clean_path_errors() {
+        check!(
+            wrapped_clean_path("/../a")
+                == err("Request path \"/../a\" contained \"..\" segment")
+        );
+        check!(
+            wrapped_clean_path("a")
+                == err("Request path \"a\" did not start with '/'")
+        );
+        check!(
+            wrapped_clean_path("")
+                == err("Request path \"\" did not start with '/'")
+        );
+    }
+}

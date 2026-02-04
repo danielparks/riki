@@ -55,7 +55,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
                 ..Default::default()
             };
 
-            let ret = PathReturn::new(page_path.clone())?;
+            let ret = PathReturn::new(page_path.clone(), &context)?;
             let ret = actions::markdown_to_html(&context, ret)?
                 .ok_or(actions::Error::NotFound)?;
             let ret = actions::render(&context, ret)?
@@ -64,9 +64,10 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             print!("{}", ret.body.into_string()?);
         }
         Command::Info { page_path } => {
+            let context = actions::StaticContext::default();
             let ret = actions::markdown_to_html(
-                &actions::StaticContext::default(),
-                PathReturn::new(page_path.clone())?,
+                &context,
+                PathReturn::new(page_path.clone(), &context)?,
             )?
             .ok_or(actions::Error::NotFound)?;
             print!("{}", serde_yaml::to_string(&ret.metadata)?);
