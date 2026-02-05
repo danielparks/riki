@@ -52,7 +52,7 @@ impl Variable {
 
 /// Access variables containing request information used in configuration.
 ///
-/// These can be interpolated into the configuration, e.g. `/srv/$path`.
+/// These can be interpolated into the configuration, e.g. `/srv/$clean_path`.
 pub trait VariableMap<'vars> {
     /// Get a variable value by name.
     ///

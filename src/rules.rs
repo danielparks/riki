@@ -336,28 +336,28 @@ impl Action<'_> {
 #[must_use]
 pub fn default_rules() -> Vec<Rule<'static>> {
     vec![
-        // *.md redact_source(canonical($path))
+        // *.md redact_source(canonical($clean_path))
         Rule::new(
             "**/*.md",
             Action::redact_source(Action::canonical(Variable::CleanPath)),
         ),
-        // index.html canonical("${dirname($path)}/")
+        // index.html canonical("${dirname($clean_path)}/")
         Rule::new(
             "**/index.html",
             Action::canonical(Action::as_dir(Action::dirname(
                 Variable::CleanPath,
             ))),
         ),
-        // if file_exists("$path") {
-        //     canonical($path) // returns $path as a file if it matches.
-        // }
+        // if file_exists("$clean_path") {
+        //     canonical($clean_path) // returns $clean_path as a file if it
+        // matches. }
         Rule::new(
             "**",
             Action::canonical(Action::if_file(Variable::CleanPath)),
         ),
-        // if file_exists("$path/index.html") {
-        //     if canonical("${path}/") {
-        //         $path/index.html
+        // if file_exists("$clean_path/index.html") {
+        //     if canonical("${clean_path}/") {
+        //         $clean_path/index.html
         //     }
         // }
         Rule::new(
@@ -373,16 +373,16 @@ pub fn default_rules() -> Vec<Rule<'static>> {
                 Action::join(Variable::CleanPath, "index.html"),
             ),
         ),
-        // index canonical("${dirname($path)}/")
+        // index canonical("${dirname($clean_path)}/")
         Rule::new(
             "**/index",
             Action::canonical(Action::as_dir(Action::dirname(
                 Variable::CleanPath,
             ))),
         ),
-        // if file_exists("${path}.md") {
-        //     if canonical($path) {
-        //         render(markdown("${path}.md"))
+        // if file_exists("${clean_path}.md") {
+        //     if canonical($clean_path) {
+        //         render(markdown("${clean_path}.md"))
         //     }
         // }
         Rule::new(
@@ -397,9 +397,9 @@ pub fn default_rules() -> Vec<Rule<'static>> {
                 ))),
             ),
         ),
-        // if file_exists("$path/index.md") {
-        //     if canonical("${path}/") {
-        //         render(markdown("$path/index.md"))
+        // if file_exists("$clean_path/index.md") {
+        //     if canonical("${clean_path}/") {
+        //         render(markdown("$clean_path/index.md"))
         //     }
         // }
         Rule::new(
