@@ -82,6 +82,15 @@ Each rule ends with an action:
 For easier comprehension, rules can be grouped into the same context with
 braces. So, every rule within `/foo { ... }` effectively has `/foo` prepended.
 
+Variable interpolation can take the form of `"$clean_path"` or
+`"${clean_path}"`. If a variable occurs at the beginning of a string that is
+used as a path, the string is interpreted as being a relative path.
+
+For example, in the following code the templates directory will be `/srv/$var`:
+
+    root=/srv
+    templates=$var
+
   * [ ] TODO: how do we configure error pages?
 
 ### Example
