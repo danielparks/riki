@@ -176,13 +176,6 @@ fn bad_setting() {
                 0..17"
             )
     );
-    check!(
-        canonicalize("root = $clean_path")
-            == err_str(
-                "path cannot start with variable; try prepending \"/\" or \
-                \"./\" 7..18"
-            )
-    );
 }
 
 #[test_log::test]
@@ -195,6 +188,18 @@ fn good_setting() {
         ) == ok_str(
             "/** root = \"/tmp\"\n\
             /** templates = \"/templates\"\n\
+            /** \"${clean_path}\""
+        )
+    );
+    check!(
+        canonicalize(
+            "root = /foo
+            root = $clean_path
+            templates = templates
+            / $clean_path"
+        ) == ok_str(
+            "/** root = \"/foo/${clean_path}\"\n\
+            /** templates = \"/foo/${clean_path}/templates\"\n\
             /** \"${clean_path}\""
         )
     );

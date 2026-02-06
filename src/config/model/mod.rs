@@ -139,11 +139,11 @@ impl<'src> ConfigSettings<'src> {
     ) -> Result<(), SpannedErrors<'src>> {
         match (name.0, value) {
             ("root", Value::Literal(value)) => {
-                self.root.push(&value.try_into()?);
+                self.root.push(&value.into());
                 Ok(())
             }
             ("templates", Value::Literal(value)) => {
-                self.templates = self.root.join(&value.try_into()?);
+                self.templates = self.root.join(&value.into());
                 Ok(())
             }
             ("root" | "templates", Value::Function(function)) => {

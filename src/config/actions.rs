@@ -1,6 +1,6 @@
 //! Perform actions defined in configuration file
 
-use super::errors::{ParseError, ParseResult, SpannedErrors};
+use super::errors::{ParseError, ParseResult};
 use super::model::{ParsedPath, ParsedString};
 use super::parser2::{Parameters, Span, Value};
 
@@ -25,13 +25,11 @@ impl Action<'_> {
     }
 }
 
-impl<'src> TryFrom<Value<'src>> for Action<'src> {
-    type Error = SpannedErrors<'src>;
-
-    fn try_from(value: Value<'src>) -> Result<Self, Self::Error> {
+impl<'src> From<Value<'src>> for Action<'src> {
+    fn from(value: Value<'src>) -> Self {
         match value {
-            Value::Function(function) => Ok(Self::Function(function)),
-            Value::Literal(string) => Ok(Self::Literal(string.try_into()?)),
+            Value::Function(function) => Self::Function(function),
+            Value::Literal(string) => Self::Literal(string.into()),
         }
     }
 }
@@ -83,10 +81,10 @@ impl<'src> Function<'src> {
                 Ok(Self::Literal(value.try_into()?, span))
             }
             ("markdown", Some(value), None) => {
-                Ok(Self::Markdown(Box::new(value.try_into()?), span))
+                Ok(Self::Markdown(Box::new(value.into()), span))
             }
             ("render", Some(value), None) => {
-                Ok(Self::Render(Box::new(value.try_into()?), span))
+                Ok(Self::Render(Box::new(value.into()), span))
             }
             ("error" | "literal" | "markdown" | "render", ..) => {
                 Err(ParseError::WrongFunctionParameterCount {

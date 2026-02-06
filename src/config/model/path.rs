@@ -1,6 +1,6 @@
 //! Handle path literals in the configuration
 
-use super::{ParseError, ParsedString, SpannedErrors};
+use super::ParsedString;
 use std::path::PathBuf;
 
 /// A value that will evaluate to a path.
@@ -18,13 +18,16 @@ impl ParsedPath<'_> {
     }
 
     /// Join another path onto this one.
+    ///
+    /// If `other` starts with `'/'`, then it will replace `self`. If `other`
+    /// starts with a variable, then we consider it a relative path.
     pub fn push(&mut self, other: &Self) {
-        if other.starts_with('/') {
+        if other.starts_with('/') == Some(true) {
             self.0 = other.0.clone();
         } else if self.ends_with('/') == Some(true) {
             self.0.push_string(&other.0);
         } else {
-            // This could end with a variable; a double / doesn’t matter.
+            // A double or triple / doesn’t matter.
             self.0.push('/');
             self.0.push_string(&other.0);
         }
@@ -40,12 +43,13 @@ impl ParsedPath<'_> {
     }
 
     /// Does this start with `c`?
+    ///
+    /// Returns `None` if this starts with a variable, and thus the final start
+    /// is unknown.
     #[must_use]
     #[inline]
-    fn starts_with(&self, c: char) -> bool {
-        self.0
-            .starts_with(c)
-            .expect("ParsedPath cannot start with variable")
+    fn starts_with(&self, c: char) -> Option<bool> {
+        self.0.starts_with(c)
     }
 
     /// Does this end with `c`?
@@ -59,32 +63,20 @@ impl ParsedPath<'_> {
     }
 }
 
-impl<'src> TryFrom<ParsedString<'src>> for ParsedPath<'src> {
-    type Error = SpannedErrors<'src>;
-
-    fn try_from(value: ParsedString<'src>) -> Result<Self, Self::Error> {
-        if value.starts_with_variable() {
-            if let Some(src) = value.span() {
-                Err(ParseError::PathStartsWithVariable.spanned_s(src))
-            } else {
-                Err(ParseError::PathStartsWithVariable.without_spans().into())
-            }
-        } else {
-            Ok(Self(value))
-        }
+impl<'src> From<ParsedString<'src>> for ParsedPath<'src> {
+    fn from(value: ParsedString<'src>) -> Self {
+        Self(value)
     }
 }
 
 impl<'src> From<&'src str> for ParsedPath<'src> {
     fn from(value: &'src str) -> Self {
-        // No variables
         Self(value.into())
     }
 }
 
 impl From<PathBuf> for ParsedPath<'_> {
     fn from(value: PathBuf) -> Self {
-        // No variables
         Self(value.into())
     }
 }
