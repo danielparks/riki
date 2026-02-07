@@ -29,6 +29,7 @@ use actix_web::http::header::{
     HeaderValue, InvalidHeaderValue, TryIntoHeaderValue,
 };
 use actix_web::web::Bytes;
+use ambassador::{Delegate, delegatable_trait};
 use jiff::Timestamp;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -44,7 +45,8 @@ use std::task;
 use tendril::StrTendril;
 
 /// Return from any action
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Delegate, derive_more::From)]
+#[delegate(Return)]
 pub enum ActionReturn {
     /// A short string.
     StringReturn(StringReturn),
@@ -54,48 +56,6 @@ pub enum ActionReturn {
 
     /// Response body content (possibly associated with a path).
     ContentReturn(ContentReturn),
-}
-
-impl Return for ActionReturn {
-    fn ensure_file<'a, V: VariableMap<'a>>(
-        self,
-        context: &'a Context<'a, V>,
-    ) -> Result<ActionReturn> {
-        match self {
-            Self::StringReturn(ret) => ret.ensure_file(context),
-            Self::PathReturn(_) | Self::ContentReturn(_) => Ok(self),
-        }
-    }
-
-    fn into_string_return(self) -> Result<StringReturn> {
-        match self {
-            Self::StringReturn(ret) => Ok(ret),
-            Self::PathReturn(ret) => ret.into_string_return(),
-            Self::ContentReturn(ret) => ret.into_string_return(),
-        }
-    }
-
-    fn into_content_return<'a, V: VariableMap<'a>>(
-        self,
-        context: &'a Context<'a, V>,
-    ) -> Result<ContentReturn> {
-        match self {
-            Self::StringReturn(ret) => ret.into_content_return(context),
-            Self::PathReturn(ret) => ret.into_content_return(context),
-            Self::ContentReturn(ret) => Ok(ret),
-        }
-    }
-
-    fn into_response<'a>(
-        self,
-        context: &'a RequestContext<'a>,
-    ) -> Result<HttpResponse> {
-        match self {
-            Self::StringReturn(ret) => ret.into_response(context),
-            Self::PathReturn(ret) => ret.into_response(context),
-            Self::ContentReturn(ret) => ret.into_response(context),
-        }
-    }
 }
 
 impl From<&str> for ActionReturn {
@@ -500,6 +460,7 @@ impl From<&str> for ContentReturn {
 }
 
 /// A return from an action
+#[delegatable_trait]
 pub trait Return {
     /// Ensure that the return represents a real file.
     ///
