@@ -56,13 +56,14 @@ impl<'tpls> TemplatesManager<'tpls> {
     }
 }
 
-/// Get the base template registry.
+/// Get a copy of the base template registry.
 ///
 /// # Panics
 ///
 /// Panics if there is an error compiling the embedded templates.
 #[must_use]
 pub fn base_templates() -> Handlebars<'static> {
+    // FIXME is it faster to clone the base templates? If so, use LazyLock.
     let mut tpls = Handlebars::new();
     tpls.set_strict_mode(true);
 
@@ -95,7 +96,6 @@ pub fn templates_from_directory<P: AsRef<Path>>(
         return Err(Error::MissingDirectory(path.to_path_buf()));
     }
 
-    // FIXME cache base_templates()?
     let mut tpls = base_templates();
     tpls.register_templates_directory(path, DirectorySourceOptions::default())?;
     Ok(tpls)
