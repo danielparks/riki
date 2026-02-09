@@ -5,7 +5,7 @@ mod params;
 
 use anyhow::anyhow;
 use params::{Command, Params, Parser};
-use riki::actions::PathReturn;
+use riki::actions::{PathReturn, StaticContext};
 use riki::{actions, http, render};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -42,7 +42,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
 
     match &params.command {
         Command::Render { templates_dir, page_path } => {
-            let context = actions::StaticContext {
+            let context = StaticContext {
                 tpls: render::templates_from_directory(
                     templates_dir
                         .clone()
@@ -52,7 +52,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
                         })?,
                 )?
                 .into(),
-                ..Default::default()
+                ..StaticContext::default()
             };
 
             let ret = PathReturn::new(page_path.clone(), &context)?;
@@ -64,7 +64,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             print!("{}", ret.body.into_string()?);
         }
         Command::Info { page_path } => {
-            let context = actions::StaticContext::default();
+            let context = StaticContext::default();
             let ret = actions::markdown_to_html(
                 &context,
                 PathReturn::new(page_path.clone(), &context)?,
