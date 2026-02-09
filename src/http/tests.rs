@@ -84,6 +84,7 @@ struct Response {
     content_type: Option<mime::Mime>,
     last_modified: bool,
     etag: bool,
+    location: Option<String>,
     body: Bytes,
 }
 
@@ -96,18 +97,20 @@ impl Response {
             content_type: get_content_type(&resp),
             last_modified: get_header(&resp, header::LAST_MODIFIED).is_some(),
             etag: get_header(&resp, header::ETAG).is_some(),
+            location: get_header(&resp, header::LOCATION)
+                .map(|v| v.to_vec().try_into().expect("Location not UTF-8")),
             body: get_body(resp).await,
         }
     }
 
     /// An expected 301 Moved Permanently response.
     fn redirect(to: &str) -> Self {
-        // FIXME add Location header
         Self {
             status: http::StatusCode::MOVED_PERMANENTLY,
             content_type: Some(mime::TEXT_HTML_UTF_8),
             last_modified: false,
             etag: false,
+            location: Some(to.to_owned()),
             body: format!("redirect {to}").into(),
         }
     }
@@ -119,6 +122,7 @@ impl Response {
             content_type: Some(mime::TEXT_HTML_UTF_8),
             last_modified: false,
             etag: false,
+            location: None,
             body: body.to_owned().into(),
         }
     }
@@ -130,6 +134,7 @@ impl Response {
             content_type: Some("text/markdown; charset=utf-8".parse().unwrap()),
             last_modified: false,
             etag: false,
+            location: None,
             body: body.to_owned().into(),
         }
     }
@@ -146,6 +151,7 @@ impl Response {
             content_type: Some(content_type),
             last_modified: true,
             etag: true,
+            location: None,
             body: body.to_owned().into(),
         }
     }
@@ -292,6 +298,7 @@ async fn test_not_found_get() {
         content_type: Some(mime::TEXT_HTML_UTF_8),
         last_modified: false,
         etag: false,
+        location: None,
         body: B(b"404"),
     };
     assert!(expected == received);
@@ -314,6 +321,7 @@ async fn test_forbidden_page_get() {
         content_type: Some(mime::TEXT_HTML_UTF_8),
         last_modified: false,
         etag: false,
+        location: None,
         body: B(b"403"),
     };
     assert!(expected == get(&app, "/forbidden").await);
@@ -323,6 +331,7 @@ async fn test_forbidden_page_get() {
         content_type: Some(mime::TEXT_HTML_UTF_8),
         last_modified: false,
         etag: false,
+        location: None,
         body: B(b"403"),
     };
     assert!(expected == get(&app, "/forbidden.md").await);
@@ -345,6 +354,7 @@ async fn test_forbidden_static_get() {
         content_type: Some(mime::TEXT_HTML_UTF_8),
         last_modified: false,
         etag: false,
+        location: None,
         body: B(b"403"),
     };
     assert!(expected == get(&app, "/forbidden.txt").await);
