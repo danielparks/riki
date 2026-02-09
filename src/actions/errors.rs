@@ -100,7 +100,6 @@ impl Error {
                 hashmap! { "req_path" => req.path().to_owned() },
             ),
             Self::RedirectCanonical(url) => {
-                // FIXME should this be permanent?
                 let mut builder =
                     HttpResponseBuilder::new(StatusCode::MOVED_PERMANENTLY);
                 builder.insert_header((header::LOCATION, url.clone()));
