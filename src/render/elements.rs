@@ -86,7 +86,7 @@ pub fn handle_a_email<'a, 'vars, V: VariableMap<'vars>>(
     _ctx: &Context<'a, 'vars, V>,
     node: &NodeRef,
 ) -> Result<()> {
-    let url: Url = node
+    let mut url: Url = node
         .attr("href")
         .ok_or("No href attribute on <a-email>")?
         .parse()
@@ -106,14 +106,9 @@ pub fn handle_a_email<'a, 'vars, V: VariableMap<'vars>>(
         let i = timestamp.iter().position(|c| *c != 0).unwrap_or(0);
         URL_SAFE_NO_PAD.encode(&timestamp[i..])
     });
-
-    // FIXME this clone could be avoided, but the borrow checker thinks that
-    // `url` is still immutably borrowed here.
-    let mut new_url = url.clone();
-    new_url.set_path(&format!("{user}{hidden}@{domain}"));
+    let new_email = format!("{user}{hidden}@{domain}");
 
     node.rename("a");
-    node.set_attr("href", new_url.as_str());
     if node.is_empty_element() {
         let span = node.tree.new_element("span");
         span.set_attr("class", "hidden");
@@ -124,6 +119,11 @@ pub fn handle_a_email<'a, 'vars, V: VariableMap<'vars>>(
         node.append_child(&node.tree.new_text("@"));
         node.append_child(&node.tree.new_text(domain));
     }
+
+    // This has to be done after we’re done with `user` and `domain`, since they
+    // are borrowed from `url`.
+    url.set_path(&new_email);
+    node.set_attr("href", url.as_str());
 
     Ok(())
 }
