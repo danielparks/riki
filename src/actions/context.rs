@@ -113,6 +113,12 @@ impl<'vars> VariableMap<'vars> for StaticVariables<'vars> {
 }
 
 impl Default for StaticVariables<'static> {
+    /// Default values for [`StaticVariables`].
+    ///
+    ///   * `clean_path`: `"/"`
+    ///   * `request_path`: `"/"`
+    ///   * `verb`: `"GET"`
+    ///   * `host`: `"localhost"`
     fn default() -> Self {
         Self {
             clean_path: "/",
@@ -185,10 +191,15 @@ impl<'a, V: VariableMap<'a>> Context<'a, V> {
 }
 
 impl<'a, V: VariableMap<'a> + Default> Default for Context<'a, V> {
+    /// Quick default context.
+    ///
+    ///   * `working_path` will be `""`.
+    ///   * `tpls` will be empty.
+    ///   * `variables` will be the type default — likely
+    ///     [`StaticVariables::default()`].
     fn default() -> Self {
-        // FIXME
         Self {
-            working_path: PathBuf::default(),
+            working_path: PathBuf::new(),
             tpls: Arc::new(Handlebars::default()),
             variables: Default::default(),
         }
