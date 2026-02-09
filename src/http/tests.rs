@@ -292,16 +292,16 @@ async fn test_static_hides_page() {
 async fn test_not_found_get() {
     let (_dir, _config, app) = init_app().await;
 
-    let received = get(&app, "/not-found").await;
-    let expected = Response {
-        status: http::StatusCode::NOT_FOUND,
-        content_type: Some(mime::TEXT_HTML_UTF_8),
-        last_modified: false,
-        etag: false,
-        location: None,
-        body: B(b"404"),
-    };
-    assert!(expected == received);
+    assert!(
+        Response {
+            status: http::StatusCode::NOT_FOUND,
+            content_type: Some(mime::TEXT_HTML_UTF_8),
+            last_modified: false,
+            etag: false,
+            location: None,
+            body: B(b"404"),
+        } == get(&app, "/not-found").await
+    );
 }
 
 #[cfg(all(not(target_os = "hermit"), unix))]
@@ -316,25 +316,27 @@ async fn test_forbidden_page_get() {
     fs::write(&path, "forbidden").unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).unwrap();
 
-    let expected = Response {
-        status: http::StatusCode::FORBIDDEN,
-        content_type: Some(mime::TEXT_HTML_UTF_8),
-        last_modified: false,
-        etag: false,
-        location: None,
-        body: B(b"403"),
-    };
-    assert!(expected == get(&app, "/forbidden").await);
+    assert!(
+        Response {
+            status: http::StatusCode::FORBIDDEN,
+            content_type: Some(mime::TEXT_HTML_UTF_8),
+            last_modified: false,
+            etag: false,
+            location: None,
+            body: B(b"403"),
+        } == get(&app, "/forbidden").await
+    );
 
-    let expected = Response {
-        status: http::StatusCode::FORBIDDEN,
-        content_type: Some(mime::TEXT_HTML_UTF_8),
-        last_modified: false,
-        etag: false,
-        location: None,
-        body: B(b"403"),
-    };
-    assert!(expected == get(&app, "/forbidden.md").await);
+    assert!(
+        Response {
+            status: http::StatusCode::FORBIDDEN,
+            content_type: Some(mime::TEXT_HTML_UTF_8),
+            last_modified: false,
+            etag: false,
+            location: None,
+            body: B(b"403"),
+        } == get(&app, "/forbidden.md").await
+    );
 }
 
 #[cfg(all(not(target_os = "hermit"), unix))]
@@ -349,13 +351,14 @@ async fn test_forbidden_static_get() {
     fs::write(&path, "forbidden").unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).unwrap();
 
-    let expected = Response {
-        status: http::StatusCode::FORBIDDEN,
-        content_type: Some(mime::TEXT_HTML_UTF_8),
-        last_modified: false,
-        etag: false,
-        location: None,
-        body: B(b"403"),
-    };
-    assert!(expected == get(&app, "/forbidden.txt").await);
+    assert!(
+        Response {
+            status: http::StatusCode::FORBIDDEN,
+            content_type: Some(mime::TEXT_HTML_UTF_8),
+            last_modified: false,
+            etag: false,
+            location: None,
+            body: B(b"403"),
+        } == get(&app, "/forbidden.txt").await
+    );
 }
