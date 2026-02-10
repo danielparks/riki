@@ -158,8 +158,8 @@ pub fn handle_last_modified<'a, 'vars, V: VariableMap<'vars>>(
     node: &NodeRef,
 ) -> Result<()> {
     let Some(time) = ctx.page.source.modified() else {
-        // FIXME: docs say "Removes the selected node from its parent node, but
-        // keeps it in the tree"; is this leaking?
+        // FIXME leak? The docs say “Removes the selected node from its parent
+        // node, but keeps it in the tree”.
         node.remove_from_parent();
         return Ok(());
     };
