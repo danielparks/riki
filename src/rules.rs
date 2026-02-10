@@ -300,7 +300,7 @@ impl Action<'_> {
                 .dirname()
                 .into(),
             Action::Error(code) => {
-                // FIXME show error page; validate code, etc.
+                // FIXME use error code; show error page.
                 Err(actions::Error::InternalString(
                     code.evaluate(context)?.into_string_return()?.into(),
                 ))
