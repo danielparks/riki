@@ -99,16 +99,7 @@ impl Return for ContentReturn {
 
     fn into_string_return(self) -> Result<StringReturn> {
         if let Source::File { path, .. } = self.source {
-            // FIXME should this be OsStringReturn?
-            Ok(path
-                .to_str()
-                .ok_or_else(|| {
-                    Error::InternalString(
-                        "Could not convert non UTF-8 path to String".to_owned(),
-                    )
-                })?
-                .to_owned()
-                .into())
+            StringReturn::try_from(path)
         } else {
             // FIXME make this error clearer; maybe track span?
             Err(Error::InternalString(

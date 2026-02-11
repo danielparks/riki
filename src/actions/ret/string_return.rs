@@ -1,8 +1,8 @@
 //! A return of a short string. Generally an input to an action.
 
 use super::{
-    ActionReturn, ContentReturn, Context, PathReturn, RequestContext, Result,
-    Return, VariableMap,
+    ActionReturn, ContentReturn, Context, Error, PathReturn, RequestContext,
+    Result, Return, VariableMap,
 };
 use actix_web::HttpResponse;
 use std::path::PathBuf;
@@ -106,6 +106,21 @@ impl From<&str> for StringReturn {
 impl From<String> for StringReturn {
     fn from(string: String) -> Self {
         Self(string)
+    }
+}
+
+impl TryFrom<PathBuf> for StringReturn {
+    type Error = Error;
+
+    fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
+        path.into_os_string()
+            .into_string()
+            .map(Into::into)
+            .map_err(|_| {
+                Error::InternalString(
+                    "Could not convert non UTF-8 path to String".to_owned(),
+                )
+            })
     }
 }
 

@@ -97,17 +97,7 @@ impl Return for PathReturn {
     }
 
     fn into_string_return(self) -> Result<StringReturn> {
-        // FIXME should this be OsStringReturn?
-        Ok(self
-            .path
-            .to_str()
-            .ok_or_else(|| {
-                Error::InternalString(
-                    "Could not convert non UTF-8 path to String".to_owned(),
-                )
-            })?
-            .to_owned()
-            .into())
+        StringReturn::try_from(self.path)
     }
 
     fn into_content_return<'a, V: VariableMap<'a>>(
