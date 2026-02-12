@@ -1,38 +1,60 @@
 //! A return of a short string. Generally an input to an action.
 
 use super::{
-    ActionReturn, ContentReturn, Context, Error, PathReturn, RequestContext,
-    Result, Return, VariableMap,
+    ActionReturn, ContentReturn, Context, PathReturn, RequestContext, Result,
+    Return, VariableMap,
 };
 use actix_web::HttpResponse;
+use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
 /// A short string.
+///
+/// This can contain non-Unicode characters on UNIX, at least. It is designed to
+/// be convertible to and from [`PathBuf`].
 #[derive(Debug)]
-pub struct StringReturn(String);
+pub struct StringReturn(OsString);
 
 impl StringReturn {
     /// Get the value as a `&str`.
+    ///
+    /// Returns `None` if this contains invalid UTF-8.
     #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
+    pub fn to_str(&self) -> Option<&str> {
+        self.0.to_str()
+    }
+
+    /// Check if this ends with the string `suffix`.
+    #[must_use]
+    #[inline]
+    pub fn ends_with<S: AsRef<OsStr>>(&mut self, suffix: S) -> bool {
+        let suffix = suffix.as_ref();
+        self.0
+            .as_encoded_bytes()
+            .ends_with(suffix.as_encoded_bytes())
+    }
+
+    /// Append `suffix` to the value.
+    pub fn append<S: AsRef<OsStr>>(&mut self, suffix: S) -> &Self {
+        let suffix = suffix.as_ref();
+        self.0.push(suffix);
+        self
     }
 
     /// Append `suffix` if this doesn’t already end with it.
     #[must_use]
-    pub fn ensure_ends_with<S: AsRef<str>>(mut self, suffix: S) -> Self {
+    pub fn into_ending_with<S: AsRef<str>>(mut self, suffix: S) -> Self {
         let suffix = suffix.as_ref();
-        if !self.0.ends_with(suffix) {
-            self.0.push_str(suffix);
+        if !self.ends_with(suffix) {
+            self.append(suffix);
         }
         self
     }
 
     /// Append `suffix` to the value.
     #[must_use]
-    pub fn append<S: AsRef<str>>(mut self, suffix: S) -> Self {
-        let suffix = suffix.as_ref();
-        self.0.push_str(suffix);
+    pub fn into_appended<S: AsRef<OsStr>>(mut self, suffix: S) -> Self {
+        self.append(suffix);
         self
     }
 
@@ -40,8 +62,11 @@ impl StringReturn {
     ///
     /// If there are no `'/'`s, this returns `""`.
     #[must_use]
-    pub fn dirname(mut self) -> Self {
-        self.0.truncate(self.0.rfind('/').unwrap_or_default());
+    pub fn into_dirname(mut self) -> Self {
+        self.0 = PathBuf::from(self.0)
+            .parent()
+            .map(OsString::from)
+            .unwrap_or_default();
         self
     }
 
@@ -51,23 +76,65 @@ impl StringReturn {
     ///
     /// Note that if `suffix` starts with `'/'`, this will still append it.
     #[must_use]
-    pub fn join<S: AsRef<str>>(mut self, suffix: S) -> Self {
+    pub fn into_joined<S: AsRef<OsStr>>(mut self, suffix: S) -> Self {
         let suffix = suffix.as_ref();
 
-        if self.0.ends_with('/') {
-            if let Some(stripped) = suffix.strip_prefix('/') {
-                self.0.push_str(stripped);
-            } else {
-                self.0.push_str(suffix);
-            }
-        } else if suffix.starts_with('/') {
-            self.0.push_str(suffix);
+        if self.ends_with("/") {
+            self.append(osstr_strip_prefix(suffix, "/"));
+        } else if osstr_starts_with(suffix, "/") {
+            self.append(suffix);
         } else {
-            self.0.push('/');
-            self.0.push_str(suffix);
+            self.append("/");
+            self.append(suffix);
         }
         self
     }
+}
+
+/// Check if a [`OsStr`] starts with `prefix`.
+fn osstr_starts_with<S: AsRef<[u8]>>(input: &OsStr, prefix: S) -> bool {
+    input.as_encoded_bytes().starts_with(prefix.as_ref())
+}
+
+/// Strip a prefix from `input` if it exists.
+///
+/// Returns `input` if `prefix` doesn’t match.
+fn osstr_strip_prefix<S: AsRef<OsStr>>(input: &OsStr, prefix: S) -> &OsStr {
+    let prefix: &OsStr = prefix.as_ref();
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        input
+            .as_bytes()
+            .strip_suffix(prefix.as_bytes())
+            .map(OsStrExt::from_bytes)
+            .unwrap_or(input)
+    }
+    #[cfg(not(unix))]
+    unsafe_osstr_strip_prefix(input, prefix)
+}
+
+/// Unsafe version of [`osstr_strip_prefix()`].
+///
+/// This should not be used on UNIX platforms; `osstr_strip_prefix()` has a safe
+/// implementation. This is not configured out on UNIX so that it gets linted.
+#[expect(unsafe_code, reason = "Non-UNIX OsStr manipulation")]
+#[expect(clippy::allow_attributes, reason = "Differs per platform")]
+#[allow(dead_code, reason = "Enabled on non-UNIX")]
+fn unsafe_osstr_strip_prefix<'a>(
+    input: &'a OsStr,
+    prefix: &OsStr,
+) -> &'a OsStr {
+    input
+        .as_encoded_bytes()
+        .strip_suffix(prefix.as_encoded_bytes())
+        .map(|stripped|
+            // SAFETY: This has to have been cut on a valid OsStr boundary since
+            // prefix ends on a valid boundary by definition.
+            unsafe {
+                OsStr::from_encoded_bytes_unchecked(stripped)
+            })
+        .unwrap_or(input)
 }
 
 impl Return for StringReturn {
@@ -97,34 +164,45 @@ impl Return for StringReturn {
     }
 }
 
+impl AsRef<OsStr> for StringReturn {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
 impl From<&str> for StringReturn {
     fn from(string: &str) -> Self {
-        Self(string.to_owned())
+        Self(string.into())
     }
 }
 
 impl From<String> for StringReturn {
     fn from(string: String) -> Self {
+        Self(string.into())
+    }
+}
+
+impl From<OsString> for StringReturn {
+    fn from(string: OsString) -> Self {
         Self(string)
     }
 }
 
-impl TryFrom<PathBuf> for StringReturn {
-    type Error = Error;
-
-    fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
-        path.into_os_string()
-            .into_string()
-            .map(Into::into)
-            .map_err(|_| {
-                Error::InternalString(
-                    "Could not convert non UTF-8 path to String".to_owned(),
-                )
-            })
+impl From<PathBuf> for StringReturn {
+    fn from(path: PathBuf) -> Self {
+        Self(path.into_os_string())
     }
 }
 
-impl From<StringReturn> for String {
+impl TryFrom<StringReturn> for String {
+    type Error = crate::NotUtf8;
+
+    fn try_from(ret: StringReturn) -> Result<Self, Self::Error> {
+        ret.0.into_string().map_err(crate::NotUtf8::OsString)
+    }
+}
+
+impl From<StringReturn> for OsString {
     fn from(ret: StringReturn) -> Self {
         ret.0
     }
@@ -136,8 +214,9 @@ impl From<StringReturn> for PathBuf {
     }
 }
 
-impl AsRef<str> for StringReturn {
-    fn as_ref(&self) -> &str {
-        &self.0
+impl PartialEq<&str> for StringReturn {
+    #[inline]
+    fn eq(&self, other: &&str) -> bool {
+        *self.0 == **other
     }
 }

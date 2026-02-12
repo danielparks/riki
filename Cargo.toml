@@ -65,7 +65,7 @@ tracing-test = "0.2.5"
 workspace = true
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "warn"
 missing_docs = "warn"
 
 [workspace.lints.clippy]

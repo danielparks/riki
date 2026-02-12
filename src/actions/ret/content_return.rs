@@ -99,7 +99,7 @@ impl Return for ContentReturn {
 
     fn into_string_return(self) -> Result<StringReturn> {
         if let Source::File { path, .. } = self.source {
-            StringReturn::try_from(path)
+            Ok(StringReturn::from(path))
         } else {
             // FIXME make this error clearer; maybe track span?
             Err(Error::InternalString(

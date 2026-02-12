@@ -12,14 +12,8 @@
 //!     metadata attached to it. It does not hold open a file descriptor.
 //!   * [`ActionReturn`] is an enum that can hold any of the other returns.
 //!
-//! Non-UTF-8 paths are not completely supported; `StringReturn` is a `String`
-//! internally. It could be changed to use `OsString`/`PathBuf`, but those don’t
-//! support basic string manipulation functions like `ends_with()`.
-//!
-//! [`bstr::BString`] might be better for `StringReturn`, but it would make
-//! conversions to both `Path` and `str` fallible.
-//!
-//! [`bstr::BString`]: https://docs.rs/bstr/latest/bstr/struct.BString.html
+//! `StringReturn` is an [`OsString`][std::ffi::OsString] internally, so
+//! non-Unicode paths are supported on platforms that allow them.
 //!
 //! ### Very large files
 //!

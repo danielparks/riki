@@ -269,25 +269,24 @@ impl Action<'_> {
             Action::AsDir(path) => path
                 .evaluate(context)?
                 .into_string_return()?
-                .ensure_ends_with("/")
+                .into_ending_with("/")
                 .into(),
             Action::Canonical(path) => {
                 let path = path.evaluate(context)?.into_string_return()?;
                 tracing::trace!(
-                    "check canonical ({:?}) == request ({:?})",
-                    path.as_str(),
+                    "check canonical ({path:?}) == request ({:?})",
                     context.variables.request_path(),
                 );
-                if path.as_str() == context.variables.request_path() {
+                if path == context.variables.request_path() {
                     path.into()
                 } else {
-                    Err(actions::Error::RedirectCanonical(path.into()))
+                    Err(actions::Error::RedirectCanonical(path.try_into()?))
                 }
             }
             Action::Concat(string1, string2) => string1
                 .evaluate(context)?
                 .into_string_return()?
-                .append(string2.evaluate(context)?.into_string_return()?)
+                .into_appended(string2.evaluate(context)?.into_string_return()?)
                 .into(),
             Action::Condition(condition, value) => {
                 // Returns `Error::NotFound` and other errors:
@@ -297,12 +296,12 @@ impl Action<'_> {
             Action::Dirname(path) => path
                 .evaluate(context)?
                 .into_string_return()?
-                .dirname()
+                .into_dirname()
                 .into(),
             Action::Error(code) => {
                 // FIXME use error code; show error page.
                 Err(actions::Error::InternalString(
-                    code.evaluate(context)?.into_string_return()?.into(),
+                    code.evaluate(context)?.into_string_return()?.try_into()?,
                 ))
             }
             Action::IfFile(path) => {
@@ -311,7 +310,7 @@ impl Action<'_> {
             Action::Join(path1, path2) => path1
                 .evaluate(context)?
                 .into_string_return()?
-                .join(path2.evaluate(context)?.into_string_return()?)
+                .into_joined(path2.evaluate(context)?.into_string_return()?)
                 .into(),
             Action::Markdown(markdown) => {
                 actions::markdown_to_html(context, markdown.evaluate(context)?)?

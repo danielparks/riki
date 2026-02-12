@@ -51,6 +51,12 @@ pub enum Error {
     RedirectCanonical(String),
 }
 
+impl From<crate::NotUtf8> for Error {
+    fn from(error: crate::NotUtf8) -> Self {
+        Self::Internal(crate::Error::NotUtf8(error))
+    }
+}
+
 impl From<io::Error> for Error {
     /// Convert [`io::Error`] into [`Error`]. Handles fall-through logic.
     ///

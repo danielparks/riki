@@ -97,7 +97,7 @@ impl Return for PathReturn {
     }
 
     fn into_string_return(self) -> Result<StringReturn> {
-        StringReturn::try_from(self.path)
+        Ok(StringReturn::from(self.path))
     }
 
     fn into_content_return<'a, V: VariableMap<'a>>(
