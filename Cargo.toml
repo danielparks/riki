@@ -38,6 +38,7 @@ htmlize = "1.0.6"
 jiff = { version = "0.2.15", features = ["serde"] }
 maplit = "1.0.2"
 mime = "0.3.17"
+os_str_bytes = "7.1.1"
 pulldown-cmark = "0.13.0"
 read-doc = "0.1.0"
 regex = "1.11.1"
@@ -65,7 +66,7 @@ tracing-test = "0.2.5"
 workspace = true
 
 [workspace.lints.rust]
-unsafe_code = "warn"
+unsafe_code = "forbid"
 missing_docs = "warn"
 
 [workspace.lints.clippy]

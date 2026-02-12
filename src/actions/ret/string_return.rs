@@ -5,6 +5,7 @@ use super::{
     Return, VariableMap,
 };
 use actix_web::HttpResponse;
+use os_str_bytes::OsStrBytesExt;
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
@@ -80,8 +81,8 @@ impl StringReturn {
         let suffix = suffix.as_ref();
 
         if self.ends_with("/") {
-            self.append(osstr_strip_prefix(suffix, "/"));
-        } else if osstr_starts_with(suffix, "/") {
+            self.append(suffix.strip_prefix("/").unwrap_or(suffix));
+        } else if suffix.starts_with("/") {
             self.append(suffix);
         } else {
             self.append("/");
@@ -89,52 +90,6 @@ impl StringReturn {
         }
         self
     }
-}
-
-/// Check if a [`OsStr`] starts with `prefix`.
-fn osstr_starts_with<S: AsRef<[u8]>>(input: &OsStr, prefix: S) -> bool {
-    input.as_encoded_bytes().starts_with(prefix.as_ref())
-}
-
-/// Strip a prefix from `input` if it exists.
-///
-/// Returns `input` if `prefix` doesn’t match.
-fn osstr_strip_prefix<S: AsRef<OsStr>>(input: &OsStr, prefix: S) -> &OsStr {
-    let prefix: &OsStr = prefix.as_ref();
-    #[cfg(unix)]
-    {
-        use std::os::unix::ffi::OsStrExt;
-        input
-            .as_bytes()
-            .strip_suffix(prefix.as_bytes())
-            .map(OsStrExt::from_bytes)
-            .unwrap_or(input)
-    }
-    #[cfg(not(unix))]
-    unsafe_osstr_strip_prefix(input, prefix)
-}
-
-/// Unsafe version of [`osstr_strip_prefix()`].
-///
-/// This should not be used on UNIX platforms; `osstr_strip_prefix()` has a safe
-/// implementation. This is not configured out on UNIX so that it gets linted.
-#[expect(unsafe_code, reason = "Non-UNIX OsStr manipulation")]
-#[expect(clippy::allow_attributes, reason = "Differs per platform")]
-#[allow(dead_code, reason = "Enabled on non-UNIX")]
-fn unsafe_osstr_strip_prefix<'a>(
-    input: &'a OsStr,
-    prefix: &OsStr,
-) -> &'a OsStr {
-    input
-        .as_encoded_bytes()
-        .strip_suffix(prefix.as_encoded_bytes())
-        .map(|stripped|
-            // SAFETY: This has to have been cut on a valid OsStr boundary since
-            // prefix ends on a valid boundary by definition.
-            unsafe {
-                OsStr::from_encoded_bytes_unchecked(stripped)
-            })
-        .unwrap_or(input)
 }
 
 impl Return for StringReturn {
