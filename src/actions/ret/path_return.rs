@@ -28,7 +28,10 @@ pub struct PathReturn {
 }
 
 impl PathReturn {
-    /// Create a `PathReturn` from a path.
+    /// Create a `PathReturn` from a request path.
+    ///
+    /// Request paths always start with `'/'`, but in this case they are
+    /// evaluated as relative paths.
     ///
     /// # Errors
     ///

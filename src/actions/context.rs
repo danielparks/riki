@@ -182,6 +182,9 @@ pub struct Context<'a, V: VariableMap<'a>> {
 impl<'a, V: VariableMap<'a>> Context<'a, V> {
     /// Get the file system path for a request path (`path`).
     ///
+    /// Request paths always start with `'/'`, but in this case they are
+    /// evaluated as relative paths.
+    ///
     /// This assumes that `path` does not have any `/../` components.
     pub fn real_path<P: AsRef<Path>>(&self, path: P) -> PathBuf {
         let path: &Path = path.as_ref();
