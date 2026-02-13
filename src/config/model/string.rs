@@ -1,8 +1,8 @@
 //! Handle strings of various types in the configuration
 
-use super::super::errors::{ParseError, ParseResult, SpannedErrors};
-use super::super::parser2::{StringToken, StringType, Value};
 use crate::actions::{Variable, VariableMap};
+use crate::config::errors::{ParseError, ParseResult, SpannedErrors};
+use crate::config::parser2::{StringToken, StringType, Value};
 use crate::misc::bitfilter::BitFilter;
 use logos::Logos;
 use std::borrow::Cow;
@@ -129,6 +129,12 @@ impl<'src> ParsedString<'src> {
         } else {
             Some(self.unescaped.ends_with(c))
         }
+    }
+
+    /// Get the variables used in the string.
+    #[must_use]
+    pub fn variables(&self) -> &[Interpolation<'src>] {
+        &self.variables
     }
 
     /// Split on interpolated variables
@@ -546,22 +552,30 @@ mod tests {
         ParsedString::from_string_content(s, StringType::QuotedDouble)
     }
 
+    /// Test variables
+    const VARS: StaticVariables = StaticVariables {
+        request_path: "/abc/",
+        clean_path: "/abc",
+        verb: "GET",
+        host: "example.com",
+    };
+
     #[test_log::test]
     fn parse_string_literal_escape() {
         let_assert!(Ok(s) = parse_str(r"\z"));
-        check!(s.unescaped == "z");
+        check!(s.content(&VARS) == "z");
 
         let_assert!(Ok(s) = parse_str(r"a\zb"));
-        check!(s.unescaped == "azb");
+        check!(s.content(&VARS) == "azb");
     }
 
     #[test_log::test]
     fn parse_string_newline_escape() {
         let_assert!(Ok(s) = parse_str(r"\n"));
-        check!(s.unescaped == "\n");
+        check!(s.content(&VARS) == "\n");
 
         let_assert!(Ok(s) = parse_str(r"a\nb"));
-        check!(s.unescaped == "a\nb");
+        check!(s.content(&VARS) == "a\nb");
     }
 
     #[test_log::test]
@@ -571,6 +585,8 @@ mod tests {
         check!(s.ends_with_variable());
         check!(s.starts_with('/') == None);
         check!(s.ends_with('/') == None);
+        check!(s.variables().len() == 1);
+        check!(s.variables()[0].variable == Variable::CleanPath);
     }
 
     #[test_log::test]
@@ -580,6 +596,8 @@ mod tests {
         check!(s.ends_with_variable());
         check!(s.starts_with('/') == None);
         check!(s.ends_with('/') == None);
+        check!(s.variables().len() == 1);
+        check!(s.variables()[0].variable == Variable::CleanPath);
     }
 
     #[test_log::test]
@@ -590,6 +608,8 @@ mod tests {
         check!(s.starts_with('/') == None);
         check!(s.ends_with('/') == Some(false));
         check!(s.ends_with('o') == Some(true));
+        check!(s.variables().len() == 1);
+        check!(s.variables()[0].variable == Variable::CleanPath);
     }
 
     #[test_log::test]
@@ -600,6 +620,8 @@ mod tests {
         check!(s.starts_with('/') == None);
         check!(s.ends_with('/') == Some(false));
         check!(s.ends_with('r') == Some(true));
+        check!(s.variables().len() == 1);
+        check!(s.variables()[0].variable == Variable::CleanPath);
     }
 
     #[test_log::test]
@@ -610,6 +632,8 @@ mod tests {
         check!(s.starts_with('/') == None);
         check!(s.ends_with('/') == Some(true));
         check!(s.ends_with('o') == Some(false));
+        check!(s.variables().len() == 1);
+        check!(s.variables()[0].variable == Variable::CleanPath);
     }
 
     #[test_log::test]
@@ -620,6 +644,8 @@ mod tests {
         check!(s.starts_with('/') == None);
         check!(s.ends_with('/') == Some(true));
         check!(s.ends_with('o') == Some(false));
+        check!(s.variables().len() == 1);
+        check!(s.variables()[0].variable == Variable::CleanPath);
     }
 
     #[test_log::test]
@@ -630,6 +656,8 @@ mod tests {
         check!(s.starts_with('/') == None);
         check!(s.ends_with('/') == Some(false));
         check!(s.ends_with('z') == Some(true));
+        check!(s.variables().len() == 1);
+        check!(s.variables()[0].variable == Variable::CleanPath);
     }
 
     #[test_log::test]
@@ -640,6 +668,8 @@ mod tests {
         check!(s.starts_with('/') == None);
         check!(s.ends_with('/') == Some(false));
         check!(s.ends_with('z') == Some(true));
+        check!(s.variables().len() == 1);
+        check!(s.variables()[0].variable == Variable::CleanPath);
     }
 
     #[test_log::test]
@@ -650,6 +680,8 @@ mod tests {
         check!(s.starts_with('/') == None);
         check!(s.ends_with('/') == Some(false));
         check!(s.ends_with('z') == Some(true));
+        check!(s.variables().len() == 1);
+        check!(s.variables()[0].variable == Variable::CleanPath);
     }
 
     #[test_log::test]
@@ -660,6 +692,8 @@ mod tests {
         check!(s.starts_with('/') == None);
         check!(s.ends_with('/') == Some(false));
         check!(s.ends_with('z') == Some(true));
+        check!(s.variables().len() == 1);
+        check!(s.variables()[0].variable == Variable::CleanPath);
     }
 
     #[test_log::test]
@@ -670,6 +704,8 @@ mod tests {
         check!(s.starts_with('/') == Some(true));
         check!(s.starts_with('o') == Some(false));
         check!(s.ends_with('/') == None);
+        check!(s.variables().len() == 1);
+        check!(s.variables()[0].variable == Variable::CleanPath);
     }
 
     #[test_log::test]
@@ -680,6 +716,8 @@ mod tests {
         check!(s.starts_with('/') == Some(true));
         check!(s.starts_with('o') == Some(false));
         check!(s.ends_with('/') == None);
+        check!(s.variables().len() == 1);
+        check!(s.variables()[0].variable == Variable::CleanPath);
     }
 
     #[test_log::test]
@@ -694,8 +732,8 @@ mod tests {
         let mut a = parse_str("abc").unwrap();
         let b = parse_str("def").unwrap();
         a.push_string(&b);
-        check!(a.unescaped == "abcdef");
-        check!(a.variables.is_empty());
+        check!(a.content(&VARS) == "abcdef");
+        check!(a.variables().is_empty());
     }
 
     #[test_log::test]
@@ -703,25 +741,22 @@ mod tests {
         let mut a = parse_str("/foo/${clean_path}").unwrap();
         let b = parse_str("${clean_path}/foo").unwrap();
         a.push_string(&b);
-        check!(a.unescaped == "/foo/${clean_path}${clean_path}/foo");
-        let mut iter = a.variables.iter();
+        check!(a.canonical() == r#""/foo/${clean_path}${clean_path}/foo""#);
         check!(
-            iter.next()
-                == Some(&Interpolation {
-                    variable: Variable::CleanPath,
-                    span: "clean_path",
-                    range: 5..18
-                })
+            a.variables()
+                == [
+                    Interpolation {
+                        variable: Variable::CleanPath,
+                        span: "clean_path",
+                        range: 5..18
+                    },
+                    Interpolation {
+                        variable: Variable::CleanPath,
+                        span: "clean_path",
+                        range: 18..31
+                    }
+                ]
         );
-        check!(
-            iter.next()
-                == Some(&Interpolation {
-                    variable: Variable::CleanPath,
-                    span: "clean_path",
-                    range: 18..31
-                })
-        );
-        check!(iter.next() == None);
     }
 
     #[test_log::test]
@@ -729,26 +764,16 @@ mod tests {
         let mut a = parse_str("/foo/").unwrap();
         let b = parse_str("${clean_path}/foo").unwrap();
         a.push_string(&b);
-        check!(a.unescaped == "/foo/${clean_path}/foo");
-        let mut iter = a.variables.iter();
+        check!(a.canonical() == r#""/foo/${clean_path}/foo""#);
         check!(
-            iter.next()
-                == Some(&Interpolation {
+            a.variables()
+                == [Interpolation {
                     variable: Variable::CleanPath,
                     span: "clean_path",
                     range: 5..18
-                })
+                }]
         );
-        check!(iter.next() == None);
     }
-
-    /// Test variables
-    const VARS: StaticVariables = StaticVariables {
-        request_path: "/abc/",
-        clean_path: "/abc",
-        verb: "GET",
-        host: "example.com",
-    };
 
     #[test_log::test]
     fn string_content() {
