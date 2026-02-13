@@ -178,11 +178,19 @@ impl<'src> ParsedString<'src> {
         Self { unescaped: Cow::Borrowed(src), variables: empty_tinyvec() }
     }
 
-    /// Parse string contents
+    /// Parse string contents.
+    ///
+    /// # Errors
+    ///
+    /// May return [`ParseError`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the string length is greater than or equal to [`isize::MAX`].
     #[expect(clippy::allow_attributes, reason = "FIXME bug; expect fails")]
     #[allow(clippy::enum_glob_use, reason = "readability")]
     #[expect(clippy::arithmetic_side_effects, reason = "len < isize::MAX")]
-    fn from_string_content(
+    pub fn from_string_content(
         src: &'src str,
         string_type: StringType,
     ) -> ParseResult<'src, Self> {
@@ -446,10 +454,10 @@ pub fn escape_quoted(input: &str, quote: u8) -> Cow<'_, str> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Interpolation<'src> {
     /// The variable.
-    variable: Variable,
+    pub variable: Variable,
 
     /// The span of the source representing the variable name.
-    span: &'src str,
+    pub span: &'src str,
 
     /// The range in the string to replace.
     range: Range<usize>,
