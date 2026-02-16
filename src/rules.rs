@@ -2,6 +2,7 @@
 
 use crate::actions::{self, Context, Error, Return, Variable, VariableMap};
 use globset::{Glob, GlobMatcher};
+use pastey::paste;
 use std::fmt;
 
 /// A rule for how to respond to HTTP requests.
@@ -106,15 +107,94 @@ impl fmt::Debug for Value<'_> {
     }
 }
 
-/// An action to run in response to an HTTP request.
-#[derive(Clone, Debug)]
-pub enum Action<'src> {
+/// Macro to define [`Action`] variants with co-located evaluation logic.
+///
+/// For each entry, generates:
+/// - An enum variant on [`Action`]
+/// - A snake\_case convenience constructor on `Action` (derived from the
+///   variant name via [`pastey`])
+/// - A match arm in [`Action::evaluate`]
+macro_rules! actions {
+    (
+        $ctx:ident;
+        $(
+            $(#[$meta:meta])*
+            $variant:ident($($param:ident),+) => $body:expr
+        ),* $(,)?
+    ) => {
+        /// An action to run in response to an HTTP request.
+        #[derive(Clone, Debug)]
+        pub enum Action<'src> {
+            $(
+                $(#[$meta])*
+                $variant($(actions!(@value_type $param)),+),
+            )*
+        }
+
+        impl<'src> Action<'src> {
+            $(
+                actions!(@constructor $variant ($($param),+));
+            )*
+        }
+
+        impl Action<'_> {
+            /// Calculate the return to be processed by the action.
+            ///
+            /// # Errors
+            ///
+            /// Can return [`actions::Error`].
+            pub fn evaluate<'vars, M: VariableMap<'vars>>(
+                &self,
+                $ctx: &'vars Context<'vars, M>,
+            ) -> actions::Result {
+                match self {
+                    $(
+                        Action::$variant($($param),+) => $body,
+                    )*
+                }
+            }
+        }
+    };
+
+    // Map each parameter name to `Value<'src>`.
+    (@value_type $param:ident) => { Value<'src> };
+
+    // 1-argument constructor.
+    (@constructor $variant:ident ($p:ident)) => {
+        paste! {
+            #[doc = concat!("Convenience function to construct [`Action::", stringify!($variant), "`].")]
+            pub fn [<$variant:snake>]<V: Into<Value<'src>>>(value: V) -> Self {
+                Self::$variant(value.into())
+            }
+        }
+    };
+
+    // 2-argument constructor.
+    (@constructor $variant:ident ($p1:ident, $p2:ident)) => {
+        paste! {
+            #[doc = concat!("Convenience function to construct [`Action::", stringify!($variant), "`].")]
+            pub fn [<$variant:snake>]<V: Into<Value<'src>>, V2: Into<Value<'src>>>(
+                value: V,
+                value2: V2,
+            ) -> Self {
+                Self::$variant(value.into(), value2.into())
+            }
+        }
+    };
+}
+
+actions! {
+    context;
     /// Add a `'/'` to the end of the input.
     ///
     /// ```text
     /// as_dir(path) -> path
     /// ```
-    AsDir(Value<'src>),
+    AsDir(path) => path
+        .evaluate(context)?
+        .into_string_return()?
+        .into_ending_with("/")
+        .into(),
 
     /// Redirect to the passed path if the requested path is not identical.
     ///
@@ -123,212 +203,116 @@ pub enum Action<'src> {
     /// ```text
     /// canonical(path) -> path
     /// ```
-    Canonical(Value<'src>),
+    Canonical(path) => {
+        let path = path.evaluate(context)?.into_string_return()?;
+        tracing::trace!(
+            "check canonical ({path:?}) == request ({:?})",
+            context.variables.request_path(),
+        );
+        if path == context.variables.request_path() {
+            path.into()
+        } else {
+            Err(actions::Error::RedirectCanonical(path.try_into()?))
+        }
+    },
 
-    /// Concatenate to values together
+    /// Concatenate two values together.
     ///
     /// ```text
     /// concat(str, str) -> str
     /// ```
-    Concat(Value<'src>, Value<'src>),
+    Concat(string1, string2) => string1
+        .evaluate(context)?
+        .into_string_return()?
+        .into_appended(string2.evaluate(context)?.into_string_return()?)
+        .into(),
 
     /// If the first value succeeds, return the second.
     ///
     /// ```text
     /// condition(file, any) -> any
     /// ```
-    Condition(Value<'src>, Value<'src>),
+    Condition(condition, value) => {
+        // Returns `Error::NotFound` and other errors:
+        let _ = condition.evaluate(context)?;
+        value.evaluate(context)
+    },
 
     /// Strip the last path component and the last slash.
     ///
     /// ```text
     /// dirname(path) -> path
     /// ```
-    Dirname(Value<'src>),
+    Dirname(path) => path
+        .evaluate(context)?
+        .into_string_return()?
+        .into_dirname()
+        .into(),
 
     /// Return an error with the passed code.
     ///
     /// ```text
     /// error(str) -> content
     /// ```
-    Error(Value<'src>),
+    Error(code) => {
+        // FIXME use error code; show error page.
+        Err(actions::Error::InternalString(
+            code.evaluate(context)?.into_string_return()?.try_into()?,
+        ))
+    },
 
     /// If the passed path is a file, succeed.
     ///
     /// ```text
     /// if_file(path) -> file
     /// ```
-    IfFile(Value<'src>),
+    IfFile(path) => {
+        path.evaluate(context)?.ensure_file(context)
+    },
 
     /// Join two paths.
     ///
     /// ```text
     /// join(path, path) -> path
     /// ```
-    Join(Value<'src>, Value<'src>),
+    Join(path1, path2) => path1
+        .evaluate(context)?
+        .into_string_return()?
+        .into_joined(path2.evaluate(context)?.into_string_return()?)
+        .into(),
 
     /// Convert the input from Markdown to HTML.
     ///
     /// ```text
     /// markdown(file) -> content
     /// ```
-    Markdown(Value<'src>),
+    Markdown(markdown) => {
+        actions::markdown_to_html(context, markdown.evaluate(context)?)?
+            .ok_or(actions::Error::NotFound)?
+            .into()
+    },
 
     /// Redact the input Markdown.
     ///
     /// ```text
     /// redact_source(file) -> content
     /// ```
-    RedactSource(Value<'src>),
+    RedactSource(markdown) => {
+        actions::redact_source(context, markdown.evaluate(context)?)?
+            .ok_or(actions::Error::NotFound)?
+            .into()
+    },
 
     /// Render the input HTML in a template.
     ///
     /// ```text
     /// render(file) -> content
     /// ```
-    Render(Value<'src>),
-}
-
-impl<'src> Action<'src> {
-    /// Convenience function to construct [`Action::AsDir`].
-    pub fn as_dir<V: Into<Value<'src>>>(value: V) -> Self {
-        Self::AsDir(value.into())
-    }
-
-    /// Convenience function to construct [`Action::Canonical`].
-    pub fn canonical<V: Into<Value<'src>>>(value: V) -> Self {
-        Self::Canonical(value.into())
-    }
-
-    /// Convenience function to construct [`Action::Concat`].
-    pub fn concat<V: Into<Value<'src>>, V2: Into<Value<'src>>>(
-        value: V,
-        value2: V2,
-    ) -> Self {
-        Self::Concat(value.into(), value2.into())
-    }
-
-    /// Convenience function to construct [`Action::Condition`].
-    pub fn condition<V: Into<Value<'src>>, V2: Into<Value<'src>>>(
-        value: V,
-        value2: V2,
-    ) -> Self {
-        Self::Condition(value.into(), value2.into())
-    }
-
-    /// Convenience function to construct [`Action::Dirname`].
-    pub fn dirname<V: Into<Value<'src>>>(value: V) -> Self {
-        Self::Dirname(value.into())
-    }
-
-    /// Convenience function to construct [`Action::Error`].
-    pub fn error<V: Into<Value<'src>>>(value: V) -> Self {
-        Self::Error(value.into())
-    }
-
-    /// Convenience function to construct [`Action::IfFile`].
-    pub fn if_file<V: Into<Value<'src>>>(value: V) -> Self {
-        Self::IfFile(value.into())
-    }
-
-    /// Convenience function to construct [`Action::Join`].
-    pub fn join<V: Into<Value<'src>>, V2: Into<Value<'src>>>(
-        value: V,
-        value2: V2,
-    ) -> Self {
-        Self::Join(value.into(), value2.into())
-    }
-
-    /// Convenience function to construct [`Action::Markdown`].
-    pub fn markdown<V: Into<Value<'src>>>(value: V) -> Self {
-        Self::Markdown(value.into())
-    }
-
-    /// Convenience function to construct [`Action::RedactSource`].
-    pub fn redact_source<V: Into<Value<'src>>>(value: V) -> Self {
-        Self::RedactSource(value.into())
-    }
-
-    /// Convenience function to construct [`Action::Render`].
-    pub fn render<V: Into<Value<'src>>>(value: V) -> Self {
-        Self::Render(value.into())
-    }
-}
-
-impl Action<'_> {
-    /// Calculate the return to be processed by the action.
-    ///
-    /// # Errors
-    ///
-    /// Can return [`actions::Error`].
-    pub fn evaluate<'vars, M: VariableMap<'vars>>(
-        &self,
-        context: &'vars Context<'vars, M>,
-    ) -> actions::Result {
-        match self {
-            Action::AsDir(path) => path
-                .evaluate(context)?
-                .into_string_return()?
-                .into_ending_with("/")
-                .into(),
-            Action::Canonical(path) => {
-                let path = path.evaluate(context)?.into_string_return()?;
-                tracing::trace!(
-                    "check canonical ({path:?}) == request ({:?})",
-                    context.variables.request_path(),
-                );
-                if path == context.variables.request_path() {
-                    path.into()
-                } else {
-                    Err(actions::Error::RedirectCanonical(path.try_into()?))
-                }
-            }
-            Action::Concat(string1, string2) => string1
-                .evaluate(context)?
-                .into_string_return()?
-                .into_appended(string2.evaluate(context)?.into_string_return()?)
-                .into(),
-            Action::Condition(condition, value) => {
-                // Returns `Error::NotFound` and other errors:
-                let _ = condition.evaluate(context)?;
-                value.evaluate(context)
-            }
-            Action::Dirname(path) => path
-                .evaluate(context)?
-                .into_string_return()?
-                .into_dirname()
-                .into(),
-            Action::Error(code) => {
-                // FIXME use error code; show error page.
-                Err(actions::Error::InternalString(
-                    code.evaluate(context)?.into_string_return()?.try_into()?,
-                ))
-            }
-            Action::IfFile(path) => {
-                path.evaluate(context)?.ensure_file(context)
-            }
-            Action::Join(path1, path2) => path1
-                .evaluate(context)?
-                .into_string_return()?
-                .into_joined(path2.evaluate(context)?.into_string_return()?)
-                .into(),
-            Action::Markdown(markdown) => {
-                actions::markdown_to_html(context, markdown.evaluate(context)?)?
-                    .ok_or(actions::Error::NotFound)?
-                    .into()
-            }
-            Action::RedactSource(markdown) => {
-                actions::redact_source(context, markdown.evaluate(context)?)?
-                    .ok_or(actions::Error::NotFound)?
-                    .into()
-            }
-            Action::Render(html) => {
-                actions::render(context, html.evaluate(context)?)?
-                    .ok_or(actions::Error::NotFound)?
-                    .into()
-            }
-        }
-    }
+    Render(html) => {
+        actions::render(context, html.evaluate(context)?)?
+            .ok_or(actions::Error::NotFound)?
+            .into()
+    },
 }
 
 /// Get the default rules for Riki.
