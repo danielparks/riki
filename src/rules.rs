@@ -113,13 +113,13 @@ impl fmt::Debug for Value<'_> {
 /// - An enum variant on [`Action`]
 /// - A snake\_case convenience constructor on `Action` (derived from the
 ///   variant name via [`pastey`])
-/// - A match arm in [`Action::evaluate`]
+/// - A match arm in [`Action::evaluate()`]
 macro_rules! actions {
     (
         $ctx:ident;
         $(
             $(#[$meta:meta])*
-            $variant:ident($($param:ident),+) => $body:expr
+            $variant:ident($($param:ident),*) => $body:expr
         ),* $(,)?
     ) => {
         /// An action to run in response to an HTTP request.
@@ -127,13 +127,23 @@ macro_rules! actions {
         pub enum Action<'src> {
             $(
                 $(#[$meta])*
-                $variant($(actions!(@value_type $param)),+),
+                $variant($(actions!(@value_type $param)),*),
             )*
         }
 
         impl<'src> Action<'src> {
             $(
-                actions!(@constructor $variant ($($param),+));
+                paste! {
+                    #[doc = concat!("Convenience function to construct ",
+                        "[`Action::", stringify!($variant), "`].")]
+                    pub fn [<$variant:snake>]<
+                        $([<V $param>]: Into<Value<'src>>),*
+                    >(
+                        $($param: [<V $param>]),*
+                    ) -> Self {
+                        Self::$variant($($param.into()),*)
+                    }
+                }
             )*
         }
 
@@ -149,7 +159,7 @@ macro_rules! actions {
             ) -> actions::Result {
                 match self {
                     $(
-                        Action::$variant($($param),+) => $body,
+                        Action::$variant($($param),*) => $body,
                     )*
                 }
             }
@@ -158,33 +168,11 @@ macro_rules! actions {
 
     // Map each parameter name to `Value<'src>`.
     (@value_type $param:ident) => { Value<'src> };
-
-    // 1-argument constructor.
-    (@constructor $variant:ident ($p:ident)) => {
-        paste! {
-            #[doc = concat!("Convenience function to construct [`Action::", stringify!($variant), "`].")]
-            pub fn [<$variant:snake>]<V: Into<Value<'src>>>(value: V) -> Self {
-                Self::$variant(value.into())
-            }
-        }
-    };
-
-    // 2-argument constructor.
-    (@constructor $variant:ident ($p1:ident, $p2:ident)) => {
-        paste! {
-            #[doc = concat!("Convenience function to construct [`Action::", stringify!($variant), "`].")]
-            pub fn [<$variant:snake>]<V: Into<Value<'src>>, V2: Into<Value<'src>>>(
-                value: V,
-                value2: V2,
-            ) -> Self {
-                Self::$variant(value.into(), value2.into())
-            }
-        }
-    };
 }
 
 actions! {
     context;
+
     /// Add a `'/'` to the end of the input.
     ///
     /// ```text
