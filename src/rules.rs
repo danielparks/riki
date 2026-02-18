@@ -1,7 +1,7 @@
 //! Code to represent rules about how data is processed and returned.
 
 use crate::actions::{self, Context, Error, VariableMap};
-use crate::config::actions::{Action, functions};
+use crate::config::actions::Action;
 use crate::config::model::ParsedString;
 use globset::{Glob, GlobMatcher};
 use std::fmt;
@@ -71,28 +71,23 @@ fn parsed(s: &str) -> ParsedString<'_> {
 /// Get the default rules for Riki.
 #[must_use]
 pub fn default_rules() -> Vec<Rule<'static>> {
+    #![expect(clippy::allow_attributes, reason = "FIXME bug; expect fails")]
+
+    #[allow(clippy::wildcard_imports, reason = "convenience")]
+    use crate::config::actions::functions::*;
+
     vec![
         // *.md redact_source(canonical($clean_path))
-        Rule::new(
-            "**/*.md",
-            functions::redact_source(functions::canonical(parsed(
-                "$clean_path",
-            ))),
-        ),
+        Rule::new("**/*.md", redact_source(canonical(parsed("$clean_path")))),
         // index.html canonical("${dirname($clean_path)}/")
         Rule::new(
             "**/index.html",
-            functions::canonical(functions::as_dir(functions::dirname(
-                parsed("$clean_path"),
-            ))),
+            canonical(as_dir(dirname(parsed("$clean_path")))),
         ),
         // if file_exists("$clean_path") {
         //     canonical($clean_path) // returns $clean_path as a file if it
         // matches. }
-        Rule::new(
-            "**",
-            functions::canonical(functions::if_file(parsed("$clean_path"))),
-        ),
+        Rule::new("**", canonical(if_file(parsed("$clean_path")))),
         // if file_exists("$clean_path/index.html") {
         //     if canonical("${clean_path}/") {
         //         $clean_path/index.html
@@ -100,15 +95,15 @@ pub fn default_rules() -> Vec<Rule<'static>> {
         // }
         Rule::new(
             "**",
-            functions::condition(
-                functions::canonical(functions::condition(
-                    functions::if_file(functions::join(
+            condition(
+                canonical(condition(
+                    if_file(join(
                         parsed("$clean_path"),
                         ParsedString::from_literal("index.html"),
                     )),
-                    functions::as_dir(parsed("$clean_path")),
+                    as_dir(parsed("$clean_path")),
                 )),
-                functions::join(
+                join(
                     parsed("$clean_path"),
                     ParsedString::from_literal("index.html"),
                 ),
@@ -117,9 +112,7 @@ pub fn default_rules() -> Vec<Rule<'static>> {
         // index canonical("${dirname($clean_path)}/")
         Rule::new(
             "**/index",
-            functions::canonical(functions::as_dir(functions::dirname(
-                parsed("$clean_path"),
-            ))),
+            canonical(as_dir(dirname(parsed("$clean_path")))),
         ),
         // if file_exists("${clean_path}.md") {
         //     if canonical($clean_path) {
@@ -128,14 +121,12 @@ pub fn default_rules() -> Vec<Rule<'static>> {
         // }
         Rule::new(
             "**",
-            functions::condition(
-                functions::canonical(functions::condition(
-                    functions::if_file(parsed("${clean_path}.md")),
+            condition(
+                canonical(condition(
+                    if_file(parsed("${clean_path}.md")),
                     parsed("$clean_path"),
                 )),
-                functions::render(functions::markdown(functions::if_file(
-                    parsed("${clean_path}.md"),
-                ))),
+                render(markdown(if_file(parsed("${clean_path}.md")))),
             ),
         ),
         // if file_exists("$clean_path/index.md") {
@@ -145,20 +136,18 @@ pub fn default_rules() -> Vec<Rule<'static>> {
         // }
         Rule::new(
             "**",
-            functions::condition(
-                functions::canonical(functions::condition(
-                    functions::if_file(functions::join(
+            condition(
+                canonical(condition(
+                    if_file(join(
                         parsed("$clean_path"),
                         ParsedString::from_literal("index.md"),
                     )),
-                    functions::as_dir(parsed("$clean_path")),
+                    as_dir(parsed("$clean_path")),
                 )),
-                functions::render(functions::markdown(functions::if_file(
-                    functions::join(
-                        parsed("$clean_path"),
-                        ParsedString::from_literal("index.md"),
-                    ),
-                ))),
+                render(markdown(if_file(join(
+                    parsed("$clean_path"),
+                    ParsedString::from_literal("index.md"),
+                )))),
             ),
         ),
     ]

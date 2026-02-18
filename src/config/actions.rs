@@ -8,7 +8,7 @@ use crate::actions::{
 };
 use pastey::paste;
 
-/// An action
+/// An action to take in response to an HTTP request
 #[derive(Clone, Debug, derive_more::From)]
 pub enum Action<'src> {
     /// Function call
@@ -24,7 +24,7 @@ impl Action<'_> {
     pub fn canonical(&self) -> String {
         match self {
             Self::Function(function) => function.value.canonical(),
-            Self::Literal(s) => s.canonical(),
+            Self::Literal(string) => string.canonical(),
         }
     }
 
@@ -66,6 +66,9 @@ impl<'src> From<Action<'src>> for Value<'src> {
 }
 
 impl<'src> From<Function<'src>> for Action<'src> {
+    /// Convenience for using [`Function`] in code.
+    ///
+    /// This use an empty, `'static` string for the span.
     fn from(func: Function<'src>) -> Self {
         Self::Function(Box::new(Spanned::new(func, Span::Slice(""))))
     }
