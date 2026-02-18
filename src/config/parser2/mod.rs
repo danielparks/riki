@@ -242,11 +242,13 @@ fn consume_function_contents<'src>(
             // so we can never get one that corresponds to a different function.
             CNode::Rule(Rule::Function, RuleSide::Pop) => {
                 return if errors.is_empty() {
-                    Ok(Value::Function(actions::Function::from_parse(
-                        identifier.0,
-                        parameters,
-                        rparen,
-                    )?))
+                    Ok(Value::Function(Box::new(
+                        actions::Function::from_parse(
+                            identifier.0,
+                            parameters,
+                            rparen,
+                        )?,
+                    )))
                 } else {
                     Err(errors)
                 };

@@ -76,6 +76,14 @@ impl From<ActionReturn> for Result {
 }
 
 /// A return from an action
+///
+/// Returns can be evaluated two ways:
+///
+///   * As content. If the return is a string literal, then it is interpreted to
+///     be a path and is opened.
+///   * As a string or path. If the return is a string literal, then it is used
+///     literally, e.g. as in `error("404")`. If the return is content, then its
+///     path is used, if available.
 #[delegatable_trait]
 pub trait Return {
     /// Ensure that the return represents a real file.
@@ -94,7 +102,7 @@ pub trait Return {
     ///
     /// # Errors
     ///
-    /// Returns an [`Error`] if the path cannot be represented as a [`String`].
+    /// Returns an [`Error`] if the return was a file without a path.
     fn into_string_return(self) -> Result<StringReturn>;
 
     /// Convert the return to a [`ContentReturn`].
@@ -107,7 +115,7 @@ pub trait Return {
         context: &'a Context<'a, V>,
     ) -> Result<ContentReturn>;
 
-    /// Generate a response (or an error)
+    /// Generate a response (or an error).
     ///
     /// # Errors
     ///
@@ -116,4 +124,20 @@ pub trait Return {
         self,
         context: &'a RequestContext<'a>,
     ) -> Result<HttpResponse>;
+
+    /// Try to evaluate as a string.
+    ///
+    /// This interprets the return as a short string, e.g. an error code, or
+    /// a literal response (`literal("everything is fine")`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`Error`] if the return was a file without a path, or the
+    /// short string or path was not UTF-8.
+    fn into_string(self) -> Result<String>
+    where
+        Self: Sized,
+    {
+        Ok(self.into_string_return()?.into())
+    }
 }
