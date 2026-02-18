@@ -290,7 +290,7 @@ fn lex_parameters(
 }
 
 /// Tokenize
-#[expect(clippy::allow_attributes, reason = "FIXME bug; expect fails")]
+#[expect(clippy::allow_attributes, reason = "rust-clippy issue #13358")]
 #[allow(clippy::enum_glob_use, reason = "readability")]
 pub fn tokenize(
     source: &str,

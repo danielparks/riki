@@ -71,7 +71,7 @@ fn parsed(s: &str) -> ParsedString<'_> {
 /// Get the default rules for Riki.
 #[must_use]
 pub fn default_rules() -> Vec<Rule<'static>> {
-    #![expect(clippy::allow_attributes, reason = "FIXME bug; expect fails")]
+    #![expect(clippy::allow_attributes, reason = "rust-clippy issue #13358")]
 
     #[allow(clippy::wildcard_imports, reason = "convenience")]
     use crate::config::actions::functions::*;
