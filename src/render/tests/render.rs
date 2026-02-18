@@ -16,8 +16,7 @@ pub fn parse_md(raw: &str) -> Result<ContentReturn> {
         &StaticContext::default(),
         ContentReturn::from(raw)
             .with_content_type(MediaType::TEXT_MARKDOWN_UTF8),
-    )?
-    .ok_or(Error::NotFound)
+    )
 }
 
 /// Get metadata value from ret in format that’s easy to compare.

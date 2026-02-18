@@ -25,7 +25,7 @@ use tracing;
 pub fn render<'a, V: VariableMap<'a>, R: Return>(
     context: &'a Context<'a, V>,
     ret: R,
-) -> Result<Option<ContentReturn>> {
+) -> Result<ContentReturn> {
     // FIXME: caching headers based on template and Page.
     // FIXME: add cache-busting to href, src, etc. in HTML.
     let mut ret = ret.into_content_return(context)?;
@@ -71,7 +71,7 @@ pub fn render<'a, V: VariableMap<'a>, R: Return>(
     ret.content_type = MediaType::TEXT_HTML_UTF8;
     ret.body = document.html().into();
 
-    Ok(Some(ret))
+    Ok(ret)
 }
 
 /// Load metadata and convert body to HTML.
@@ -83,7 +83,7 @@ pub fn render<'a, V: VariableMap<'a>, R: Return>(
 pub fn markdown_to_html<'a, V: VariableMap<'a>, R: Return>(
     context: &'a Context<'a, V>,
     ret: R,
-) -> Result<Option<ContentReturn>> {
+) -> Result<ContentReturn> {
     let mut ret = ret.into_content_return(context)?;
     let raw_page = mem::take(&mut ret.body).into_string()?;
     let (header, body) = render::split_raw_page(&raw_page);
@@ -95,7 +95,7 @@ pub fn markdown_to_html<'a, V: VariableMap<'a>, R: Return>(
     ret.content_type = MediaType::TEXT_HTML_UTF8;
     ret.ensure_metadata_title()?;
 
-    Ok(Some(ret))
+    Ok(ret)
 }
 
 /// Redact sensitive values from passed Markdown.
@@ -106,11 +106,11 @@ pub fn markdown_to_html<'a, V: VariableMap<'a>, R: Return>(
 pub fn redact_source<'a, V: VariableMap<'a>, R: Return>(
     context: &'a Context<'a, V>,
     ret: R,
-) -> Result<Option<ContentReturn>> {
+) -> Result<ContentReturn> {
     // FIXME: caching headers based on template and Page.
     // FIXME: add cache-busting to href, src, etc. in HTML.
     let mut ret = ret.into_content_return(context)?;
     ret.body = render_source_to_string(ret.body.into_string()?).into();
     ret.content_type = MediaType::TEXT_MARKDOWN_UTF8;
-    Ok(Some(ret))
+    Ok(ret)
 }

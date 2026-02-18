@@ -3,7 +3,7 @@
 #![cfg(test)]
 
 use crate::actions::{
-    self, ContentReturn, Error, MediaType, Result, Source, StaticContext,
+    self, ContentReturn, MediaType, Result, Source, StaticContext,
 };
 use crate::render::{self, render_source_to_string};
 use assert2::check;
@@ -32,11 +32,7 @@ fn render(html: &str) -> Result<String> {
         ..ContentReturn::default()
     };
 
-    match actions::render(&*CONTEXT, ret) {
-        Ok(Some(ret)) => Ok(ret.body.into_string()?),
-        Ok(None) => Err(Error::NotFound),
-        Err(error) => Err(error),
-    }
+    Ok(actions::render(&*CONTEXT, ret)?.body.into_string()?)
 }
 
 #[test_log::test]

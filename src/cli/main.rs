@@ -55,22 +55,31 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
                 ..StaticContext::default()
             };
 
-            let ret = PathReturn::new(page_path.clone(), &context)?;
-            let ret = actions::markdown_to_html(&context, ret)?
-                .ok_or(actions::Error::NotFound)?;
-            let ret = actions::render(&context, ret)?
-                .ok_or(actions::Error::NotFound)?;
-
-            print!("{}", ret.body.into_string()?);
+            print!(
+                "{}",
+                actions::render(
+                    &context,
+                    actions::markdown_to_html(
+                        &context,
+                        PathReturn::new(page_path.clone(), &context)?
+                    )?
+                )?
+                .body
+                .into_string()?
+            );
         }
         Command::Info { page_path } => {
             let context = StaticContext::default();
-            let ret = actions::markdown_to_html(
-                &context,
-                PathReturn::new(page_path.clone(), &context)?,
-            )?
-            .ok_or(actions::Error::NotFound)?;
-            print!("{}", serde_yaml::to_string(&ret.metadata)?);
+            print!(
+                "{}",
+                serde_yaml::to_string(
+                    &actions::markdown_to_html(
+                        &context,
+                        PathReturn::new(page_path.clone(), &context)?,
+                    )?
+                    .metadata
+                )?
+            );
         }
         Command::Serve { base_dir, bind } => {
             http::serve(http::Configuration::default_in(base_dir), bind)?;

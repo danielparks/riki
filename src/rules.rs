@@ -276,7 +276,6 @@ actions! {
     /// ```
     Markdown(markdown) => {
         actions::markdown_to_html(context, markdown.evaluate(context)?)?
-            .ok_or(actions::Error::NotFound)?
             .into()
     },
 
@@ -287,7 +286,6 @@ actions! {
     /// ```
     RedactSource(markdown) => {
         actions::redact_source(context, markdown.evaluate(context)?)?
-            .ok_or(actions::Error::NotFound)?
             .into()
     },
 
@@ -298,7 +296,6 @@ actions! {
     /// ```
     Render(html) => {
         actions::render(context, html.evaluate(context)?)?
-            .ok_or(actions::Error::NotFound)?
             .into()
     },
 }
