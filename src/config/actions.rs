@@ -1,10 +1,10 @@
 //! Perform actions defined in configuration file
 
 use super::errors::{ParseError, ParseResult};
-use super::model::ParsedPath;
-use super::parser2::{Parameters, Spanned, Value};
+use super::model::{ParsedPath, ParsedString};
+use super::parser2::{Parameters, Span, Spanned, Value};
 use crate::actions::{
-    self, ContentReturn, Context, RealFileReturn, Return, VariableMap,
+    self, ContentReturn, Context, Return, StringReturn, VariableMap,
 };
 use pastey::paste;
 
@@ -14,8 +14,8 @@ pub enum Action<'src> {
     /// Function call
     Function(Box<Spanned<'src, Function<'src>>>),
 
-    /// Literal (a path)
-    Literal(ParsedPath<'src>),
+    /// Literal (a string value)
+    Literal(ParsedString<'src>),
 }
 
 impl Action<'_> {
@@ -24,7 +24,7 @@ impl Action<'_> {
     pub fn canonical(&self) -> String {
         match self {
             Self::Function(function) => function.value.canonical(),
-            Self::Literal(path) => path.canonical(),
+            Self::Literal(s) => s.canonical(),
         }
     }
 
@@ -40,11 +40,9 @@ impl Action<'_> {
     ) -> actions::Result {
         match self {
             Self::Function(function) => function.value.evaluate(context),
-            Self::Literal(path) => Ok(RealFileReturn::from_url_path(
-                path.content(&context.variables),
-                context,
-            )?
-            .into()),
+            Self::Literal(s) => {
+                StringReturn::from(s.content(&context.variables)).into()
+            }
         }
     }
 }
@@ -53,7 +51,7 @@ impl<'src> From<Value<'src>> for Action<'src> {
     fn from(value: Value<'src>) -> Self {
         match value {
             Value::Function(function) => Self::Function(function),
-            Value::Literal(string) => Self::Literal(string.into()),
+            Value::Literal(string) => Self::Literal(string),
         }
     }
 }
@@ -62,8 +60,20 @@ impl<'src> From<Action<'src>> for Value<'src> {
     fn from(action: Action<'src>) -> Self {
         match action {
             Action::Function(function) => Self::Function(function),
-            Action::Literal(path_value) => Self::Literal(path_value.into()),
+            Action::Literal(string) => Self::Literal(string),
         }
+    }
+}
+
+impl<'src> From<Function<'src>> for Action<'src> {
+    fn from(func: Function<'src>) -> Self {
+        Self::Function(Box::new(Spanned::new(func, Span::Slice(""))))
+    }
+}
+
+impl<'src> From<ParsedPath<'src>> for Action<'src> {
+    fn from(path: ParsedPath<'src>) -> Self {
+        Self::Literal(path.into())
     }
 }
 

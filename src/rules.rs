@@ -1,8 +1,9 @@
 //! Code to represent rules about how data is processed and returned.
 
-use crate::actions::{self, Context, Error, Return, Variable, VariableMap};
+use crate::actions::{self, Context, Error, VariableMap};
+use crate::config::actions::{Action, functions};
+use crate::config::model::ParsedString;
 use globset::{Glob, GlobMatcher};
-use pastey::paste;
 use std::fmt;
 
 /// A rule for how to respond to HTTP requests.
@@ -11,8 +12,8 @@ pub struct Rule<'src> {
     /// Matcher for URL path.
     pub path_matcher: GlobMatcher,
 
-    /// The value to return if the URL matches (likely an [`Action`]).
-    pub value: Value<'src>,
+    /// The action to take if the URL matches.
+    pub value: Action<'src>,
 }
 
 impl<'src> Rule<'src> {
@@ -21,7 +22,7 @@ impl<'src> Rule<'src> {
     /// # Panics
     ///
     /// Panics if there is a problem parsing the matcher.
-    pub fn new<V: Into<Value<'src>>>(path_matcher: &str, value: V) -> Self {
+    pub fn new<V: Into<Action<'src>>>(path_matcher: &str, value: V) -> Self {
         Self {
             path_matcher: Glob::new(path_matcher).unwrap().compile_matcher(),
             value: value.into(),
@@ -57,247 +58,14 @@ impl fmt::Debug for Rule<'_> {
     }
 }
 
-/// Something that can be passed to an action.
-#[derive(Clone, derive_more::From)]
-pub enum Value<'src> {
-    /// Value comes from an action.
-    Action(Box<Action<'src>>),
-
-    /// Value is a string literal.
-    String(&'src str),
-
-    /// Value is a variable.
-    Variable(Variable),
-}
-
-impl Value<'_> {
-    /// Calculate the return to be processed by the action.
-    ///
-    /// # Errors
-    ///
-    /// Can return [`actions::Error`].
-    pub fn evaluate<'vars, V: VariableMap<'vars>>(
-        &self,
-        context: &'vars Context<'vars, V>,
-    ) -> actions::Result {
-        match self {
-            Value::Action(action) => action.evaluate(context),
-            Value::String(string) => Ok((*string).into()),
-            Value::Variable(variable) => Ok(variable.evaluate(context)),
-        }
-    }
-}
-
-impl<'src> From<Action<'src>> for Value<'src> {
-    #[inline]
-    fn from(action: Action<'src>) -> Self {
-        Value::Action(Box::new(action))
-    }
-}
-
-impl fmt::Debug for Value<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut f = f.debug_tuple("Value");
-        match self {
-            Self::Action(v) => f.field(v),
-            Self::String(v) => f.field(v),
-            Self::Variable(v) => f.field(v),
-        }
-        .finish()
-    }
-}
-
-/// Macro to define [`Action`] variants with co-located evaluation logic.
+/// Create a [`ParsedString`] from string content with variable interpolation.
 ///
-/// For each entry, generates:
-/// - An enum variant on [`Action`]
-/// - A snake\_case convenience constructor on `Action` (derived from the
-///   variant name via [`pastey`])
-/// - A match arm in [`Action::evaluate()`]
-macro_rules! actions {
-    (
-        $ctx:ident;
-        $(
-            $(#[$meta:meta])*
-            $variant:ident($($param:ident),*) => $body:expr
-        ),* $(,)?
-    ) => {
-        /// An action to run in response to an HTTP request.
-        #[derive(Clone, Debug)]
-        pub enum Action<'src> {
-            $(
-                $(#[$meta])*
-                $variant($(actions!(@value_type $param)),*),
-            )*
-        }
-
-        impl<'src> Action<'src> {
-            $(
-                paste! {
-                    #[doc = concat!("Convenience function to construct ",
-                        "[`Action::", stringify!($variant), "`].")]
-                    pub fn [<$variant:snake>]<
-                        $([<V $param>]: Into<Value<'src>>),*
-                    >(
-                        $($param: [<V $param>]),*
-                    ) -> Self {
-                        Self::$variant($($param.into()),*)
-                    }
-                }
-            )*
-        }
-
-        impl Action<'_> {
-            /// Calculate the return to be processed by the action.
-            ///
-            /// # Errors
-            ///
-            /// Can return [`actions::Error`].
-            pub fn evaluate<'vars, M: VariableMap<'vars>>(
-                &self,
-                $ctx: &'vars Context<'vars, M>,
-            ) -> actions::Result {
-                match self {
-                    $(
-                        Action::$variant($($param),*) => $body,
-                    )*
-                }
-            }
-        }
-    };
-
-    // Map each parameter name to `Value<'src>`.
-    (@value_type $param:ident) => { Value<'src> };
-}
-
-actions! {
-    context;
-
-    /// Add a `'/'` to the end of the input.
-    ///
-    /// ```text
-    /// as_dir(path) -> path
-    /// ```
-    AsDir(path) => path
-        .evaluate(context)?
-        .into_string_return()?
-        .into_ending_with("/")
-        .into(),
-
-    /// Redirect to the passed path if the requested path is not identical.
-    ///
-    /// Otherwise, return its argument.
-    ///
-    /// ```text
-    /// canonical(path) -> path
-    /// ```
-    Canonical(path) => {
-        let path = path.evaluate(context)?.into_string_return()?;
-        tracing::trace!(
-            "check canonical ({path:?}) == request ({:?})",
-            context.variables.request_path(),
-        );
-        if path == context.variables.request_path() {
-            path.into()
-        } else {
-            Err(actions::Error::RedirectCanonical(path.into()))
-        }
-    },
-
-    /// Concatenate two values together.
-    ///
-    /// ```text
-    /// concat(str, str) -> str
-    /// ```
-    Concat(string1, string2) => string1
-        .evaluate(context)?
-        .into_string_return()?
-        .into_appended(string2.evaluate(context)?.into_string_return()?)
-        .into(),
-
-    /// If the first value succeeds, return the second.
-    ///
-    /// ```text
-    /// condition(file, any) -> any
-    /// ```
-    Condition(condition, value) => {
-        // Returns `Error::NotFound` and other errors:
-        let _ = condition.evaluate(context)?;
-        value.evaluate(context)
-    },
-
-    /// Strip the last path component and the last slash.
-    ///
-    /// ```text
-    /// dirname(path) -> path
-    /// ```
-    Dirname(path) => path
-        .evaluate(context)?
-        .into_string_return()?
-        .into_dirname()
-        .into(),
-
-    /// Return an error with the passed code.
-    ///
-    /// ```text
-    /// error(str) -> content
-    /// ```
-    Error(code) => {
-        // FIXME use error code; show error page.
-        Err(actions::Error::InternalString(
-            code.evaluate(context)?.into_string_return()?.into(),
-        ))
-    },
-
-    /// If the passed path is a file, succeed.
-    ///
-    /// ```text
-    /// if_file(path) -> file
-    /// ```
-    IfFile(path) => {
-        path.evaluate(context)?.ensure_file(context)
-    },
-
-    /// Join two paths.
-    ///
-    /// ```text
-    /// join(path, path) -> path
-    /// ```
-    Join(path1, path2) => path1
-        .evaluate(context)?
-        .into_string_return()?
-        .into_joined(path2.evaluate(context)?.into_string_return()?)
-        .into(),
-
-    /// Convert the input from Markdown to HTML.
-    ///
-    /// ```text
-    /// markdown(file) -> content
-    /// ```
-    Markdown(markdown) => {
-        actions::markdown_to_html(context, markdown.evaluate(context)?)?
-            .into()
-    },
-
-    /// Redact the input Markdown.
-    ///
-    /// ```text
-    /// redact_source(file) -> content
-    /// ```
-    RedactSource(markdown) => {
-        actions::redact_source(context, markdown.evaluate(context)?)?
-            .into()
-    },
-
-    /// Render the input HTML in a template.
-    ///
-    /// ```text
-    /// render(file) -> content
-    /// ```
-    Render(html) => {
-        actions::render(context, html.evaluate(context)?)?
-            .into()
-    },
+/// # Panics
+///
+/// Panics if the string cannot be parsed.
+fn parsed(s: &str) -> ParsedString<'_> {
+    use crate::config::parser2::StringType;
+    ParsedString::from_string_content(s, StringType::QuotedDouble).unwrap()
 }
 
 /// Get the default rules for Riki.
@@ -307,13 +75,15 @@ pub fn default_rules() -> Vec<Rule<'static>> {
         // *.md redact_source(canonical($clean_path))
         Rule::new(
             "**/*.md",
-            Action::redact_source(Action::canonical(Variable::CleanPath)),
+            functions::redact_source(functions::canonical(parsed(
+                "$clean_path",
+            ))),
         ),
         // index.html canonical("${dirname($clean_path)}/")
         Rule::new(
             "**/index.html",
-            Action::canonical(Action::as_dir(Action::dirname(
-                Variable::CleanPath,
+            functions::canonical(functions::as_dir(functions::dirname(
+                parsed("$clean_path"),
             ))),
         ),
         // if file_exists("$clean_path") {
@@ -321,7 +91,7 @@ pub fn default_rules() -> Vec<Rule<'static>> {
         // matches. }
         Rule::new(
             "**",
-            Action::canonical(Action::if_file(Variable::CleanPath)),
+            functions::canonical(functions::if_file(parsed("$clean_path"))),
         ),
         // if file_exists("$clean_path/index.html") {
         //     if canonical("${clean_path}/") {
@@ -330,22 +100,25 @@ pub fn default_rules() -> Vec<Rule<'static>> {
         // }
         Rule::new(
             "**",
-            Action::condition(
-                Action::canonical(Action::condition(
-                    Action::if_file(Action::join(
-                        Variable::CleanPath,
-                        "index.html",
+            functions::condition(
+                functions::canonical(functions::condition(
+                    functions::if_file(functions::join(
+                        parsed("$clean_path"),
+                        ParsedString::from_literal("index.html"),
                     )),
-                    Action::as_dir(Variable::CleanPath),
+                    functions::as_dir(parsed("$clean_path")),
                 )),
-                Action::join(Variable::CleanPath, "index.html"),
+                functions::join(
+                    parsed("$clean_path"),
+                    ParsedString::from_literal("index.html"),
+                ),
             ),
         ),
         // index canonical("${dirname($clean_path)}/")
         Rule::new(
             "**/index",
-            Action::canonical(Action::as_dir(Action::dirname(
-                Variable::CleanPath,
+            functions::canonical(functions::as_dir(functions::dirname(
+                parsed("$clean_path"),
             ))),
         ),
         // if file_exists("${clean_path}.md") {
@@ -355,13 +128,13 @@ pub fn default_rules() -> Vec<Rule<'static>> {
         // }
         Rule::new(
             "**",
-            Action::condition(
-                Action::canonical(Action::condition(
-                    Action::if_file(Action::concat(Variable::CleanPath, ".md")),
-                    Variable::CleanPath,
+            functions::condition(
+                functions::canonical(functions::condition(
+                    functions::if_file(parsed("${clean_path}.md")),
+                    parsed("$clean_path"),
                 )),
-                Action::render(Action::markdown(Action::if_file(
-                    Action::concat(Variable::CleanPath, ".md"),
+                functions::render(functions::markdown(functions::if_file(
+                    parsed("${clean_path}.md"),
                 ))),
             ),
         ),
@@ -372,16 +145,19 @@ pub fn default_rules() -> Vec<Rule<'static>> {
         // }
         Rule::new(
             "**",
-            Action::condition(
-                Action::canonical(Action::condition(
-                    Action::if_file(Action::join(
-                        Variable::CleanPath,
-                        "index.md",
+            functions::condition(
+                functions::canonical(functions::condition(
+                    functions::if_file(functions::join(
+                        parsed("$clean_path"),
+                        ParsedString::from_literal("index.md"),
                     )),
-                    Action::as_dir(Variable::CleanPath),
+                    functions::as_dir(parsed("$clean_path")),
                 )),
-                Action::render(Action::markdown(Action::if_file(
-                    Action::join(Variable::CleanPath, "index.md"),
+                functions::render(functions::markdown(functions::if_file(
+                    functions::join(
+                        parsed("$clean_path"),
+                        ParsedString::from_literal("index.md"),
+                    ),
                 ))),
             ),
         ),
