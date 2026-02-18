@@ -178,7 +178,7 @@ impl<'src> ParsedString<'src> {
     /// # Panics
     ///
     /// Panics if the string length is greater than or equal to [`isize::MAX`].
-    #[expect(clippy::allow_attributes, reason = "FIXME bug; expect fails")]
+    #[expect(clippy::allow_attributes, reason = "rust-clippy issue #13358")]
     #[allow(clippy::enum_glob_use, reason = "readability")]
     #[expect(clippy::arithmetic_side_effects, reason = "len < isize::MAX")]
     pub fn from_string_content(
