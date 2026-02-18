@@ -97,16 +97,10 @@ pub fn default_rules() -> Vec<Rule<'static>> {
             "**",
             condition(
                 canonical(condition(
-                    if_file(join(
-                        parsed("$clean_path"),
-                        ParsedString::from_literal("index.html"),
-                    )),
+                    if_file(parsed("${clean_path}/index.html")),
                     as_dir(parsed("$clean_path")),
                 )),
-                join(
-                    parsed("$clean_path"),
-                    ParsedString::from_literal("index.html"),
-                ),
+                parsed("${clean_path}/index.html"),
             ),
         ),
         // index canonical("${dirname($clean_path)}/")
@@ -138,16 +132,10 @@ pub fn default_rules() -> Vec<Rule<'static>> {
             "**",
             condition(
                 canonical(condition(
-                    if_file(join(
-                        parsed("$clean_path"),
-                        ParsedString::from_literal("index.md"),
-                    )),
+                    if_file(parsed("${clean_path}/index.md")),
                     as_dir(parsed("$clean_path")),
                 )),
-                render(markdown(if_file(join(
-                    parsed("$clean_path"),
-                    ParsedString::from_literal("index.md"),
-                )))),
+                render(markdown(if_file(parsed("${clean_path}/index.md")))),
             ),
         ),
     ]
