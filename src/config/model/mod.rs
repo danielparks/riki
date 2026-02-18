@@ -148,7 +148,7 @@ impl<'src> ConfigSettings<'src> {
             }
             ("root" | "templates", Value::Function(function)) => {
                 Err(ParseError::SettingDoesNotAcceptFunction(name.0)
-                    .spanned_s((name.0, function.span().clone())))
+                    .spanned_s((name.0, function.span.clone())))
             }
             (_, _) => {
                 Err(ParseError::UnknownSettingName(name.0).spanned_s(name.0))
