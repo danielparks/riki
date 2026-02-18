@@ -261,7 +261,7 @@ impl<'src> TryFrom<StringToken<'src>> for Matcher<'src> {
 #[derive(Clone, Debug)]
 pub enum Value<'src> {
     /// Call a function.
-    Function(Spanned<'src, actions::Function<'src>>),
+    Function(Box<Spanned<'src, actions::Function<'src>>>),
 
     /// A string of some kind.
     Literal(ParsedString<'src>),
