@@ -5,7 +5,7 @@ mod params;
 
 use anyhow::anyhow;
 use params::{Command, Params, Parser};
-use riki::actions::{PathReturn, StaticContext};
+use riki::actions::{RealFileReturn, StaticContext};
 use riki::{actions, http, render};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -61,7 +61,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
                     &context,
                     actions::markdown_to_html(
                         &context,
-                        PathReturn::new(page_path.clone(), &context)?
+                        RealFileReturn::new(page_path.clone(), &context)?
                     )?
                 )?
                 .body
@@ -75,7 +75,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
                 serde_yaml::to_string(
                     &actions::markdown_to_html(
                         &context,
-                        PathReturn::new(page_path.clone(), &context)?,
+                        RealFileReturn::new(page_path.clone(), &context)?,
                     )?
                     .metadata
                 )?

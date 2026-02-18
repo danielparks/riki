@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 /// A file on the file system.
 #[derive(Debug)]
-pub struct PathReturn {
+pub struct RealFileReturn {
     /// Path to the file.
     pub path: PathBuf,
 
@@ -27,8 +27,8 @@ pub struct PathReturn {
     pub created: Option<Timestamp>,
 }
 
-impl PathReturn {
-    /// Create a `PathReturn` from a request path.
+impl RealFileReturn {
+    /// Create a `RealFileReturn` from a request path.
     ///
     /// Request paths always start with `'/'`, but in this case they are
     /// evaluated as relative paths.
@@ -91,7 +91,7 @@ impl PathReturn {
     }
 }
 
-impl Return for PathReturn {
+impl Return for RealFileReturn {
     fn ensure_file<'a, V: VariableMap<'a>>(
         self,
         _context: &'a Context<'a, V>,

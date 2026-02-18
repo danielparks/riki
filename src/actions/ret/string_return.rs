@@ -1,8 +1,8 @@
 //! A return of a short string. Generally an input to an action.
 
 use super::{
-    ActionReturn, ContentReturn, Context, PathReturn, RequestContext, Result,
-    Return, VariableMap,
+    ActionReturn, ContentReturn, Context, RealFileReturn, RequestContext,
+    Result, Return, VariableMap,
 };
 use actix_web::HttpResponse;
 use os_str_bytes::OsStrBytesExt;
@@ -97,7 +97,7 @@ impl Return for StringReturn {
         self,
         context: &'a Context<'a, V>,
     ) -> Result<ActionReturn> {
-        Ok(PathReturn::new(self.into(), context)?.into())
+        Ok(RealFileReturn::new(self.into(), context)?.into())
     }
 
     fn into_string_return(self) -> Result<StringReturn> {
@@ -108,14 +108,14 @@ impl Return for StringReturn {
         self,
         context: &'a Context<'a, V>,
     ) -> Result<ContentReturn> {
-        PathReturn::new(self.into(), context)?.into_content_return(context)
+        RealFileReturn::new(self.into(), context)?.into_content_return(context)
     }
 
     fn into_response<'a>(
         self,
         context: &'a RequestContext<'a>,
     ) -> Result<HttpResponse> {
-        PathReturn::new(self.into(), context)?.into_response(context)
+        RealFileReturn::new(self.into(), context)?.into_response(context)
     }
 }
 
