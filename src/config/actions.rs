@@ -2,7 +2,7 @@
 
 use super::errors::{ParseError, ParseResult};
 use super::model::{ParsedPath, ParsedString};
-use super::parser2::{Parameters, Span, Value};
+use super::parser2::{Parameters, Spanned, Value};
 use crate::actions::{
     self, ContentReturn, Context, RealFileReturn, VariableMap,
 };
@@ -11,7 +11,7 @@ use crate::actions::{
 #[derive(Clone, Debug, derive_more::From)]
 pub enum Action<'src> {
     /// Function call
-    Function(Function<'src>),
+    Function(Spanned<'src, Function<'src>>),
 
     /// Literal (a path)
     Literal(ParsedPath<'src>),
@@ -22,7 +22,7 @@ impl Action<'_> {
     #[must_use]
     pub fn canonical(&self) -> String {
         match self {
-            Self::Function(function) => function.canonical(),
+            Self::Function(function) => function.value.canonical(),
             Self::Literal(path) => path.canonical(),
         }
     }
@@ -38,7 +38,7 @@ impl Action<'_> {
         context: &'vars Context<'vars, V>,
     ) -> actions::Result {
         match self {
-            Self::Function(function) => function.evaluate(context),
+            Self::Function(function) => function.value.evaluate(context),
             Self::Literal(path) => Ok(RealFileReturn::from_url_path(
                 path.content(&context.variables),
                 context,
@@ -74,28 +74,28 @@ pub enum Function<'src> {
     /// ```text
     /// error(code: String) -> Response<Page>
     /// ```
-    Error(ParsedString<'src>, Span<'src>),
+    Error(ParsedString<'src>),
 
     /// Return a literal as the body with a 200 code
     ///
     /// ```text
     /// literal(content: String) -> Response<Text>
     /// ```
-    Literal(ParsedString<'src>, Span<'src>),
+    Literal(ParsedString<'src>),
 
     /// Render Markdown
     ///
     /// ```text
     /// markdown(input: Path|Response) -> Response<Metadata, HTML>
     /// ```
-    Markdown(Box<Action<'src>>, Span<'src>),
+    Markdown(Box<Action<'src>>),
 
     /// Render a page in a template
     ///
     /// ```text
     /// render(input: Path|Response) -> Response<Metadata?, HTML>
     /// ```
-    Render(Box<Action<'src>>, Span<'src>),
+    Render(Box<Action<'src>>),
 }
 
 impl<'src> Function<'src> {
@@ -108,22 +108,22 @@ impl<'src> Function<'src> {
         name: &'src str,
         parameters: Parameters<'src>,
         rparen: Option<&'src str>,
-    ) -> ParseResult<'src, Self> {
+    ) -> ParseResult<'src, Spanned<'src, Self>> {
         let actual = parameters.len();
         let mut parameters = parameters.into_iter();
         let span = (name, rparen).into();
         match (name, parameters.next(), parameters.next()) {
             ("error", Some(value), None) => {
-                Ok(Self::Error(value.try_into()?, span))
+                Ok(Spanned::new(Self::Error(value.try_into()?), span))
             }
             ("literal", Some(value), None) => {
-                Ok(Self::Literal(value.try_into()?, span))
+                Ok(Spanned::new(Self::Literal(value.try_into()?), span))
             }
             ("markdown", Some(value), None) => {
-                Ok(Self::Markdown(Box::new(value.into()), span))
+                Ok(Spanned::new(Self::Markdown(Box::new(value.into())), span))
             }
             ("render", Some(value), None) => {
-                Ok(Self::Render(Box::new(value.into()), span))
+                Ok(Spanned::new(Self::Render(Box::new(value.into())), span))
             }
             ("error" | "literal" | "markdown" | "render", ..) => {
                 Err(ParseError::WrongFunctionParameterCount {
@@ -158,23 +158,11 @@ impl<'src> Function<'src> {
             "{}({})",
             self.name(),
             match self {
-                Self::Error(value, _) | Self::Literal(value, _) =>
-                    value.canonical(),
-                Self::Markdown(value, _) | Self::Render(value, _) =>
+                Self::Error(value) | Self::Literal(value) => value.canonical(),
+                Self::Markdown(value) | Self::Render(value) =>
                     value.canonical(),
             },
         )
-    }
-
-    /// Get the span for the entire function call.
-    #[must_use]
-    pub const fn span(&self) -> &Span<'src> {
-        match self {
-            Self::Error(_, span)
-            | Self::Literal(_, span)
-            | Self::Markdown(_, span)
-            | Self::Render(_, span) => span,
-        }
     }
 
     /// Evaluate the function for a request
@@ -188,7 +176,7 @@ impl<'src> Function<'src> {
         context: &'vars Context<'vars, V>,
     ) -> actions::Result {
         match self {
-            Self::Error(error, _) => {
+            Self::Error(error) => {
                 let code = error.content(&context.variables);
                 // FIXME better error response
                 Ok(ContentReturn::plain_text(format!("Error {code}"))
@@ -199,16 +187,16 @@ impl<'src> Function<'src> {
                     })?)
                     .into())
             }
-            Self::Literal(string, _) => Ok(ContentReturn::plain_text(
+            Self::Literal(string) => Ok(ContentReturn::plain_text(
                 string.content(&context.variables),
             )
             .into()),
-            Self::Markdown(action, _) => {
+            Self::Markdown(action) => {
                 let ret = action.evaluate(context)?;
                 // FIXME better error
                 actions::markdown_to_html(context, ret)?.into()
             }
-            Self::Render(action, _) => {
+            Self::Render(action) => {
                 let ret = action.evaluate(context)?;
                 // FIXME better error
                 actions::render(context, ret)?.into()

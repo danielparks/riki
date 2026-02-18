@@ -261,7 +261,7 @@ impl<'src> TryFrom<StringToken<'src>> for Matcher<'src> {
 #[derive(Clone, Debug)]
 pub enum Value<'src> {
     /// Call a function.
-    Function(actions::Function<'src>),
+    Function(Spanned<'src, actions::Function<'src>>),
 
     /// A string of some kind.
     Literal(ParsedString<'src>),
@@ -272,7 +272,7 @@ impl<'src> Value<'src> {
     #[must_use]
     pub fn canonical(&self) -> String {
         match self {
-            Self::Function(function) => function.canonical(),
+            Self::Function(function) => function.value.canonical(),
             Self::Literal(string) => string.canonical(),
         }
     }
@@ -280,7 +280,7 @@ impl<'src> Value<'src> {
     /// Get the span for the value.
     pub fn span(&self) -> Option<Span<'src>> {
         match self {
-            Self::Function(function) => Some(function.span().clone()),
+            Self::Function(function) => Some(function.span.clone()),
             Self::Literal(string) => string.span().map(Into::into),
         }
     }
@@ -382,6 +382,23 @@ pub struct StringToken<'src> {
 
     /// The slice of the source representing this string
     pub src: &'src str,
+}
+
+/// A value representable by a string in the configuration file.
+#[derive(Clone, Debug)]
+pub struct Spanned<'src, T: Clone + fmt::Debug> {
+    /// The value.
+    pub value: T,
+
+    /// The string in the configuration file.
+    pub span: Span<'src>,
+}
+
+impl<'src, T: Clone + fmt::Debug> Spanned<'src, T> {
+    /// Create a new [`Spanned`].
+    pub const fn new(value: T, span: Span<'src>) -> Self {
+        Self { value, span }
+    }
 }
 
 /// A span of the source

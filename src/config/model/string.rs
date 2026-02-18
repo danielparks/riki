@@ -331,7 +331,7 @@ impl<'src> TryFrom<Value<'src>> for ParsedString<'src> {
         match value {
             Value::Function(function) => {
                 Err(ParseError::ExpectedLiteralNotFunction
-                    .spanned_s(function.span().clone()))
+                    .spanned_s(function.span.clone()))
             }
             Value::Literal(string) => Ok(string),
         }
