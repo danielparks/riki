@@ -37,9 +37,10 @@ pub use string_return::*;
 use super::{Context, Error, RequestContext, Result, VariableMap};
 use actix_web::HttpResponse;
 use ambassador::{Delegate, delegatable_trait};
+use std::fmt;
 
 /// Return from any action
-#[derive(Debug, Delegate, derive_more::From)]
+#[derive(Delegate, derive_more::From)]
 #[delegate(Return)]
 pub enum ActionReturn {
     /// A short string.
@@ -50,6 +51,16 @@ pub enum ActionReturn {
 
     /// Response body content (possibly associated with a path).
     ContentReturn(ContentReturn),
+}
+
+impl fmt::Debug for ActionReturn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::StringReturn(ret) => ret.fmt(f),
+            Self::RealFileReturn(ret) => ret.fmt(f),
+            Self::ContentReturn(ret) => ret.fmt(f),
+        }
+    }
 }
 
 impl From<&str> for ActionReturn {
