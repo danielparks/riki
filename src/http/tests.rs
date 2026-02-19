@@ -12,7 +12,6 @@ use actix_web::{App, body, http, test};
 use assert2::assert;
 use std::fs;
 use temp_dir::TempDir;
-use tracing_test::traced_test;
 
 /// Initialize the test app.
 #[expect(clippy::future_not_send, reason = "Required by Actix")]
@@ -172,7 +171,7 @@ where
 }
 
 #[actix_web::test]
-#[traced_test]
+#[test_log::test]
 async fn test_directory_page_get() {
     let (_dir, config, app) = init_app().await;
 
@@ -203,7 +202,7 @@ async fn test_directory_page_get() {
 }
 
 #[actix_web::test]
-#[traced_test]
+#[test_log::test]
 async fn test_file_page_get() {
     let (_dir, config, app) = init_app().await;
 
@@ -221,7 +220,7 @@ async fn test_file_page_get() {
 }
 
 #[actix_web::test]
-#[traced_test]
+#[test_log::test]
 async fn test_static_file_get() {
     let (_dir, config, app) = init_app().await;
 
@@ -237,7 +236,7 @@ async fn test_static_file_get() {
 }
 
 #[actix_web::test]
-#[traced_test]
+#[test_log::test]
 async fn test_static_directory_get() {
     let (_dir, config, app) = init_app().await;
 
@@ -251,7 +250,7 @@ async fn test_static_directory_get() {
 }
 
 #[actix_web::test]
-#[traced_test]
+#[test_log::test]
 async fn test_static_index_with_page() {
     let (_dir, config, app) = init_app().await;
 
@@ -275,7 +274,7 @@ async fn test_static_index_with_page() {
 }
 
 #[actix_web::test]
-#[traced_test]
+#[test_log::test]
 async fn test_static_hides_page() {
     let (_dir, config, app) = init_app().await;
 
@@ -288,7 +287,7 @@ async fn test_static_hides_page() {
 }
 
 #[actix_web::test]
-#[traced_test]
+#[test_log::test]
 async fn test_not_found_get() {
     let (_dir, _config, app) = init_app().await;
 
@@ -306,7 +305,7 @@ async fn test_not_found_get() {
 
 #[cfg(all(not(target_os = "hermit"), unix))]
 #[actix_web::test]
-#[traced_test]
+#[test_log::test]
 async fn test_forbidden_page_get() {
     use std::os::unix::fs::PermissionsExt;
 
@@ -341,7 +340,7 @@ async fn test_forbidden_page_get() {
 
 #[cfg(all(not(target_os = "hermit"), unix))]
 #[actix_web::test]
-#[traced_test]
+#[test_log::test]
 async fn test_forbidden_static_get() {
     use std::os::unix::fs::PermissionsExt;
 

@@ -283,19 +283,19 @@ mod unit_tests {
         Err(value.to_owned())
     }
 
-    #[test]
+    #[test_log::test]
     fn clean_path_file() {
         check!(wrapped_clean_path("/foo") == ok("/foo"));
         check!(wrapped_clean_path("/a/b") == ok("/a/b"));
     }
 
-    #[test]
+    #[test_log::test]
     fn clean_path_dir() {
         check!(wrapped_clean_path("/dir/") == ok("/dir"));
         check!(wrapped_clean_path("/a/b/") == ok("/a/b"));
     }
 
-    #[test]
+    #[test_log::test]
     fn clean_path_root_self() {
         check!(wrapped_clean_path("/") == ok("/"));
         check!(wrapped_clean_path("/.") == ok("/"));
@@ -304,7 +304,7 @@ mod unit_tests {
         check!(wrapped_clean_path("/././") == ok("/"));
     }
 
-    #[test]
+    #[test_log::test]
     fn clean_path_root_multi_slash() {
         check!(wrapped_clean_path("//") == ok("/"));
         check!(wrapped_clean_path("/.//") == ok("/"));
@@ -312,7 +312,7 @@ mod unit_tests {
         check!(wrapped_clean_path("///") == ok("/"));
     }
 
-    #[test]
+    #[test_log::test]
     fn clean_path_errors() {
         check!(
             wrapped_clean_path("/../a")

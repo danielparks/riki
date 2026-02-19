@@ -39,7 +39,7 @@ fn render(html: &str) -> Result<String> {
     }
 }
 
-#[test]
+#[test_log::test]
 fn last_modified_tz() {
     check!(let Ok(_) = render("<last-modified></last-modified>"));
 
@@ -61,7 +61,7 @@ fn last_modified_tz() {
     );
 }
 
-#[test]
+#[test_log::test]
 fn last_modified_format() {
     check!(
         render(r#"<last-modified format="%Y"></last-modified>"#).unwrap()
@@ -76,7 +76,7 @@ fn regex_assert(re: &str, input: &str) {
     );
 }
 
-#[test]
+#[test_log::test]
 fn a_email() {
     regex_assert(
         "^<html><head></head><body><a href=\"mailto:abc-[a-zA-Z0-9_-]+@example.com\">abc<span class=\"hidden\">-[a-zA-Z0-9_-]+</span>@example.com</a></body></html>$",
@@ -114,7 +114,7 @@ fn a_email() {
     );
 }
 
-#[test]
+#[test_log::test]
 fn a_email_source() {
     check!(
         "title: test\n\n---\n\n<b>test</b>\n".to_owned()

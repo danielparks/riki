@@ -26,7 +26,7 @@ fn html_title(body: &str, title: &str) -> ContentReturn {
 /// Makes error output more legible.
 const AS_STR: for<'a> fn(&'a String) -> &'a str = String::as_str;
 
-#[test]
+#[test_log::test]
 fn empty_template() {
     let mut tpls = base_templates();
     tpls.register_template_string("empty", "").unwrap();
@@ -38,7 +38,7 @@ fn empty_template() {
     );
 }
 
-#[test]
+#[test_log::test]
 fn override_template() {
     let mut tpls = base_templates();
     // Override embedded default template
@@ -49,7 +49,7 @@ fn override_template() {
         .as_ref().map(AS_STR));
 }
 
-#[test]
+#[test_log::test]
 fn embedded_template() {
     let tpls = base_templates();
     let mut embedded_names: Vec<_> = tpls.get_templates().keys().collect();
@@ -78,7 +78,7 @@ fn embedded_template() {
     .as_ref().map(AS_STR));
 }
 
-#[test]
+#[test_log::test]
 fn basic_template() {
     let temp = TempDir::new().unwrap();
     create_file(&temp, "default.hbs", "{{ metadata.title }} {{{ body }}}");
@@ -98,7 +98,7 @@ fn basic_template() {
     );
 }
 
-#[test]
+#[test_log::test]
 fn basic_template_twice() {
     let temp = TempDir::new().unwrap();
     create_file(&temp, "default.hbs", "{{{ body }}}");
@@ -118,7 +118,7 @@ fn basic_template_twice() {
     );
 }
 
-#[test]
+#[test_log::test]
 fn multiple_templates() {
     let temp = TempDir::new().unwrap();
     create_file(&temp, "default.hbs", "{{{ body }}}");
@@ -139,7 +139,7 @@ fn multiple_templates() {
     );
 }
 
-#[test]
+#[test_log::test]
 fn strftime_helper() {
     let ref_time: Timestamp = "2001-09-08 18:46:40-0700".parse().unwrap();
     let ret = ContentReturn {
