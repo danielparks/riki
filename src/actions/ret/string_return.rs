@@ -169,6 +169,12 @@ impl From<StringReturn> for PathBuf {
     }
 }
 
+impl From<StringReturn> for Result {
+    fn from(ret: StringReturn) -> Self {
+        Ok(ret.into())
+    }
+}
+
 impl PartialEq<&str> for StringReturn {
     #[inline]
     fn eq(&self, other: &&str) -> bool {

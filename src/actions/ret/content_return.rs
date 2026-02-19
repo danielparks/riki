@@ -131,6 +131,12 @@ impl From<&str> for ContentReturn {
     }
 }
 
+impl From<ContentReturn> for Result {
+    fn from(ret: ContentReturn) -> Self {
+        Ok(ret.into())
+    }
+}
+
 /// Content for the response.
 ///
 /// Can either be binary or a UTF-8 string. Use [`Self::ensure_string()`] to

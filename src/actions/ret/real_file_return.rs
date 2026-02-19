@@ -156,3 +156,9 @@ pub fn open_confirmed_file<P: AsRef<Path>>(path: P) -> io::Result<fs::File> {
     file.rewind()?;
     Ok(file)
 }
+
+impl From<RealFileReturn> for Result {
+    fn from(ret: RealFileReturn) -> Self {
+        Ok(ret.into())
+    }
+}

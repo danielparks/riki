@@ -58,21 +58,9 @@ impl From<&str> for ActionReturn {
     }
 }
 
-impl From<StringReturn> for Result {
-    fn from(ret: StringReturn) -> Self {
-        Ok(ret.into())
-    }
-}
-
-impl From<RealFileReturn> for Result {
-    fn from(ret: RealFileReturn) -> Self {
-        Ok(ret.into())
-    }
-}
-
-impl From<ContentReturn> for Result {
-    fn from(ret: ContentReturn) -> Self {
-        Ok(ret.into())
+impl From<ActionReturn> for Result {
+    fn from(ret: ActionReturn) -> Self {
+        Ok(ret)
     }
 }
 
