@@ -413,3 +413,128 @@ functions! {
             .into()
     },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Action;
+    use super::functions::*;
+    use crate::actions::{self, Context, Return, StaticVariables};
+    use crate::config::model::ParsedString;
+    use crate::config::parser2::StringType;
+    use assert2::check;
+    use temp_dir::TempDir;
+
+    /// Create a [`ParsedString`] with variable interpolation.
+    fn parsed(s: &str) -> ParsedString<'_> {
+        ParsedString::from_string_content(s, StringType::QuotedDouble).unwrap()
+    }
+
+    /// Create a context with the given `root`, `clean_path`, and
+    /// `request_path`.
+    fn make_context<'a>(
+        root: &'a std::path::Path,
+        clean_path: &'a str,
+        request_path: &'a str,
+    ) -> Context<'a, StaticVariables<'a>> {
+        Context {
+            working_path: root.to_path_buf(),
+            variables: StaticVariables {
+                clean_path,
+                request_path,
+                ..StaticVariables::default()
+            },
+            ..Context::default()
+        }
+    }
+
+    /// Evaluate an action and return `Ok(url_path)` or
+    /// `Err(redirect_target)`.
+    fn eval_canonical(
+        root: &std::path::Path,
+        clean_path: &str,
+        request_path: &str,
+        action: &Action<'_>,
+    ) -> Result<String, String> {
+        let context = make_context(root, clean_path, request_path);
+        match action.evaluate(&context) {
+            Ok(ret) => {
+                let path = ret.url_path().unwrap();
+                Ok(path.into_owned())
+            }
+            Err(actions::Error::RedirectCanonical(target)) => Err(target),
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+    }
+
+    #[test_log::test]
+    fn canonical_exact_match_returns_input() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("a.txt"), "AAA").unwrap();
+
+        // Request for /a.txt with clean_path /a.txt should succeed.
+        let action: Action = canonical(if_file(parsed("$clean_path"))).into();
+        let result = eval_canonical(dir.path(), "/a.txt", "/a.txt", &action);
+        check!(result == Ok("/a.txt".to_owned()));
+    }
+
+    #[test_log::test]
+    fn canonical_trailing_slash_redirects() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("a.txt"), "AAA").unwrap();
+
+        // Request for /a.txt/ (trailing slash) with clean_path /a.txt should
+        // redirect to /a.txt (the canonical path without the trailing slash).
+        let action: Action = canonical(if_file(parsed("$clean_path"))).into();
+        let result = eval_canonical(dir.path(), "/a.txt", "/a.txt/", &action);
+        check!(result == Err("/a.txt".to_owned()));
+    }
+
+    #[test_log::test]
+    fn canonical_dir_trailing_slash_match() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir(dir.path().join("d")).unwrap();
+        std::fs::write(dir.path().join("d/index.html"), "DDD").unwrap();
+
+        let action: Action = canonical(condition(
+            if_file(parsed("${clean_path}/index.html")),
+            as_dir(parsed("$clean_path")),
+        ))
+        .into();
+        let result = eval_canonical(dir.path(), "/d", "/d/", &action);
+        check!(result == Ok("/d/".to_owned()));
+    }
+
+    #[test_log::test]
+    fn canonical_dir_without_trailing_slash_redirects() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir(dir.path().join("d")).unwrap();
+        std::fs::write(dir.path().join("d/index.html"), "DDD").unwrap();
+
+        // Request "/d" should redirect to "/d/" for directory access.
+        let action: Action = canonical(condition(
+            if_file(parsed("${clean_path}/index.html")),
+            as_dir(parsed("$clean_path")),
+        ))
+        .into();
+        let result = eval_canonical(dir.path(), "/d", "/d", &action);
+        check!(result == Err("/d/".to_owned()));
+    }
+
+    #[test_log::test]
+    fn canonical_index_html_redirects_to_dir() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir(dir.path().join("d")).unwrap();
+        std::fs::write(dir.path().join("d/index.html"), "DDD").unwrap();
+
+        // Request "/d/index.html" should redirect to "/d/".
+        let action: Action =
+            canonical(as_dir(dirname(parsed("$clean_path")))).into();
+        let result = eval_canonical(
+            dir.path(),
+            "/d/index.html",
+            "/d/index.html",
+            &action,
+        );
+        check!(result == Err("/d/".to_owned()));
+    }
+}
