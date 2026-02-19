@@ -7,12 +7,13 @@ use super::{
 use actix_web::HttpResponse;
 use os_str_bytes::OsStrBytesExt;
 use std::ffi::{OsStr, OsString};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// A short string.
 ///
-/// This can contain non-Unicode characters on UNIX, at least. It is designed to
-/// be convertible to and from [`PathBuf`].
+/// Internally this holds an [`OsString`], so it can contain non-UTF-8
+/// characters on UNIX, at least. It is designed to be losslessly convertible to
+/// and from [`PathBuf`].
 #[derive(Debug)]
 pub struct StringReturn(OsString);
 
@@ -26,23 +27,42 @@ impl StringReturn {
     }
 
     /// Check if this ends with the string `suffix`.
+    ///
+    /// ```
+    /// use assert2::check;
+    /// use riki::actions::StringReturn;
+    /// check!(StringReturn::from("ab").ends_with("b"));
+    /// check!(!StringReturn::from("ab").ends_with("c"));
+    /// ```
     #[must_use]
     #[inline]
     pub fn ends_with<S: AsRef<OsStr>>(&mut self, suffix: S) -> bool {
-        let suffix = suffix.as_ref();
-        self.0
-            .as_encoded_bytes()
-            .ends_with(suffix.as_encoded_bytes())
+        self.0.ends_with_os(suffix.as_ref())
     }
 
     /// Append `suffix` to the value.
+    ///
+    /// ```
+    /// use assert2::check;
+    /// use riki::actions::StringReturn;
+    /// check!(StringReturn::from("/a/b").append(".md") == "/a/b.md");
+    /// ```
     pub fn append<S: AsRef<OsStr>>(&mut self, suffix: S) -> &Self {
-        let suffix = suffix.as_ref();
         self.0.push(suffix);
         self
     }
 
     /// Append `suffix` if this doesn’t already end with it.
+    ///
+    /// ```
+    /// use assert2::check;
+    /// use riki::actions::StringReturn;
+    /// check!(StringReturn::from("a").into_ending_with(".md") == "a.md");
+    /// check!(StringReturn::from("a.md").into_ending_with(".md") == "a.md");
+    /// check!(StringReturn::from("a.").into_ending_with(".md") == "a..md");
+    ///
+    /// check!(StringReturn::from("a").into_ending_with("/") == "a/");
+    /// ```
     #[must_use]
     pub fn into_ending_with<S: AsRef<str>>(mut self, suffix: S) -> Self {
         let suffix = suffix.as_ref();
@@ -59,30 +79,81 @@ impl StringReturn {
         self
     }
 
-    /// Strip everything from the last `'/'` on.
+    /// Get the directory of `self` if it were a path.
     ///
-    /// If there are no `'/'`s, this returns `""`.
+    /// ```
+    /// use assert2::check;
+    /// use riki::actions::StringReturn;
+    ///
+    /// check!(StringReturn::from("/").into_dirname() == "/");
+    /// check!(StringReturn::from("//").into_dirname() == "/");
+    /// check!(StringReturn::from("///").into_dirname() == "/");
+    /// check!(StringReturn::from("a").into_dirname() == "");
+    /// check!(StringReturn::from("/a").into_dirname() == "/");
+    /// check!(StringReturn::from("a/b").into_dirname() == "a");
+    /// check!(StringReturn::from("a//b").into_dirname() == "a");
+    /// check!(StringReturn::from("a/").into_dirname() == "a");
+    /// check!(StringReturn::from("a//").into_dirname() == "a");
+    /// ```
     #[must_use]
     pub fn into_dirname(mut self) -> Self {
-        self.0 = PathBuf::from(self.0)
-            .parent()
-            .map(OsString::from)
-            .unwrap_or_default();
+        let Some(last) = self.0.rfind('/') else {
+            self.0.clear();
+            return self;
+        };
+
+        // FIXME avoid allocating when OsString::truncate() stabilizes.
+        let trimmed_dir = self.0.split_at(last).0.trim_end_matches('/');
+        if trimmed_dir.is_empty() {
+            // self started with at least one slash, then had a single segment.
+            self.0 = OsString::from("/");
+            return self;
+        }
+
+        self.0 = trimmed_dir.to_owned();
         self
     }
 
-    /// Append `suffix` after a `'/'`.
-    ///
-    /// Ensures there is only on `'/'`.
+    /// Append `suffix` after exactly one `'/'`.
     ///
     /// Note that if `suffix` starts with `'/'`, this will still append it.
+    ///
+    /// ```
+    /// use assert2::check;
+    /// use riki::actions::StringReturn;
+    ///
+    /// check!(StringReturn::from("a").into_joined("b") == "a/b");
+    /// check!(StringReturn::from("a").into_joined("/b") == "a/b");
+    /// check!(StringReturn::from("a").into_joined("//b") == "a/b");
+    ///
+    /// check!(StringReturn::from("a/").into_joined("b") == "a/b");
+    /// check!(StringReturn::from("a/").into_joined("/b") == "a/b");
+    /// check!(StringReturn::from("a/").into_joined("//b") == "a/b");
+    ///
+    /// check!(StringReturn::from("a//").into_joined("b") == "a/b");
+    /// check!(StringReturn::from("a//").into_joined("/b") == "a/b");
+    /// check!(StringReturn::from("a//").into_joined("//b") == "a/b");
+    ///
+    /// check!(StringReturn::from("a").into_joined("b/") == "a/b/");
+    /// ```
     #[must_use]
     pub fn into_joined<S: AsRef<OsStr>>(mut self, suffix: S) -> Self {
         let suffix = suffix.as_ref();
 
-        if self.ends_with("/") {
-            self.append(suffix.strip_prefix("/").unwrap_or(suffix));
+        // FIXME avoid allocating when OsString::truncate() stabilizes.
+        if self.ends_with("//") {
+            self.0 = self.0.trim_end_matches('/').to_os_string();
+            self.append("/");
+            self.append(suffix.trim_start_matches('/'));
+        } else if self.ends_with("/") {
+            // Ends with single slash.
+            self.append(suffix.trim_start_matches('/'));
+        } else if suffix.starts_with("//") {
+            // Ends with no slash and suffix starts with multiple slash.
+            self.append("/");
+            self.append(suffix.trim_start_matches('/'));
         } else if suffix.starts_with("/") {
+            // Ends with no slash; suffix starts with single slash.
             self.append(suffix);
         } else {
             self.append("/");
@@ -121,6 +192,12 @@ impl Return for StringReturn {
 
 impl AsRef<OsStr> for StringReturn {
     fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<Path> for StringReturn {
+    fn as_ref(&self) -> &Path {
         self.0.as_ref()
     }
 }
@@ -179,5 +256,12 @@ impl PartialEq<&str> for StringReturn {
     #[inline]
     fn eq(&self, other: &&str) -> bool {
         *self.0 == **other
+    }
+}
+
+impl PartialEq<str> for StringReturn {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        *self.0 == *other
     }
 }
