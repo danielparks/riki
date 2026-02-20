@@ -385,8 +385,7 @@ pub struct StringToken<'src> {
 }
 
 /// A value representable by a string in the configuration file.
-#[derive(Clone, Debug)]
-pub struct Spanned<'src, T: Clone + fmt::Debug> {
+pub struct Spanned<'src, T> {
     /// The value.
     pub value: T,
 
@@ -394,7 +393,20 @@ pub struct Spanned<'src, T: Clone + fmt::Debug> {
     pub span: Span<'src>,
 }
 
-impl<'src, T: Clone + fmt::Debug> Spanned<'src, T> {
+impl<T: Clone> Clone for Spanned<'_, T> {
+    fn clone(&self) -> Self {
+        Self { value: self.value.clone(), span: self.span.clone() }
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for Spanned<'_, T> {
+    /// Hide `Spanned` in debug output.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.value.fmt(f)
+    }
+}
+
+impl<'src, T> Spanned<'src, T> {
     /// Create a new [`Spanned`].
     pub const fn new(value: T, span: Span<'src>) -> Self {
         Self { value, span }

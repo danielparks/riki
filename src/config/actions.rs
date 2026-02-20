@@ -7,9 +7,10 @@ use crate::actions::{
     self, ContentReturn, Context, Return, StringReturn, VariableMap,
 };
 use pastey::paste;
+use std::fmt;
 
 /// An action to take in response to an HTTP request
-#[derive(Clone, Debug, derive_more::From)]
+#[derive(Clone, derive_more::From)]
 pub enum Action<'src> {
     /// Function call
     Function(Box<Spanned<'src, Function<'src>>>),
@@ -43,6 +44,16 @@ impl Action<'_> {
             Self::Literal(s) => {
                 StringReturn::from(s.content(&context.variables)).into()
             }
+        }
+    }
+}
+
+impl fmt::Debug for Action<'_> {
+    /// Hide `Action` in debug output.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Function(function) => function.fmt(f),
+            Self::Literal(literal) => literal.fmt(f),
         }
     }
 }
