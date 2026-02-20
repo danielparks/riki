@@ -11,7 +11,6 @@
 //!   * [`StaticContext`] is a context that has static variable values stored in
 //!     [`StaticVariables`]. It’s useful for testing.
 
-use super::ActionReturn;
 use crate::Error;
 use actix_web::HttpRequest;
 use handlebars::Handlebars;
@@ -37,17 +36,6 @@ pub enum Variable {
 
     /// The `Host` header, or `""` if its invalid or not set.
     Host,
-}
-
-impl Variable {
-    /// Calculate value of the variable.
-    #[inline]
-    pub fn evaluate<'vars, V: VariableMap<'vars>>(
-        self,
-        context: &'vars Context<'vars, V>,
-    ) -> ActionReturn {
-        context.variables.get(self).into()
-    }
 }
 
 /// Access variables containing request information used in configuration.
