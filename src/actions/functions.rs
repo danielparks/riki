@@ -20,8 +20,8 @@ use tracing;
 ///
 /// # Errors
 ///
-/// Will return [`super::Error`] if there is a problem getting content from
-/// `ret` or rendering the template.
+/// Will return [`Error`][super::Error] if there is a problem getting content
+/// from `ret` or rendering the template.
 pub fn render<'a, V: VariableMap<'a>, R: Return>(
     context: &'a Context<'a, V>,
     ret: R,
@@ -78,8 +78,8 @@ pub fn render<'a, V: VariableMap<'a>, R: Return>(
 ///
 /// # Errors
 ///
-/// Will return [`super::Error`] if there is a problem getting content from
-/// `ret` or parsing page metadata from the content.
+/// Will return [`Error`][super::Error] if there is a problem getting content
+/// from `ret` or parsing page metadata from the content.
 pub fn markdown_to_html<'a, V: VariableMap<'a>, R: Return>(
     context: &'a Context<'a, V>,
     ret: R,
@@ -102,7 +102,7 @@ pub fn markdown_to_html<'a, V: VariableMap<'a>, R: Return>(
 ///
 /// # Errors
 ///
-/// Returns [`super::Error`] for problems getting content from `ret`.
+/// Returns [`Error`][super::Error] for problems getting content from `ret`.
 pub fn redact_source<'a, V: VariableMap<'a>, R: Return>(
     context: &'a Context<'a, V>,
     ret: R,
