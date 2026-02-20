@@ -354,8 +354,8 @@ functions! {
     /// ```text
     /// markdown(file) -> content
     /// ```
-    Markdown(markdown) => {
-        actions::markdown_to_html(context, markdown.evaluate(context)?)?
+    Markdown(file) => {
+        actions::markdown_to_html(context, file.evaluate(context)?)?
             .into()
     },
 
@@ -364,8 +364,8 @@ functions! {
     /// ```text
     /// redact_source(file) -> content
     /// ```
-    RedactSource(markdown) => {
-        actions::redact_source(context, markdown.evaluate(context)?)?
+    RedactSource(file) => {
+        actions::redact_source(context, file.evaluate(context)?)?
             .into()
     },
 
@@ -374,8 +374,8 @@ functions! {
     /// ```text
     /// render(file) -> content
     /// ```
-    Render(html) => {
-        actions::render(context, html.evaluate(context)?)?
+    Render(file) => {
+        actions::render(context, file.evaluate(context)?)?
             .into()
     },
 }
