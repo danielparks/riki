@@ -14,6 +14,7 @@
 use crate::Error;
 use actix_web::HttpRequest;
 use handlebars::Handlebars;
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -49,24 +50,23 @@ pub trait VariableMap<'vars> {
     ///
     /// let vars = StaticVariables {
     ///     request_path: "/example/",
-    ///     clean_path: "/example",
     ///     verb: "POST",
     ///     ..StaticVariables::default()
     /// };
     /// assert_eq!(vars.get("clean_path".try_into().unwrap()), "/example");
     /// assert_eq!(vars.get(Variable::Verb), "POST");
     /// ```
-    fn get(&'vars self, variable: Variable) -> &'vars str;
+    fn get(&'vars self, variable: Variable) -> Cow<'vars, str>;
 
     /// Convenience function to get the clean request path.
     #[inline]
-    fn clean_path(&'vars self) -> &'vars str {
+    fn clean_path(&'vars self) -> Cow<'vars, str> {
         self.get(Variable::CleanPath)
     }
 
     /// Convenience function to get the raw request path.
     #[inline]
-    fn request_path(&'vars self) -> &'vars str {
+    fn request_path(&'vars self) -> Cow<'vars, str> {
         self.get(Variable::RequestPath)
     }
 }
@@ -74,11 +74,6 @@ pub trait VariableMap<'vars> {
 /// Static variable values (for testing).
 #[derive(Clone, Debug)]
 pub struct StaticVariables<'vars> {
-    /// Cleaned request path
-    ///
-    /// This should always be clean. See [`clean_path()`].
-    pub clean_path: &'vars str,
-
     /// Raw request path
     pub request_path: &'vars str,
 
@@ -90,12 +85,14 @@ pub struct StaticVariables<'vars> {
 }
 
 impl<'vars> VariableMap<'vars> for StaticVariables<'vars> {
-    fn get(&'vars self, variable: Variable) -> &'vars str {
+    fn get(&'vars self, variable: Variable) -> Cow<'vars, str> {
         match variable {
-            Variable::CleanPath => self.clean_path,
-            Variable::RequestPath => self.request_path,
-            Variable::Verb => self.verb,
-            Variable::Host => self.host,
+            Variable::CleanPath => {
+                clean_path(self.request_path).unwrap().into()
+            }
+            Variable::RequestPath => self.request_path.into(),
+            Variable::Verb => self.verb.into(),
+            Variable::Host => self.host.into(),
         }
     }
 }
@@ -108,12 +105,7 @@ impl Default for StaticVariables<'static> {
     ///   * `verb`: `"GET"`
     ///   * `host`: `"localhost"`
     fn default() -> Self {
-        Self {
-            clean_path: "/",
-            request_path: "/",
-            verb: "GET",
-            host: "localhost",
-        }
+        Self { request_path: "/", verb: "GET", host: "localhost" }
     }
 }
 
@@ -139,8 +131,8 @@ impl<'vars> RequestVariables<'vars> {
 }
 
 impl<'vars> VariableMap<'vars> for RequestVariables<'vars> {
-    fn get(&'vars self, variable: Variable) -> &'vars str {
-        match variable {
+    fn get(&'vars self, variable: Variable) -> Cow<'vars, str> {
+        Cow::Borrowed(match variable {
             Variable::CleanPath => &self.path,
             Variable::RequestPath => self.request.path(),
             Variable::Verb => self.request.method().as_str(),
@@ -150,7 +142,7 @@ impl<'vars> VariableMap<'vars> for RequestVariables<'vars> {
                 .get("host")
                 .and_then(|value| value.to_str().ok())
                 .unwrap_or(""),
-        }
+        })
     }
 }
 

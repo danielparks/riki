@@ -141,7 +141,6 @@ mod tests {
     /// Test variables
     const VARS: StaticVariables = StaticVariables {
         request_path: "/abc/",
-        clean_path: "/abc",
         verb: "GET",
         host: "example.com",
     };

@@ -40,7 +40,8 @@ impl<'src> Rule<'src> {
         &self,
         context: &'vars Context<'vars, V>,
     ) -> actions::Result {
-        if self.path_matcher.is_match(context.variables.clean_path()) {
+        let clean_path = context.variables.clean_path();
+        if self.path_matcher.is_match(&*clean_path) {
             self.value.evaluate(context)
         } else {
             Err(Error::NotFound)

@@ -36,7 +36,7 @@ impl<'src> ParsedString<'src> {
     pub fn content<'a, V: VariableMap<'a>>(&self, variables: &'a V) -> String {
         self.split_on_variables()
             .map(|part| match part {
-                StringPart::Fixed(fixed) => fixed,
+                StringPart::Fixed(fixed) => Cow::Borrowed(fixed),
                 StringPart::Variable(var) => variables.get(var.variable),
             })
             .collect()
@@ -554,7 +554,6 @@ mod tests {
     /// Test variables
     const VARS: StaticVariables = StaticVariables {
         request_path: "/abc/",
-        clean_path: "/abc",
         verb: "GET",
         host: "example.com",
     };

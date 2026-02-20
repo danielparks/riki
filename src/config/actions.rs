@@ -433,13 +433,11 @@ mod tests {
     /// `request_path`.
     fn make_context<'a>(
         root: &'a std::path::Path,
-        clean_path: &'a str,
         request_path: &'a str,
     ) -> Context<'a, StaticVariables<'a>> {
         Context {
             working_path: root.to_path_buf(),
             variables: StaticVariables {
-                clean_path,
                 request_path,
                 ..StaticVariables::default()
             },
@@ -451,16 +449,12 @@ mod tests {
     /// `Err(redirect_target)`.
     fn eval_canonical(
         root: &std::path::Path,
-        clean_path: &str,
         request_path: &str,
         action: &Action<'_>,
     ) -> Result<String, String> {
-        let context = make_context(root, clean_path, request_path);
+        let context = make_context(root, request_path);
         match action.evaluate(&context) {
-            Ok(ret) => {
-                let path = ret.url_path().unwrap();
-                Ok(path.into_owned())
-            }
+            Ok(ret) => Ok(ret.url_path().unwrap().into_owned()),
             Err(actions::Error::RedirectCanonical(target)) => Err(target),
             Err(e) => panic!("unexpected error: {e:?}"),
         }
@@ -473,7 +467,7 @@ mod tests {
 
         // Request for /a.txt with clean_path /a.txt should succeed.
         let action: Action = canonical(if_file(parsed("$clean_path"))).into();
-        let result = eval_canonical(dir.path(), "/a.txt", "/a.txt", &action);
+        let result = eval_canonical(dir.path(), "/a.txt", &action);
         check!(result == Ok("/a.txt".to_owned()));
     }
 
@@ -485,7 +479,7 @@ mod tests {
         // Request for /a.txt/ (trailing slash) with clean_path /a.txt should
         // redirect to /a.txt (the canonical path without the trailing slash).
         let action: Action = canonical(if_file(parsed("$clean_path"))).into();
-        let result = eval_canonical(dir.path(), "/a.txt", "/a.txt/", &action);
+        let result = eval_canonical(dir.path(), "/a.txt/", &action);
         check!(result == Err("/a.txt".to_owned()));
     }
 
@@ -500,7 +494,7 @@ mod tests {
             as_dir(parsed("$clean_path")),
         ))
         .into();
-        let result = eval_canonical(dir.path(), "/d", "/d/", &action);
+        let result = eval_canonical(dir.path(), "/d/", &action);
         check!(result == Ok("/d/".to_owned()));
     }
 
@@ -516,7 +510,7 @@ mod tests {
             as_dir(parsed("$clean_path")),
         ))
         .into();
-        let result = eval_canonical(dir.path(), "/d", "/d", &action);
+        let result = eval_canonical(dir.path(), "/d", &action);
         check!(result == Err("/d/".to_owned()));
     }
 
@@ -529,12 +523,7 @@ mod tests {
         // Request "/d/index.html" should redirect to "/d/".
         let action: Action =
             canonical(as_dir(dirname(parsed("$clean_path")))).into();
-        let result = eval_canonical(
-            dir.path(),
-            "/d/index.html",
-            "/d/index.html",
-            &action,
-        );
+        let result = eval_canonical(dir.path(), "/d/index.html", &action);
         check!(result == Err("/d/".to_owned()));
     }
 }
