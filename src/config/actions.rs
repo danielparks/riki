@@ -275,17 +275,6 @@ functions! {
         }
     },
 
-    /// Concatenate two values together.
-    ///
-    /// ```text
-    /// concat(str, str) -> str
-    /// ```
-    Concat(string1, string2) => string1
-        .evaluate(context)?
-        .into_string_return()?
-        .into_appended(string2.evaluate(context)?.into_string_return()?)
-        .into(),
-
     /// If the first value succeeds, return the second.
     ///
     /// ```text
