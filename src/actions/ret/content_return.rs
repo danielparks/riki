@@ -98,8 +98,8 @@ impl Return for ContentReturn {
     }
 
     fn into_string_return(self) -> Result<StringReturn> {
-        if let Source::File { path, .. } = self.source {
-            Ok(StringReturn::from(path))
+        if let Source::File { url_path, .. } = self.source {
+            Ok(StringReturn::from(url_path))
         } else {
             // FIXME make this error clearer; maybe track span?
             Err(Error::InternalString(
@@ -320,12 +320,12 @@ pub enum Source {
 
     /// From a file.
     File {
-        /// Path to the file.
+        /// URL path that requests the file.
         ///
-        /// Access in templates with `{{source.File.path}}`. Note that you
+        /// Access in templates with `{{source.File.url_path}}`. Note that you
         /// probably want to wrap it with `{{#if source.File}}...{{/if}}` to
         /// prevent errors rendering pages from other sources.
-        path: PathBuf,
+        url_path: PathBuf,
 
         /// Time the file was last modified.
         ///

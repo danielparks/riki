@@ -24,7 +24,7 @@ fn render(html: &str) -> Result<String> {
     let ret = ContentReturn {
         body: html.into(),
         source: Source::File {
-            path: PathBuf::from("memory"),
+            url_path: PathBuf::from("memory"),
             modified: Some(ref_time),
             created: Some(ref_time),
         },
