@@ -10,6 +10,15 @@ use pastey::paste;
 use std::fmt;
 
 /// An action to take in response to an HTTP request
+///
+/// The two `evaluate...()` methods have different return types and differ in
+/// how they deal with literals.
+///
+///   * [`Action::evaluate()`]: evaluate literals as paths. This means that a
+///     literal that starts with a variable is _always_ a relative path.
+///   * [`Action::evaluate_as_string()`]: literals are treated as strings. This
+///     means that a literal that starts with a variable might evaluate to a
+///     string that starts with a slash.
 #[derive(Clone, derive_more::From)]
 pub enum Action<'src> {
     /// Function call
@@ -29,7 +38,10 @@ impl Action<'_> {
         }
     }
 
-    /// Evaluate the action for a request
+    /// Evaluate the action for a request as a path, file, or content.
+    ///
+    /// This will evaluate literals as paths. This means that a literal that
+    /// starts with a variable is _always_ a relative path.
     ///
     /// # Errors
     ///
@@ -41,9 +53,32 @@ impl Action<'_> {
     ) -> actions::Result {
         match self {
             Self::Function(function) => function.value.evaluate(context),
-            Self::Literal(s) => {
-                StringReturn::from(s.content(&context.variables)).into()
+            // FIXME this could be done without the clone.
+            Self::Literal(string) => StringReturn::from(
+                ParsedPath::from(string.clone()).content(&context.variables),
+            )
+            .into(),
+        }
+    }
+
+    /// Evaluate the action for a request as a string.
+    ///
+    /// This will evaluate literals are as strings. A literal that starts with a
+    // variable might evaluate to a string that starts with a slash.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`actions::Error`] if there is a problem evaluating a function
+    /// or opening a path.
+    pub fn evaluate_as_string<'vars, V: VariableMap<'vars>>(
+        &self,
+        context: &'vars Context<'vars, V>,
+    ) -> actions::Result<String> {
+        match self {
+            Self::Function(function) => {
+                function.value.evaluate(context)?.into_string()
             }
+            Self::Literal(string) => Ok(string.content(&context.variables)),
         }
     }
 }
@@ -259,19 +294,31 @@ functions! {
     ///
     /// Otherwise, return its argument.
     ///
+    /// FIXME what if the argument should not be returned to the user? Example:
+    ///
+    /// ```text
+    /// Rule::new(
+    ///     "**/index.html",
+    ///     canonical(as_dir(dirname(parsed("$clean_path")))),
+    /// ),
+    /// ```
+    ///
+    /// Suppose we requested /a/b/c/index.html and /a/b/c is a file.
+    ///
     /// ```text
     /// canonical(path) -> path
     /// ```
     Canonical(path) => {
-        let path = path.evaluate(context)?.into_string_return()?;
+        let input = path.evaluate(context)?;
+        let url_path = input.url_path()?;
         tracing::trace!(
-            "check canonical ({path:?}) == request ({:?})",
+            "check canonical ({url_path:?}) == request ({:?})",
             context.variables.request_path(),
         );
-        if path == context.variables.request_path() {
-            path.into()
+        if *url_path == *context.variables.request_path() {
+            input.into()
         } else {
-            Err(actions::Error::RedirectCanonical(path.into()))
+            Err(actions::Error::RedirectCanonical(url_path.into_owned()))
         }
     },
 
@@ -304,9 +351,7 @@ functions! {
     /// ```
     Error(code) => {
         // FIXME use error code; show error page.
-        Err(actions::Error::InternalString(
-            code.evaluate(context)?.into_string()?,
-        ))
+        Err(actions::Error::InternalString(code.evaluate_as_string(context)?))
     },
 
     /// If the passed path is a file, succeed.
@@ -335,7 +380,7 @@ functions! {
     /// literal(string) -> content
     /// ```
     Literal(string) => ContentReturn::plain_text(
-        string.evaluate(context)?.into_string()?
+        string.evaluate_as_string(context)?,
     ).into(),
 
     /// Convert the input from Markdown to HTML.

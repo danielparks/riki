@@ -166,6 +166,10 @@ impl StringReturn {
 }
 
 impl Return for StringReturn {
+    fn path(&self) -> Result<&str> {
+        Ok(&self.0)
+    }
+
     fn ensure_file<'a, V: VariableMap<'a>>(
         self,
         context: &'a Context<'a, V>,
