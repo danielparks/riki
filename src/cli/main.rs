@@ -61,7 +61,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
                     &context,
                     actions::markdown_to_html(
                         &context,
-                        RealFileReturn::new(page_path.clone(), &context)?
+                        RealFileReturn::from_file_system(page_path)?
                     )?
                 )?
                 .body
@@ -69,13 +69,12 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             );
         }
         Command::Info { page_path } => {
-            let context = StaticContext::default();
             print!(
                 "{}",
                 serde_yaml::to_string(
                     &actions::markdown_to_html(
-                        &context,
-                        RealFileReturn::new(page_path.clone(), &context)?,
+                        &StaticContext::default(),
+                        RealFileReturn::from_file_system(page_path)?,
                     )?
                     .metadata
                 )?

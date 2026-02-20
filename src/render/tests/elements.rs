@@ -9,7 +9,6 @@ use crate::render::{self, render_source_to_string};
 use assert2::check;
 use jiff::Timestamp;
 use regex::Regex;
-use std::path::PathBuf;
 use std::sync::LazyLock;
 
 fn render(html: &str) -> Result<String> {
@@ -24,7 +23,7 @@ fn render(html: &str) -> Result<String> {
     let ret = ContentReturn {
         body: html.into(),
         source: Source::File {
-            url_path: PathBuf::from("memory"),
+            url_path: "memory".to_owned(),
             modified: Some(ref_time),
             created: Some(ref_time),
         },

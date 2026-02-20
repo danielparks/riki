@@ -12,7 +12,6 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::mem;
-use std::path::PathBuf;
 use std::pin::Pin;
 use std::task;
 use tendril::StrTendril;
@@ -325,7 +324,10 @@ pub enum Source {
         /// Access in templates with `{{source.File.url_path}}`. Note that you
         /// probably want to wrap it with `{{#if source.File}}...{{/if}}` to
         /// prevent errors rendering pages from other sources.
-        url_path: PathBuf,
+        ///
+        /// This is a [`String`] instead of a [`PathBuf`][std::path::PathBuf]
+        /// because we only handle UTF-8 URLs.
+        url_path: String,
 
         /// Time the file was last modified.
         ///

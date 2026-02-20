@@ -9,13 +9,16 @@ use actix_web::HttpResponse;
 use jiff::Timestamp;
 use std::fs;
 use std::io::{self, Read, Seek};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// A file on the file system.
 #[derive(Debug)]
 pub struct RealFileReturn {
     /// URL path to request the file.
-    pub url_path: PathBuf,
+    ///
+    /// This is a [`String`] instead of a [`PathBuf`][std::path::PathBuf]
+    /// because we only handle UTF-8 URLs.
+    pub url_path: String,
 
     /// The open file object.
     pub file: fs::File,
@@ -28,20 +31,21 @@ pub struct RealFileReturn {
 }
 
 impl RealFileReturn {
-    /// Create a `RealFileReturn` from a URL path.
+    /// Create a `RealFileReturn` from a URL path and a file system path.
     ///
     /// `url_path` is the path that would be requested from the web server, e.g.
-    /// `"/index.html"`, to get the file.
+    /// `"/index.html"`, to get the file, and `fs_path` is the path on the file
+    /// system, e.g. `"/srv/website/index.html"`.
     ///
     /// # Errors
     ///
-    /// Returns [`io::Error`] if the path doesn’t exist, isn’t a file, or
+    /// Returns [`io::Error`] if `fs_path` doesn’t exist, isn’t a file, or
     /// otherwise couldn’t be read.
-    pub fn new<'a, V: VariableMap<'a>>(
-        url_path: PathBuf,
-        context: &'a Context<'a, V>,
+    pub fn new<P: AsRef<Path>>(
+        url_path: String,
+        fs_path: P,
     ) -> io::Result<Self> {
-        let file = open_confirmed_file(context.real_path(&url_path))?;
+        let file = open_confirmed_file(fs_path)?;
         let metadata = file.metadata().ok();
 
         Ok(Self {
@@ -56,6 +60,34 @@ impl RealFileReturn {
                 .and_then(|m| m.created().ok())
                 .and_then(|t| Timestamp::try_from(t).ok()),
         })
+    }
+
+    /// Create a `RealFileReturn` from a URL path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`io::Error`] if the equivalent file system path doesn’t exist,
+    /// isn’t a file, or otherwise couldn’t be read.
+    pub fn from_url_path<'a, V: VariableMap<'a>>(
+        path: String,
+        context: &'a Context<'a, V>,
+    ) -> io::Result<Self> {
+        let fs_path = context.real_path(&path);
+        Self::new(path, fs_path)
+    }
+
+    /// Create a `RealFileReturn` from a file system path.
+    ///
+    /// This will use [`Path::display()`] to save the path to file, so this
+    /// should only be called from CLI or test code that doesn’t need to make
+    /// canonical comparisons against non-UTF-8 paths.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`io::Error`] if the path doesn’t exist, isn’t a file, or
+    /// otherwise couldn’t be read.
+    pub fn from_file_system<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        Self::new(path.as_ref().display().to_string(), path)
     }
 
     /// Convert to a [`NamedFile`].

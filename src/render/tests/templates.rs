@@ -6,7 +6,7 @@ use crate::render::{base_templates, templates_from_directory};
 use assert2::{check, let_assert};
 use jiff::Timestamp;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use temp_dir::TempDir;
 
 /// Create a file in the temporary directory.
@@ -145,7 +145,7 @@ fn strftime_helper() {
     let ret = ContentReturn {
         body: "".into(),
         source: Source::File {
-            url_path: PathBuf::from("memory"),
+            url_path: "memory".to_owned(),
             modified: Some(ref_time),
             created: Some(ref_time),
         },

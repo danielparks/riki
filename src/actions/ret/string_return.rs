@@ -5,27 +5,16 @@ use super::{
     Result, Return, VariableMap,
 };
 use actix_web::HttpResponse;
-use os_str_bytes::OsStrBytesExt;
-use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 /// A short string.
 ///
-/// Internally this holds an [`OsString`], so it can contain non-UTF-8
-/// characters on UNIX, at least. It is designed to be losslessly convertible to
-/// and from [`PathBuf`].
+/// We don’t handle non-UTF-8 URLs and only support Unicode paths, so this uses
+/// a [`String`] internally.
 #[derive(Debug)]
-pub struct StringReturn(OsString);
+pub struct StringReturn(String);
 
 impl StringReturn {
-    /// Get the value as a `&str`.
-    ///
-    /// Returns `None` if this contains invalid UTF-8.
-    #[must_use]
-    pub fn to_str(&self) -> Option<&str> {
-        self.0.to_str()
-    }
-
     /// Check if this ends with the string `suffix`.
     ///
     /// ```
@@ -36,8 +25,8 @@ impl StringReturn {
     /// ```
     #[must_use]
     #[inline]
-    pub fn ends_with<S: AsRef<OsStr>>(&mut self, suffix: S) -> bool {
-        self.0.ends_with_os(suffix.as_ref())
+    pub fn ends_with<S: AsRef<str>>(&mut self, suffix: S) -> bool {
+        self.0.ends_with(suffix.as_ref())
     }
 
     /// Append `suffix` to the value.
@@ -47,8 +36,9 @@ impl StringReturn {
     /// use riki::actions::StringReturn;
     /// check!(StringReturn::from("/a/b").append(".md") == "/a/b.md");
     /// ```
-    pub fn append<S: AsRef<OsStr>>(&mut self, suffix: S) -> &Self {
-        self.0.push(suffix);
+    #[inline]
+    pub fn append<S: AsRef<str>>(&mut self, suffix: S) -> &Self {
+        self.0.push_str(suffix.as_ref());
         self
     }
 
@@ -74,7 +64,8 @@ impl StringReturn {
 
     /// Append `suffix` to the value.
     #[must_use]
-    pub fn into_appended<S: AsRef<OsStr>>(mut self, suffix: S) -> Self {
+    #[inline]
+    pub fn into_appended<S: AsRef<str>>(mut self, suffix: S) -> Self {
         self.append(suffix);
         self
     }
@@ -102,15 +93,14 @@ impl StringReturn {
             return self;
         };
 
-        // FIXME avoid allocating when OsString::truncate() stabilizes.
         let trimmed_dir = self.0.split_at(last).0.trim_end_matches('/');
         if trimmed_dir.is_empty() {
             // self started with at least one slash, then had a single segment.
-            self.0 = OsString::from("/");
+            self.0.truncate(1);
             return self;
         }
 
-        self.0 = trimmed_dir.to_owned();
+        self.0.truncate(trimmed_dir.len());
         self
     }
 
@@ -137,12 +127,11 @@ impl StringReturn {
     /// check!(StringReturn::from("a").into_joined("b/") == "a/b/");
     /// ```
     #[must_use]
-    pub fn into_joined<S: AsRef<OsStr>>(mut self, suffix: S) -> Self {
+    pub fn into_joined<S: AsRef<str>>(mut self, suffix: S) -> Self {
         let suffix = suffix.as_ref();
 
-        // FIXME avoid allocating when OsString::truncate() stabilizes.
         if self.ends_with("//") {
-            self.0 = self.0.trim_end_matches('/').to_os_string();
+            self.0.truncate(self.0.trim_end_matches('/').len());
             self.append("/");
             self.append(suffix.trim_start_matches('/'));
         } else if self.ends_with("/") {
@@ -152,7 +141,7 @@ impl StringReturn {
             // Ends with no slash and suffix starts with multiple slash.
             self.append("/");
             self.append(suffix.trim_start_matches('/'));
-        } else if suffix.starts_with("/") {
+        } else if suffix.starts_with('/') {
             // Ends with no slash; suffix starts with single slash.
             self.append(suffix);
         } else {
@@ -172,7 +161,7 @@ impl StringReturn {
         self,
         context: &'a Context<'a, V>,
     ) -> Result<RealFileReturn> {
-        Ok(RealFileReturn::new(self.into(), context)?)
+        Ok(RealFileReturn::from_url_path(self.into(), context)?)
     }
 }
 
@@ -204,9 +193,9 @@ impl Return for StringReturn {
     }
 }
 
-impl AsRef<OsStr> for StringReturn {
-    fn as_ref(&self) -> &OsStr {
-        self.0.as_ref()
+impl AsRef<str> for StringReturn {
+    fn as_ref(&self) -> &str {
+        &self.0
     }
 }
 
@@ -224,31 +213,11 @@ impl From<&str> for StringReturn {
 
 impl From<String> for StringReturn {
     fn from(string: String) -> Self {
-        Self(string.into())
-    }
-}
-
-impl From<OsString> for StringReturn {
-    fn from(string: OsString) -> Self {
         Self(string)
     }
 }
 
-impl From<PathBuf> for StringReturn {
-    fn from(path: PathBuf) -> Self {
-        Self(path.into_os_string())
-    }
-}
-
-impl TryFrom<StringReturn> for String {
-    type Error = crate::NotUtf8;
-
-    fn try_from(ret: StringReturn) -> Result<Self, Self::Error> {
-        ret.0.into_string().map_err(crate::NotUtf8::OsString)
-    }
-}
-
-impl From<StringReturn> for OsString {
+impl From<StringReturn> for String {
     fn from(ret: StringReturn) -> Self {
         ret.0
     }

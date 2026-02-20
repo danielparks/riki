@@ -200,7 +200,7 @@ actions! {
         if path == context.variables.request_path() {
             path.into()
         } else {
-            Err(actions::Error::RedirectCanonical(path.try_into()?))
+            Err(actions::Error::RedirectCanonical(path.into()))
         }
     },
 
@@ -245,7 +245,7 @@ actions! {
     Error(code) => {
         // FIXME use error code; show error page.
         Err(actions::Error::InternalString(
-            code.evaluate(context)?.into_string_return()?.try_into()?,
+            code.evaluate(context)?.into_string_return()?.into(),
         ))
     },
 
