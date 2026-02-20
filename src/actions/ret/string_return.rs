@@ -161,6 +161,19 @@ impl StringReturn {
         }
         self
     }
+
+    /// Convert the return to a [`RealFileReturn`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`Error`][super::Error] if the path represented by `self` was
+    /// not a file that could be read.
+    fn into_real_file_return<'a, V: VariableMap<'a>>(
+        self,
+        context: &'a Context<'a, V>,
+    ) -> Result<RealFileReturn> {
+        Ok(RealFileReturn::new(self.into(), context)?)
+    }
 }
 
 impl Return for StringReturn {
@@ -168,7 +181,7 @@ impl Return for StringReturn {
         self,
         context: &'a Context<'a, V>,
     ) -> Result<ActionReturn> {
-        Ok(RealFileReturn::new(self.into(), context)?.into())
+        self.into_real_file_return(context)?.into()
     }
 
     fn into_string_return(self) -> Result<StringReturn> {
@@ -179,14 +192,15 @@ impl Return for StringReturn {
         self,
         context: &'a Context<'a, V>,
     ) -> Result<ContentReturn> {
-        RealFileReturn::new(self.into(), context)?.into_content_return(context)
+        self.into_real_file_return(context)?
+            .into_content_return(context)
     }
 
     fn into_response<'a>(
         self,
         context: &'a RequestContext<'a>,
     ) -> Result<HttpResponse> {
-        RealFileReturn::new(self.into(), context)?.into_response(context)
+        self.into_real_file_return(context)?.into_response(context)
     }
 }
 
