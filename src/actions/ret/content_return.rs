@@ -101,6 +101,17 @@ impl ContentReturn {
 }
 
 impl Return for ContentReturn {
+    fn path(&self) -> Result<&str> {
+        if let Source::File { url_path, .. } = &self.source {
+            Ok(url_path)
+        } else {
+            // FIXME make this error clearer; maybe track span?
+            Err(Error::InternalString(
+                "Could not get path from response".to_owned(),
+            ))
+        }
+    }
+
     fn ensure_file<'a, V: VariableMap<'a>>(
         self,
         _context: &'a Context<'a, V>,

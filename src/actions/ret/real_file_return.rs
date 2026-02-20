@@ -124,6 +124,10 @@ impl RealFileReturn {
 }
 
 impl Return for RealFileReturn {
+    fn path(&self) -> Result<&str> {
+        Ok(&self.url_path)
+    }
+
     fn ensure_file<'a, V: VariableMap<'a>>(
         self,
         _context: &'a Context<'a, V>,

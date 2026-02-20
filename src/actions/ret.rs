@@ -37,6 +37,7 @@ pub use string_return::*;
 use super::{Context, Error, RequestContext, Result, VariableMap};
 use actix_web::HttpResponse;
 use ambassador::{Delegate, delegatable_trait};
+use std::borrow::Cow;
 use std::fmt;
 
 /// Return from any action
@@ -86,6 +87,16 @@ impl From<ActionReturn> for Result {
 ///     path is used, if available.
 #[delegatable_trait]
 pub trait Return {
+    /// Get the path represented by this return.
+    ///
+    /// This might be absolute, or it might be relative to the working directory
+    /// (in which case it will not start with a slash).
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`Error`] if the return was a file without a path.
+    fn path(&self) -> Result<&str>;
+
     /// Ensure that the return represents a real file.
     ///
     /// # Errors
@@ -124,6 +135,23 @@ pub trait Return {
         self,
         context: &'a RequestContext<'a>,
     ) -> Result<HttpResponse>;
+
+    /// Get the URL path.
+    ///
+    /// This is the path that returns this when requested from the server.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`Error`] if the return was a file without a path.
+    fn url_path(&self) -> Result<Cow<'_, str>> {
+        self.path().map(|path| {
+            if path.starts_with('/') {
+                path.into()
+            } else {
+                format!("/{path}").into()
+            }
+        })
+    }
 
     /// Try to evaluate as a string.
     ///
