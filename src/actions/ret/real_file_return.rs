@@ -14,11 +14,11 @@ use std::path::Path;
 /// A file on the file system.
 #[derive(Debug)]
 pub struct RealFileReturn {
-    /// URL path to request the file.
+    /// Path that identified the file.
     ///
     /// This is a [`String`] instead of a [`PathBuf`][std::path::PathBuf]
     /// because we only handle UTF-8 URLs.
-    pub url_path: String,
+    pub inner_path: String,
 
     /// The open file object.
     pub file: fs::File,
@@ -49,7 +49,7 @@ impl RealFileReturn {
         let metadata = file.metadata().ok();
 
         Ok(Self {
-            url_path,
+            inner_path: url_path,
             file,
             modified: metadata
                 .as_ref()
@@ -62,13 +62,17 @@ impl RealFileReturn {
         })
     }
 
-    /// Create a `RealFileReturn` from a URL path.
+    /// Create a `RealFileReturn` from an inner path.
+    ///
+    /// A return’s inner path ([`Return::inner_path()`]) might be relative to
+    /// the working directory and likely the web server root, or it might be
+    /// absolute. It depends on how the path is defined in the configuration.
     ///
     /// # Errors
     ///
     /// Returns [`io::Error`] if the equivalent file system path doesn’t exist,
     /// isn’t a file, or otherwise couldn’t be read.
-    pub fn from_url_path<'a, V: VariableMap<'a>>(
+    pub fn from_inner_path<'a, V: VariableMap<'a>>(
         path: String,
         context: &'a Context<'a, V>,
     ) -> io::Result<Self> {
@@ -102,7 +106,7 @@ impl RealFileReturn {
     ///   * [`Error::InternalString`] if the constructed content-type cannot be
     ///     parsed (should never happen).
     fn into_named_file(self) -> Result<NamedFile> {
-        let file = NamedFile::from_file(self.file, &self.url_path)?;
+        let file = NamedFile::from_file(self.file, &self.inner_path)?;
         let content_type = file.content_type();
         if content_type.type_() != mime::TEXT
             || content_type.params().any(|(name, _)| name == mime::CHARSET)
@@ -124,8 +128,8 @@ impl RealFileReturn {
 }
 
 impl Return for RealFileReturn {
-    fn path(&self) -> Result<&str> {
-        Ok(&self.url_path)
+    fn inner_path(&self) -> Result<&str> {
+        Ok(&self.inner_path)
     }
 
     fn ensure_file<'a, V: VariableMap<'a>>(
@@ -136,14 +140,14 @@ impl Return for RealFileReturn {
     }
 
     fn into_string_return(self) -> Result<StringReturn> {
-        Ok(StringReturn::from(self.url_path))
+        Ok(StringReturn::from(self.inner_path))
     }
 
     fn into_content_return<'a, V: VariableMap<'a>>(
         self,
         context: &'a Context<'a, V>,
     ) -> Result<ContentReturn> {
-        let Self { mut file, url_path, created, modified } = self;
+        let Self { mut file, inner_path: url_path, created, modified } = self;
 
         let mut body =
             String::with_capacity(file.metadata()?.len().try_into().map_err(
@@ -159,7 +163,7 @@ impl Return for RealFileReturn {
         Ok(ContentReturn {
             body: body.into(),
             content_type: MediaType::APPLICATION_OCTET_STREAM,
-            source: Source::File { url_path, modified, created },
+            source: Source::File { inner_path: url_path, modified, created },
             ..Default::default()
         })
     }

@@ -101,8 +101,8 @@ impl ContentReturn {
 }
 
 impl Return for ContentReturn {
-    fn path(&self) -> Result<&str> {
-        if let Source::File { url_path, .. } = &self.source {
+    fn inner_path(&self) -> Result<&str> {
+        if let Source::File { inner_path: url_path, .. } = &self.source {
             Ok(url_path)
         } else {
             // FIXME make this error clearer; maybe track span?
@@ -120,7 +120,7 @@ impl Return for ContentReturn {
     }
 
     fn into_string_return(self) -> Result<StringReturn> {
-        if let Source::File { url_path, .. } = self.source {
+        if let Source::File { inner_path: url_path, .. } = self.source {
             Ok(StringReturn::from(url_path))
         } else {
             // FIXME make this error clearer; maybe track span?
@@ -342,15 +342,15 @@ pub enum Source {
 
     /// From a file.
     File {
-        /// URL path that requests the file.
+        /// Return inner path that identified the file.
         ///
-        /// Access in templates with `{{source.File.url_path}}`. Note that you
-        /// probably want to wrap it with `{{#if source.File}}...{{/if}}` to
-        /// prevent errors rendering pages from other sources.
+        /// Access in templates with `{{source.File.inner_path}}`. Note that
+        /// you probably want to wrap it with `{{#if source.File}}...{{/if}}`
+        /// to prevent errors rendering pages from other sources.
         ///
         /// This is a [`String`] instead of a [`PathBuf`][std::path::PathBuf]
         /// because we only handle UTF-8 URLs.
-        url_path: String,
+        inner_path: String,
 
         /// Time the file was last modified.
         ///
