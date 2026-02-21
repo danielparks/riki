@@ -161,12 +161,14 @@ impl StringReturn {
         self,
         context: &'a Context<'a, V>,
     ) -> Result<RealFileReturn> {
-        Ok(RealFileReturn::from_url_path(self.into(), context)?)
+        let ret = RealFileReturn::from_inner_path(self.into(), context)?;
+        tracing::trace!("into_real_file_return() -> {ret:?}");
+        Ok(ret)
     }
 }
 
 impl Return for StringReturn {
-    fn path(&self) -> Result<&str> {
+    fn inner_path(&self) -> Result<&str> {
         Ok(&self.0)
     }
 

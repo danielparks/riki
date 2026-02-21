@@ -76,7 +76,7 @@ impl From<ActionReturn> for Result {
     }
 }
 
-/// A return from an action
+/// # A return from an action
 ///
 /// Returns can be evaluated two ways:
 ///
@@ -84,10 +84,22 @@ impl From<ActionReturn> for Result {
 ///     be a path and is opened.
 ///   * As a string or path. If the return is a string literal, then it is used
 ///     literally, e.g. as in `error("404")`. If the return is content, then its
-///     path is used, if available.
+///     inner path is used, if available.
+///
+/// ## Paths
+///
+/// There are a few different path types relevant to returns:
+///
+///   * **Inner path:** this is the path built up in the configuration file to
+///     identify the resource to return. It might be relative to the working
+///     directory, or absolute.
+///   * **URL path:** this is the path requested from the web server that will
+///     retrieve the resource.
+///   * **Real, or file system path:** the absolute path to the resource on the
+///     file system.
 #[delegatable_trait]
 pub trait Return {
-    /// Get the path represented by this return.
+    /// Get this return’s inner path built up by configuration.
     ///
     /// This might be absolute, or it might be relative to the working directory
     /// (in which case it will not start with a slash).
@@ -95,7 +107,7 @@ pub trait Return {
     /// # Errors
     ///
     /// Returns an [`Error`] if the return was a file without a path.
-    fn path(&self) -> Result<&str>;
+    fn inner_path(&self) -> Result<&str>;
 
     /// Ensure that the return represents a real file.
     ///
@@ -138,13 +150,14 @@ pub trait Return {
 
     /// Get the URL path.
     ///
-    /// This is the path that returns this when requested from the server.
+    /// This is the path that returns this resource when requested from the
+    /// server. It must always start with a slash.
     ///
     /// # Errors
     ///
     /// Returns an [`Error`] if the return was a file without a path.
     fn url_path(&self) -> Result<Cow<'_, str>> {
-        self.path().map(|path| {
+        self.inner_path().map(|path| {
             if path.starts_with('/') {
                 path.into()
             } else {

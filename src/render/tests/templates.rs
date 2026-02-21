@@ -145,7 +145,7 @@ fn strftime_helper() {
     let ret = ContentReturn {
         body: "".into(),
         source: Source::File {
-            url_path: "memory".to_owned(),
+            inner_path: "memory".to_owned(),
             modified: Some(ref_time),
             created: Some(ref_time),
         },

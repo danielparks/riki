@@ -160,16 +160,15 @@ pub struct Context<'a, V: VariableMap<'a>> {
 }
 
 impl<'a, V: VariableMap<'a>> Context<'a, V> {
-    /// Get the file system path for a request path (`path`).
+    /// Get the file system path for a return’s inner path.
     ///
-    /// Request paths always start with `'/'`, but in this case they are
-    /// evaluated as relative paths.
+    /// See [`riki::actions::Return::inner_path()`
+    /// ][crate::actions::Return::inner_path()] for more information.
     ///
-    /// This assumes that `path` does not have any `/../` components.
+    /// This assumes that `path` does not have any `/../` components. It may be
+    /// absolute, in which case it will be returned itself.
     pub fn real_path<P: AsRef<Path>>(&self, path: P) -> PathBuf {
-        let path: &Path = path.as_ref();
-        self.working_path
-            .join(path.strip_prefix("/").unwrap_or(path))
+        self.working_path.join(path)
     }
 }
 
