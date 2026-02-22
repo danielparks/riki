@@ -43,7 +43,19 @@ fn eval_action(action: &Action<'_>, root: &Path, request_path: &str) -> String {
 }
 
 #[test_log::test]
-fn canonical_if_file() {
+fn canonical_clean_path() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    let action = Action::from(canonical(parsed("$clean_path")));
+    check!(eval_action(&action, root, "/a.txt") == "OK /a.txt");
+    check!(eval_action(&action, root, "/a.txt/") == "-> /a.txt");
+    check!(eval_action(&action, root, "/a") == "OK /a");
+    check!(eval_action(&action, root, "/") == "OK /");
+}
+
+#[test_log::test]
+fn canonical_clean_path_if_file() {
     let dir = TempDir::new().unwrap();
     let root = dir.path();
     fs::write(root.join("a.txt"), "AAA").unwrap();
@@ -51,10 +63,12 @@ fn canonical_if_file() {
     let action = Action::from(canonical(if_file(parsed("$clean_path"))));
     check!(eval_action(&action, root, "/a.txt") == "OK /a.txt");
     check!(eval_action(&action, root, "/a.txt/") == "-> /a.txt");
+    check!(eval_action(&action, root, "/a") == "error NotFound");
+    check!(eval_action(&action, root, "/") == "error NotFound");
 }
 
 #[test_log::test]
-fn canonical_index_dir() {
+fn canonical_clean_path_index_dir() {
     let dir = TempDir::new().unwrap();
     let root = dir.path();
     fs::create_dir(root.join("d")).unwrap();
@@ -67,14 +81,14 @@ fn canonical_index_dir() {
     check!(eval_action(&action, root, "/d/") == "OK /d/");
     check!(eval_action(&action, root, "/d") == "-> /d/");
     check!(eval_action(&action, root, "/d/index.html") == "error NotFound");
+    check!(eval_action(&action, root, "/a") == "error NotFound");
+    check!(eval_action(&action, root, "/") == "error NotFound");
 }
 
 #[test_log::test]
-fn canonical_index_to_dir() {
+fn canonical_clean_path_index_to_dir() {
     let dir = TempDir::new().unwrap();
     let root = dir.path();
-    fs::create_dir(root.join("d")).unwrap();
-    fs::write(root.join("d/index.html"), "DDD").unwrap();
 
     let action =
         Action::from(canonical(as_dir(dirname(parsed("$clean_path")))));
@@ -84,4 +98,44 @@ fn canonical_index_to_dir() {
 
     // FIXME? / isn’t a file, so this won’t actually succeed.
     check!(eval_action(&action, root, "/") == "OK /");
+}
+
+#[test_log::test]
+fn canonical_absolute_clean_path() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    // FIXME better variable interpolation in ParsedPath
+    let action = Action::from(canonical(parsed("/$clean_path")));
+    check!(eval_action(&action, root, "/a.txt") == "-> //a.txt");
+    check!(eval_action(&action, root, "/a.txt/") == "-> //a.txt");
+    check!(eval_action(&action, root, "/a") == "-> //a");
+    check!(eval_action(&action, root, "/") == "-> //");
+}
+
+#[test_log::test]
+fn canonical_absolute_clean_path_if_file() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path().join("context_root");
+
+    // Put files in separate root.
+    let prefix_path = dir.path().join("real_root");
+    fs::create_dir(&prefix_path).unwrap();
+    fs::write(prefix_path.join("a.txt"), "AAA").unwrap();
+    let prefix = prefix_path
+        .into_os_string()
+        .into_string()
+        .expect("TempDir produced a non-UTF-8 path");
+
+    // Absolute paths are pretty much useless with `canonical()`.
+    let config_str = format!("{prefix}$clean_path");
+    let action = Action::from(canonical(if_file(parsed(&config_str))));
+    check!(
+        eval_action(&action, &root, "/a.txt") == format!("-> {prefix}/a.txt")
+    );
+    check!(
+        eval_action(&action, &root, "/a.txt/") == format!("-> {prefix}/a.txt")
+    );
+    check!(eval_action(&action, &root, "/a") == "error NotFound");
+    check!(eval_action(&action, &root, "/") == "error NotFound");
 }
