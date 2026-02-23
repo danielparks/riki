@@ -10,6 +10,9 @@ use riki::config::parser2::parse;
 use std::time::Duration;
 
 const COMPLEX_CONF: &str = include_str!("complex.conf");
+const SIMPLE_CONF: &str = r#"root="/srv/website"
+/ "${clean_path}"
+"#;
 
 fn benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("mime_parse");
@@ -23,6 +26,14 @@ fn benchmarks(c: &mut Criterion) {
 
     group.throughput(Throughput::Bytes(COMPLEX_CONF.len().try_into().unwrap()));
     group.bench_with_input("complex_conf", COMPLEX_CONF, |b, input| {
+        b.iter(|| parse(input).unwrap());
+    });
+    group.throughput(Throughput::Bytes(SIMPLE_CONF.len().try_into().unwrap()));
+    group.bench_with_input("simple_conf", SIMPLE_CONF, |b, input| {
+        b.iter(|| parse(input).unwrap());
+    });
+    group.throughput(Throughput::Bytes(0));
+    group.bench_with_input("empty", "", |b, input| {
         b.iter(|| parse(input).unwrap());
     });
 
