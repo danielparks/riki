@@ -12,6 +12,10 @@ use std::slice;
 use tinyvec::{ArrayVec, TinyVec};
 
 /// A string that’s been parsed to expand escapes and for easy interpolation
+///
+/// This can be used as a regular string, or a path. There are a few special
+/// methods for paths ([`path_content()`][Self::path_content()],
+/// [`push_path()`][Self::push_path()], and [`join_path()`][Self::join_path()]).
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ParsedString<'src> {
     /// The unescaped contents of the string.
@@ -78,6 +82,53 @@ impl<'src> ParsedString<'src> {
             }
         }));
         self.unescaped.to_mut().push_str(&other.unescaped);
+    }
+
+    /// Return the content while treating this as a path.
+    ///
+    /// If this starts with a variable then leading `'/'`s will be removed.
+    #[inline]
+    pub fn path_content<'vars, V: VariableMap<'vars>>(
+        &self,
+        variables: &'vars V,
+    ) -> String {
+        let path = self.content(variables);
+        if self.starts_with_variable() {
+            // FIXME handle Windows absolute/root paths
+            let new_path = path.trim_start_matches('/');
+            if new_path == path {
+                path
+            } else {
+                new_path.to_owned()
+            }
+        } else {
+            path
+        }
+    }
+
+    /// Join another path onto this one.
+    ///
+    /// If `other` starts with `'/'`, then it will replace `self`. If `other`
+    /// starts with a variable, then we consider it a relative path.
+    pub fn push_path(&mut self, other: &Self) {
+        if other.starts_with('/') == Some(true) {
+            other.clone_into(self);
+        } else if self.ends_with('/') == Some(true) {
+            self.push_string(other);
+        } else {
+            // A double or triple / doesn’t matter.
+            self.push('/');
+            self.push_string(other);
+        }
+    }
+
+    /// Join two paths together.
+    #[must_use]
+    pub fn join_path(&self, other: &Self) -> Self {
+        // If other is absolute, and we moved other, this could just return it.
+        let mut new = self.clone();
+        new.push_path(other);
+        new
     }
 
     /// Does this start with a variable?
@@ -817,5 +868,77 @@ mod tests {
     #[test_log::test]
     fn escape_quote_newline() {
         check!(escape_quoted("/a b\nc\td", b'\'') == r"/a b\nc\td");
+    }
+
+    // Path handling tests
+
+    #[test_log::test]
+    fn push_path_no_vars() {
+        let mut a = parse_str("abc").unwrap();
+        a.push_path(&parse_str("def").unwrap());
+        check!(a.path_content(&VARS) == PathBuf::from("abc/def"));
+        check!(a.variables().is_empty());
+    }
+
+    #[test_log::test]
+    fn push_path_both_vars() {
+        let mut a = parse_str("/foo/${clean_path}").unwrap();
+        a.push_path(&parse_str("${clean_path}/foo").unwrap());
+        check!(a.canonical() == r#""/foo/${clean_path}/${clean_path}/foo""#);
+        check!(
+            a.variables().iter().map(|i| i.variable).collect::<Vec<_>>()
+                == [Variable::CleanPath, Variable::CleanPath]
+        );
+    }
+
+    #[test_log::test]
+    fn push_path_b_var() {
+        let mut a = parse_str("/foo/").unwrap();
+        a.push_path(&parse_str("${clean_path}/foo").unwrap());
+        check!(a.canonical() == r#""/foo/${clean_path}/foo""#);
+        check!(
+            a.variables().iter().map(|i| i.variable).collect::<Vec<_>>()
+                == [Variable::CleanPath]
+        );
+    }
+
+    #[test_log::test]
+    fn push_path_absolute() {
+        let mut a = parse_str("/foo/").unwrap();
+        a.push_path(&parse_str("/bar").unwrap());
+        check!(a.canonical() == r#""/bar""#);
+        check!(a.variables().is_empty());
+    }
+
+    #[test_log::test]
+    fn path_content() {
+        let path = parse_str("/foo/").unwrap();
+        check!(path.path_content(&VARS) == PathBuf::from("/foo/"));
+    }
+
+    #[test_log::test]
+    fn path_content_1_var() {
+        let string = parse_str("/foo/${clean_path}/").unwrap();
+        check!(string.path_content(&VARS) == PathBuf::from("/foo//abc/"));
+    }
+
+    #[test_log::test]
+    fn path_content_2_vars() {
+        let string = parse_str("/foo/$verb${clean_path}").unwrap();
+        check!(string.path_content(&VARS) == PathBuf::from("/foo/GET/abc"));
+    }
+
+    #[test_log::test]
+    fn path_content_3_vars() {
+        let string = parse_str("${host}/$verb/$clean_path").unwrap();
+        check!(
+            string.path_content(&VARS) == PathBuf::from("example.com/GET//abc")
+        );
+    }
+
+    #[test_log::test]
+    fn path_content_start_path_var() {
+        let string = parse_str("$clean_path/foo").unwrap();
+        check!(string.path_content(&VARS) == PathBuf::from("abc/foo"));
     }
 }

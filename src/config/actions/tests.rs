@@ -105,7 +105,7 @@ fn canonical_absolute_clean_path() {
     let dir = TempDir::new().unwrap();
     let root = dir.path();
 
-    // FIXME better variable interpolation in ParsedPath
+    // FIXME better variable interpolation in ParsedString
     let action = Action::from(canonical(parsed("/$clean_path")));
     check!(eval_action(&action, root, "/a.txt") == "-> //a.txt");
     check!(eval_action(&action, root, "/a.txt/") == "-> //a.txt");

@@ -1,10 +1,8 @@
 //! The types that represent the actual configuration
 
 mod glob;
-mod path;
 mod string;
 pub use glob::*;
-pub use path::*;
 pub use string::*;
 
 use super::errors::{ParseError, ParseResult, SpannedErrors};
@@ -119,10 +117,10 @@ impl ConfigRule<'_> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfigSettings<'src> {
     /// The root directory to search relative to.
-    pub root: ParsedPath<'src>,
+    pub root: ParsedString<'src>,
 
     /// Template directory.
-    pub templates: ParsedPath<'src>,
+    pub templates: ParsedString<'src>,
 }
 
 impl<'src> ConfigSettings<'src> {
@@ -139,11 +137,11 @@ impl<'src> ConfigSettings<'src> {
     ) -> Result<(), SpannedErrors<'src>> {
         match (name.0, value) {
             ("root", Value::Literal(value)) => {
-                self.root.push(&value.into());
+                self.root.push_path(&value);
                 Ok(())
             }
             ("templates", Value::Literal(value)) => {
-                self.templates = self.root.join(&value.into());
+                self.templates = self.root.join_path(&value);
                 Ok(())
             }
             ("root" | "templates", Value::Function(function)) => {
@@ -172,9 +170,9 @@ impl Default for ConfigSettings<'_> {
     ///   * `root`: `.`
     ///   * `templates`: `./templates`
     fn default() -> Self {
-        let root: ParsedPath<'_> =
+        let root: ParsedString<'_> =
             env::current_dir().unwrap_or_default().into();
-        let templates = root.join(&"templates".into());
+        let templates = root.join_path(&"templates".into());
         Self { root, templates }
     }
 }
@@ -256,14 +254,19 @@ mod tests {
         settings
             .apply(&Identifier("root"), literal("new/root"))
             .unwrap();
-        check!(settings.root.content(&VARS) == pathbuf("./new/root"));
-        check!(settings.templates.content(&VARS) == pathbuf("./templates"));
+        check!(settings.root.path_content(&VARS) == pathbuf("./new/root"));
+        check!(
+            settings.templates.path_content(&VARS) == pathbuf("./templates")
+        );
 
         settings
             .apply(&Identifier("templates"), literal("tpls"))
             .unwrap();
-        check!(settings.root.content(&VARS) == pathbuf("./new/root"));
-        check!(settings.templates.content(&VARS) == pathbuf("./new/root/tpls"));
+        check!(settings.root.path_content(&VARS) == pathbuf("./new/root"));
+        check!(
+            settings.templates.path_content(&VARS)
+                == pathbuf("./new/root/tpls")
+        );
     }
 
     #[test_log::test]
@@ -272,11 +275,11 @@ mod tests {
         settings
             .apply(&Identifier("root"), literal("/root/a/b"))
             .unwrap();
-        check!(settings.root.content(&VARS) == pathbuf("/root/a/b"));
+        check!(settings.root.path_content(&VARS) == pathbuf("/root/a/b"));
         settings
             .apply(&Identifier("root"), literal("../c"))
             .unwrap();
-        check!(settings.root.content(&VARS) == pathbuf("/root/a/b/../c"));
+        check!(settings.root.path_content(&VARS) == pathbuf("/root/a/b/../c"));
     }
 
     #[test_log::test]
@@ -285,19 +288,23 @@ mod tests {
         settings
             .apply(&Identifier("root"), literal("/a/b"))
             .unwrap();
-        check!(settings.root.content(&VARS) == pathbuf("/a/b"));
-        check!(settings.templates.content(&VARS) == pathbuf("./templates"));
+        check!(settings.root.path_content(&VARS) == pathbuf("/a/b"));
+        check!(
+            settings.templates.path_content(&VARS) == pathbuf("./templates")
+        );
 
         settings
             .apply(&Identifier("templates"), literal("templates"))
             .unwrap();
-        check!(settings.root.content(&VARS) == pathbuf("/a/b"));
-        check!(settings.templates.content(&VARS) == pathbuf("/a/b/templates"));
+        check!(settings.root.path_content(&VARS) == pathbuf("/a/b"));
+        check!(
+            settings.templates.path_content(&VARS) == pathbuf("/a/b/templates")
+        );
 
         settings
             .apply(&Identifier("templates"), literal("/templates"))
             .unwrap();
-        check!(settings.root.content(&VARS) == pathbuf("/a/b"));
-        check!(settings.templates.content(&VARS) == pathbuf("/templates"));
+        check!(settings.root.path_content(&VARS) == pathbuf("/a/b"));
+        check!(settings.templates.path_content(&VARS) == pathbuf("/templates"));
     }
 }
