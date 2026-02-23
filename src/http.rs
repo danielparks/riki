@@ -154,14 +154,14 @@ impl<'tpls> Router<'tpls> {
         for rule in rules::default_rules() {
             match rule.evaluate(&context) {
                 Ok(ret) => {
-                    tracing::trace!("success {rule:?}: {ret:?}");
+                    tracing::trace!("success {}: {ret:?}", rule.canonical());
                     return ret.into_response(&context);
                 }
                 Err(actions::Error::NotFound) => {
-                    tracing::trace!("skip {rule:?}");
+                    tracing::trace!("skip {}", rule.canonical());
                 }
                 Err(error) => {
-                    tracing::trace!("error {rule:?}: {error:?}");
+                    tracing::trace!("error {}: {error:?}", rule.canonical());
                     return Err(error);
                 }
             }

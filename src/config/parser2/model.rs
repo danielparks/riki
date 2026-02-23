@@ -200,6 +200,16 @@ impl<'src> MatcherStack<'src> {
         self.as_glob_str()
     }
 
+    /// Does `path` match?
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError::BuildingGlob`] if [`GlobBuilder::build()`] fails.
+    pub fn is_match(&self, path: &str) -> ParseResult<'src, bool> {
+        // FIXME cache compiled glob? Or use ConfigBuilder?
+        Ok(self.as_glob()?.compile_matcher().is_match(path))
+    }
+
     /// Return an iterator over the matchers
     pub fn iter(&self) -> slice::Iter<'_, Matcher<'src>> {
         self.0.iter()
