@@ -2,7 +2,7 @@
 
 use crate::actions::{Variable, VariableMap};
 use crate::config::errors::{ParseError, ParseResult, SpannedErrors};
-use crate::config::parser2::{StringToken, StringType, Value};
+use crate::config::parser2::{StringToken, StringType};
 use crate::misc::bitfilter::BitFilter;
 use logos::Logos;
 use std::borrow::Cow;
@@ -371,20 +371,6 @@ impl<'src> TryFrom<StringToken<'src>> for ParsedString<'src> {
                     string_type,
                 )
             }
-        }
-    }
-}
-
-impl<'src> TryFrom<Value<'src>> for ParsedString<'src> {
-    type Error = SpannedErrors<'src>;
-
-    fn try_from(value: Value<'src>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Function(function) => {
-                Err(ParseError::ExpectedLiteralNotFunction
-                    .spanned_s(function.span.clone()))
-            }
-            Value::Literal(string) => Ok(string),
         }
     }
 }

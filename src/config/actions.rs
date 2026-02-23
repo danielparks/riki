@@ -4,7 +4,7 @@ mod tests;
 
 use super::errors::{ParseError, ParseResult};
 use super::model::ParsedString;
-use super::parser2::{Parameters, Span, Spanned, Value};
+use super::parser2::{Parameters, Span, Spanned};
 use crate::actions::{
     self, ContentReturn, Context, Return, StringReturn, VariableMap,
 };
@@ -90,24 +90,6 @@ impl fmt::Debug for Action<'_> {
         match self {
             Self::Function(function) => function.fmt(f),
             Self::Literal(literal) => literal.fmt(f),
-        }
-    }
-}
-
-impl<'src> From<Value<'src>> for Action<'src> {
-    fn from(value: Value<'src>) -> Self {
-        match value {
-            Value::Function(function) => Self::Function(function),
-            Value::Literal(string) => Self::Literal(string),
-        }
-    }
-}
-
-impl<'src> From<Action<'src>> for Value<'src> {
-    fn from(action: Action<'src>) -> Self {
-        match action {
-            Action::Function(function) => Self::Function(function),
-            Action::Literal(string) => Self::Literal(string),
         }
     }
 }

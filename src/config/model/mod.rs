@@ -5,8 +5,9 @@ mod string;
 pub use glob::*;
 pub use string::*;
 
+use super::actions::Action;
 use super::errors::{ParseError, ParseResult, SpannedErrors};
-use super::parser2::{Identifier, MatcherStack, Value};
+use super::parser2::{Identifier, MatcherStack};
 use globset::{GlobSet, GlobSetBuilder};
 use std::env;
 
@@ -100,7 +101,7 @@ pub struct ConfigRule<'src> {
     pub settings: ConfigSettings<'src>,
 
     /// Action to take in response to a request.
-    pub action: Value<'src>,
+    pub action: Action<'src>,
 }
 
 impl ConfigRule<'_> {
@@ -133,18 +134,18 @@ impl<'src> ConfigSettings<'src> {
     pub fn apply(
         &mut self,
         name: &Identifier<'src>,
-        value: Value<'src>,
+        value: Action<'src>,
     ) -> Result<(), SpannedErrors<'src>> {
         match (name.0, value) {
-            ("root", Value::Literal(value)) => {
+            ("root", Action::Literal(value)) => {
                 self.root.push_path(&value);
                 Ok(())
             }
-            ("templates", Value::Literal(value)) => {
+            ("templates", Action::Literal(value)) => {
                 self.templates = self.root.join_path(&value);
                 Ok(())
             }
-            ("root" | "templates", Value::Function(function)) => {
+            ("root" | "templates", Action::Function(function)) => {
                 Err(ParseError::SettingDoesNotAcceptFunction(name.0)
                     .spanned_s((name.0, function.span.clone())))
             }
@@ -244,8 +245,8 @@ mod tests {
     }
 
     /// Helper to create a `ParsedString` literal.
-    fn literal(s: &str) -> Value<'_> {
-        Value::Literal(ParsedString::from_literal(s))
+    fn literal(s: &str) -> Action<'_> {
+        Action::Literal(ParsedString::from_literal(s))
     }
 
     #[test_log::test]

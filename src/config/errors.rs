@@ -21,8 +21,8 @@ pub enum ParseError<'src> {
     #[error("expected a glob-compatible bare string, got {0:?}")]
     ExpectedGlobToken(TokenType),
 
-    /// Found [a function][super::parser2::Value::Function] instead of [a
-    /// literal][super::parser2::Value::Literal].
+    /// Found [a function][crate::config::actions::Action::Function] instead of
+    /// [a literal][crate::config::actions::Action::Literal].
     #[error("expected a string literal, got a function call")]
     ExpectedLiteralNotFunction,
 
