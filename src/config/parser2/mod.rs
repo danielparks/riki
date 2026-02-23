@@ -3,7 +3,7 @@
 mod model;
 pub use model::*;
 
-use super::actions::{self, Action};
+use super::actions::{Action, Function};
 use super::errors::ParseResult;
 use super::lexer::{Diagnostic, TokenType};
 use super::model::{ConfigRule, Configuration, ConfigurationBuilder};
@@ -242,13 +242,8 @@ fn consume_function_contents<'src>(
             // so we can never get one that corresponds to a different function.
             CNode::Rule(Rule::Function, RuleSide::Pop) => {
                 return if errors.is_empty() {
-                    Ok(Action::Function(Box::new(
-                        actions::Function::from_parse(
-                            identifier.0,
-                            parameters,
-                            rparen,
-                        )?,
-                    )))
+                    Ok(Function::from_parse(identifier.0, parameters, rparen)?
+                        .into())
                 } else {
                     Err(errors)
                 };
