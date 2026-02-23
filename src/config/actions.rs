@@ -98,8 +98,16 @@ impl<'src> From<Function<'src>> for Action<'src> {
     /// Convenience for using [`Function`] in code.
     ///
     /// This use an empty, `'static` string for the span.
+    #[inline]
     fn from(func: Function<'src>) -> Self {
-        Self::Function(Box::new(Spanned::new(func, Span::Slice(""))))
+        Spanned::new(func, Span::Slice("")).into()
+    }
+}
+
+impl<'src> From<Spanned<'src, Function<'src>>> for Action<'src> {
+    #[inline]
+    fn from(func: Spanned<'src, Function<'src>>) -> Self {
+        Self::Function(Box::new(func))
     }
 }
 
