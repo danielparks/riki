@@ -3,7 +3,7 @@
 use super::super::actions;
 use super::super::errors::{ParseError, ParseResult, SpannedErrors};
 use super::super::lexer;
-use super::super::model::{ConfigSettings, ParsedGlob, ParsedString};
+use super::super::model::{ConfigSettings, ParsedGlob};
 use super::super::parser2::TokenType;
 use globset::{Glob, GlobBuilder};
 use std::fmt;
@@ -254,39 +254,7 @@ impl<'src> TryFrom<StringToken<'src>> for Matcher<'src> {
     }
 }
 
-/// A value for a configuration setting or to return as a response.
-///
-/// This is a temporary object that will be used to generate an
-/// [`actions::Action`].
-#[derive(Clone, Debug)]
-pub enum Value<'src> {
-    /// Call a function.
-    Function(Box<Spanned<'src, actions::Function<'src>>>),
-
-    /// A string of some kind.
-    Literal(ParsedString<'src>),
-}
-
-impl<'src> Value<'src> {
-    /// Return the canonical representation of this value
-    #[must_use]
-    pub fn canonical(&self) -> String {
-        match self {
-            Self::Function(function) => function.value.canonical(),
-            Self::Literal(string) => string.canonical(),
-        }
-    }
-
-    /// Get the span for the value.
-    pub fn span(&self) -> Option<Span<'src>> {
-        match self {
-            Self::Function(function) => Some(function.span.clone()),
-            Self::Literal(string) => string.span().map(Into::into),
-        }
-    }
-}
-
-impl<'src> TryFrom<StringToken<'src>> for Value<'src> {
+impl<'src> TryFrom<StringToken<'src>> for actions::Action<'src> {
     type Error = SpannedErrors<'src>;
 
     fn try_from(token: StringToken<'src>) -> Result<Self, Self::Error> {
@@ -295,7 +263,7 @@ impl<'src> TryFrom<StringToken<'src>> for Value<'src> {
 }
 
 /// Parameters to a function call.
-pub type Parameters<'src> = Vec<Value<'src>>;
+pub type Parameters<'src> = Vec<actions::Action<'src>>;
 
 /// A reference to an identifier in the config file
 #[derive(Clone, Debug)]

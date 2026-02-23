@@ -3,7 +3,7 @@
 mod model;
 pub use model::*;
 
-use super::actions;
+use super::actions::{self, Action};
 use super::errors::ParseResult;
 use super::lexer::{Diagnostic, TokenType};
 use super::model::{ConfigRule, Configuration, ConfigurationBuilder};
@@ -56,7 +56,7 @@ pub fn process_cst<'src>(
                         rules.add(ConfigRule {
                             matcher: stack.matcher_stack(),
                             settings: stack.settings_cloned(),
-                            action: Value::Literal(value),
+                            action: Action::Literal(value),
                         })?;
                     }
                     Err(found) => errors.extend(found),
@@ -179,7 +179,7 @@ pub fn process_cst<'src>(
 /// Consume contents of a set rule.
 fn consume_set_contents<'src>(
     iter: &mut CNodeIter<'_, 'src>,
-) -> ParseResult<'src, (Identifier<'src>, Value<'src>)> {
+) -> ParseResult<'src, (Identifier<'src>, Action<'src>)> {
     let variable = consume_identifier(iter, " for set variable");
     expect_token(iter, TokenType::Equal, " in set rule");
 
@@ -204,7 +204,7 @@ fn consume_set_contents<'src>(
 /// Consume contents of a function rule.
 fn consume_function_contents<'src>(
     iter: &mut CNodeIter<'_, 'src>,
-) -> ParseResult<'src, Value<'src>> {
+) -> ParseResult<'src, Action<'src>> {
     // Get identifier (name of function)
     let identifier = consume_identifier(iter, " for function identifier");
     let mut parameters = Parameters::new();
@@ -242,7 +242,7 @@ fn consume_function_contents<'src>(
             // so we can never get one that corresponds to a different function.
             CNode::Rule(Rule::Function, RuleSide::Pop) => {
                 return if errors.is_empty() {
-                    Ok(Value::Function(Box::new(
+                    Ok(Action::Function(Box::new(
                         actions::Function::from_parse(
                             identifier.0,
                             parameters,
@@ -262,10 +262,10 @@ fn consume_function_contents<'src>(
 /// Consume contents of a value rule.
 fn consume_value_contents<'src>(
     iter: &mut CNodeIter<'_, 'src>,
-) -> ParseResult<'src, Value<'src>> {
+) -> ParseResult<'src, Action<'src>> {
     let token = consume_string_token(iter, " in value");
     expect_rule(iter, Rule::Value, RuleSide::Pop, " after value token");
-    Ok(Value::Literal(token.try_into()?))
+    Ok(Action::Literal(token.try_into()?))
 }
 
 /// Check that the next node is a matcher rule, then get the token it contains.
