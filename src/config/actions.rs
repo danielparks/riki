@@ -3,7 +3,7 @@
 mod tests;
 
 use super::errors::{ParseError, ParseResult};
-use super::model::{ParsedPath, ParsedString};
+use super::model::ParsedString;
 use super::parser2::{Parameters, Span, Spanned, Value};
 use crate::actions::{
     self, ContentReturn, Context, Return, StringReturn, VariableMap,
@@ -55,11 +55,10 @@ impl Action<'_> {
     ) -> actions::Result {
         match self {
             Self::Function(function) => function.value.evaluate(context),
-            // FIXME this could be done without the clone.
-            Self::Literal(string) => StringReturn::from(
-                ParsedPath::from(string.clone()).content(&context.variables),
-            )
-            .into(),
+            Self::Literal(string) => {
+                StringReturn::from(string.path_content(&context.variables))
+                    .into()
+            }
         }
     }
 
@@ -119,12 +118,6 @@ impl<'src> From<Function<'src>> for Action<'src> {
     /// This use an empty, `'static` string for the span.
     fn from(func: Function<'src>) -> Self {
         Self::Function(Box::new(Spanned::new(func, Span::Slice(""))))
-    }
-}
-
-impl<'src> From<ParsedPath<'src>> for Action<'src> {
-    fn from(path: ParsedPath<'src>) -> Self {
-        Self::Literal(path.into())
     }
 }
 
