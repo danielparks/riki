@@ -8,6 +8,7 @@ pub use string::*;
 use super::actions::Action;
 use super::errors::{ParseError, ParseResult, SpannedErrors};
 use super::parser2::{Identifier, MatcherStack};
+use crate::actions::{self, Context, VariableMap};
 use globset::{GlobSet, GlobSetBuilder};
 use std::env;
 
@@ -43,6 +44,8 @@ impl<'src> Configuration<'src> {
 #[derive(Clone, Debug)]
 pub struct ConfigurationBuilder<'src> {
     /// Builder for the final `GlobSet`.
+    ///
+    /// FIXME use this or get rid of it
     globset_builder: GlobSetBuilder,
 
     /// All the rules in the configuration.
@@ -104,11 +107,47 @@ pub struct ConfigRule<'src> {
     pub action: Action<'src>,
 }
 
-impl ConfigRule<'_> {
+impl<'src> ConfigRule<'src> {
+    /// Convenience method to create a new rule.
+    #[must_use]
+    pub fn new(
+        glob: &'src str,
+        settings: ConfigSettings<'src>,
+        action: Action<'src>,
+    ) -> Self {
+        Self {
+            matcher: MatcherStack::from_glob_strs([glob]),
+            settings,
+            action,
+        }
+    }
+
     /// Return the canonical representation of this rule
     #[must_use]
     pub fn canonical(&self) -> String {
         format!("{} {}", self.matcher.canonical(), self.action.canonical())
+    }
+
+    /// Evaluate a rule.
+    ///
+    /// # Errors
+    ///
+    /// Most variants of [`actions::Error`] should be returned as an HTTP
+    /// response, except [`actions::Error::NotFound`], which means that this
+    /// rule should be skipped and the next rule evaluated.
+    pub fn evaluate<'vars, V: VariableMap<'vars>>(
+        &self,
+        context: &'vars Context<'vars, V>,
+    ) -> actions::Result {
+        let clean_path = context.variables.clean_path();
+        if self.matcher.is_match(&clean_path).map_err(|error| {
+            // FIXME error is a ParseError; change? better map_err?
+            actions::Error::InternalString(format!("compiling glob: {error:?}"))
+        })? {
+            self.action.evaluate(context)
+        } else {
+            Err(actions::Error::NotFound)
+        }
     }
 }
 
