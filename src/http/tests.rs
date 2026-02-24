@@ -26,14 +26,17 @@ async fn init_app() -> (
 ) {
     let temp_dir = TempDir::new().unwrap();
     let config = Configuration::default_in(temp_dir.path());
-    let tpls_dir = &config.templates_path;
-    fs::create_dir(tpls_dir).unwrap();
-    fs::write(tpls_dir.join("default.hbs"), "{{{ body }}}").unwrap();
-    fs::write(tpls_dir.join("error403.hbs"), "403").unwrap();
-    fs::write(tpls_dir.join("error404.hbs"), "404").unwrap();
-    fs::write(tpls_dir.join("error500.hbs"), "{{{ error_debug }}}").unwrap();
+    fs::create_dir(config.templates()).unwrap();
+    fs::write(config.templates().join("default.hbs"), "{{{ body }}}").unwrap();
+    fs::write(config.templates().join("error403.hbs"), "403").unwrap();
+    fs::write(config.templates().join("error404.hbs"), "404").unwrap();
     fs::write(
-        tpls_dir.join("redirect301.hbs"),
+        config.templates().join("error500.hbs"),
+        "{{{ error_debug }}}",
+    )
+    .unwrap();
+    fs::write(
+        config.templates().join("redirect301.hbs"),
         "redirect {{ canonical_url }}",
     )
     .unwrap();
@@ -175,9 +178,9 @@ where
 async fn test_directory_page_get() {
     let (_dir, config, app) = init_app().await;
 
-    fs::write(config.root_path.join("index.md"), "index").unwrap();
-    fs::create_dir(config.root_path.join("dir")).unwrap();
-    fs::write(config.root_path.join("dir/index.md"), "DIR").unwrap();
+    fs::write(config.root().join("index.md"), "index").unwrap();
+    fs::create_dir(config.root().join("dir")).unwrap();
+    fs::write(config.root().join("dir/index.md"), "DIR").unwrap();
 
     assert!(
         Response::page_html(
@@ -206,7 +209,7 @@ async fn test_directory_page_get() {
 async fn test_file_page_get() {
     let (_dir, config, app) = init_app().await;
 
-    fs::write(config.root_path.join("page.md"), "PAGE").unwrap();
+    fs::write(config.root().join("page.md"), "PAGE").unwrap();
 
     assert!(
         Response::page_html(
@@ -224,7 +227,7 @@ async fn test_file_page_get() {
 async fn test_static_file_get() {
     let (_dir, config, app) = init_app().await;
 
-    fs::write(config.root_path.join("a.txt"), "AAA").unwrap();
+    fs::write(config.root().join("a.txt"), "AAA").unwrap();
 
     assert!(
         Response::static_other("AAA", mime::TEXT_PLAIN_UTF_8)
@@ -240,8 +243,8 @@ async fn test_static_file_get() {
 async fn test_static_directory_get() {
     let (_dir, config, app) = init_app().await;
 
-    fs::create_dir(config.root_path.join("b")).unwrap();
-    fs::write(config.root_path.join("b/index.html"), "BBB").unwrap();
+    fs::create_dir(config.root().join("b")).unwrap();
+    fs::write(config.root().join("b/index.html"), "BBB").unwrap();
 
     assert!(Response::static_html("BBB") == get(&app, "/b/").await);
     assert!(Response::redirect("/b/") == get(&app, "/b").await);
@@ -254,9 +257,9 @@ async fn test_static_directory_get() {
 async fn test_static_index_with_page() {
     let (_dir, config, app) = init_app().await;
 
-    fs::create_dir(config.root_path.join("static")).unwrap();
-    fs::write(config.root_path.join("static/index.html"), "STATIC").unwrap();
-    fs::write(config.root_path.join("static/page.md"), "PAGE").unwrap();
+    fs::create_dir(config.root().join("static")).unwrap();
+    fs::write(config.root().join("static/index.html"), "STATIC").unwrap();
+    fs::write(config.root().join("static/page.md"), "PAGE").unwrap();
 
     assert!(Response::redirect("/static/") == get(&app, "/static").await);
     assert!(Response::static_html("STATIC") == get(&app, "/static/").await);
@@ -278,8 +281,8 @@ async fn test_static_index_with_page() {
 async fn test_static_hides_page() {
     let (_dir, config, app) = init_app().await;
 
-    fs::write(config.root_path.join("index.html"), "STATIC").unwrap();
-    fs::write(config.root_path.join("index.md"), "PAGE").unwrap();
+    fs::write(config.root().join("index.html"), "STATIC").unwrap();
+    fs::write(config.root().join("index.md"), "PAGE").unwrap();
 
     assert!(Response::static_html("STATIC") == get(&app, "/").await);
     assert!(Response::redirect("/") == get(&app, "/index.html").await);
@@ -311,7 +314,7 @@ async fn test_forbidden_page_get() {
 
     let (_dir, config, app) = init_app().await;
 
-    let path = config.root_path.join("forbidden.md");
+    let path = config.root().join("forbidden.md");
     fs::write(&path, "forbidden").unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).unwrap();
 
@@ -346,7 +349,7 @@ async fn test_forbidden_static_get() {
 
     let (_dir, config, app) = init_app().await;
 
-    let path = config.root_path.join("forbidden.txt");
+    let path = config.root().join("forbidden.txt");
     fs::write(&path, "forbidden").unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).unwrap();
 

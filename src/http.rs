@@ -27,7 +27,7 @@ use crate::rules;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing;
 use tracing_actix_web::TracingLogger;
 
@@ -192,5 +192,17 @@ impl Configuration {
     pub fn default_in<P: Into<PathBuf>>(root: P) -> Self {
         let root: PathBuf = root.into();
         Self { templates_path: root.join("templates"), root_path: root }
+    }
+
+    /// Get `self.root_path` as a `Path`.
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        self.root_path.as_ref()
+    }
+
+    /// Get `self.templates_path` as a `Path`.
+    #[must_use]
+    pub fn templates(&self) -> &Path {
+        self.templates_path.as_ref()
     }
 }
