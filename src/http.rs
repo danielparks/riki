@@ -21,7 +21,7 @@
 mod tests;
 pub mod util;
 
-use crate::actions::{self, RequestContext, Return, VariableMap};
+use crate::actions::{self, RequestVariables, VariableMap};
 use crate::render::{TemplatesManager, base_templates};
 use crate::rules;
 use actix_web::{
@@ -77,17 +77,8 @@ pub async fn path_handler(
         .route(&req)
         .await
         .unwrap_or_else(|error: actions::Error| {
-            tracing::error!("{}: {error:?}", req.path());
-            match router.context(&req) {
-                Ok(context) => error.render(&req, &context.tpls),
-                Err(error2) => {
-                    tracing::error!(
-                        "{} failed to get context: {error2:?}",
-                        req.path()
-                    );
-                    error.render(&req, &base_templates())
-                }
-            }
+            tracing::error!("{} could not render error: {error:?}", req.path());
+            error.render(&req, &base_templates())
         })
 }
 
@@ -113,28 +104,7 @@ impl Router<'_> {
     }
 }
 
-impl<'tpls> Router<'tpls> {
-    /// Get the [`actions::Context`] for a request.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the configured templates directory doesn’t exist or
-    /// a template fails to compile.
-    pub fn context<'req>(
-        &self,
-        req: &'req HttpRequest,
-    ) -> crate::Result<RequestContext<'req>>
-    where
-        'tpls: 'req,
-    {
-        RequestContext::new(
-            self.config.root().to_path_buf(),
-            self.manager
-                .templates_for_directory(&self.config.templates_path)?,
-            req,
-        )
-    }
-
+impl Router<'_> {
     /// Route a request
     ///
     /// Uses hard coded rules from [`rules::default_rules()`].
@@ -148,35 +118,50 @@ impl<'tpls> Router<'tpls> {
         &self,
         request: &HttpRequest,
     ) -> actions::Result<HttpResponse> {
-        let context = self.context(request)?;
         tracing::trace!("route request: {:?}", request);
         let config = rules::default_rules(
             &self.config.root_path,
             &self.config.templates_path,
         )
         .map_err(|error| {
-            // FIXME better error
+            // FIXME better error -- print and die
             actions::Error::InternalString(format!(
                 "Failed to build globs: {error:?}"
             ))
         })?;
 
-        for rule in config.matches(&context.variables.clean_path()) {
-            match rule.evaluate(&context) {
-                Ok(ret) => {
-                    tracing::trace!("success {}: {ret:?}", rule.canonical());
-                    return ret.into_response(&context);
+        // This errors if clean_path() failed, which should never happen.
+        // FIXME? move clean_path() out for explicit error handling?
+        let variables = RequestVariables::new(request)?;
+
+        match (|| {
+            for rule in config.matches(&variables.clean_path()) {
+                // FIXME &variables instead of clone()
+                match rule.evaluate(&self.manager, request, variables.clone()) {
+                    Err(actions::Error::NotFound) => (), // skip
+                    other => return other,
                 }
-                Err(actions::Error::NotFound) => {
-                    tracing::trace!("skip {}", rule.canonical());
-                }
-                Err(error) => {
-                    tracing::trace!("error {}: {error:?}", rule.canonical());
-                    return Err(error);
+            }
+            Err(actions::Error::NotFound)
+        })() {
+            Ok(response) => Ok(response),
+            Err(error) => {
+                tracing::trace!("error returned from rules: {error:?}");
+                if let Some(rule) =
+                    config.last_matching(&variables.clean_path())
+                {
+                    let templates_path =
+                        rule.settings.templates.path_content(&variables);
+                    // Error: loading templates (no dir, bad template?)
+                    let tpls =
+                        self.manager.templates_for_directory(templates_path)?;
+                    Ok(error.render(request, &tpls))
+                } else {
+                    // Use default templates to render error.
+                    Err(error)
                 }
             }
         }
-        Err(actions::Error::NotFound)
     }
 }
 
