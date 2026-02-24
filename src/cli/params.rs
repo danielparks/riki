@@ -48,7 +48,7 @@ pub enum Command {
     Serve {
         /// Directory tree containing templates and pages
         #[arg(name = "path", default_value = ".")]
-        base_dir: PathBuf,
+        base_dir: String,
 
         /// Address to bind to
         #[arg(long, default_value = "localhost:8000")]

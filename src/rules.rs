@@ -31,15 +31,19 @@ fn parsed(s: &str) -> ParsedString<'_> {
 /// # Errors
 ///
 /// Returns an error if there is a problem creating a glob.
-pub fn default_rules() -> ParseResult<'static, Configuration<'static>> {
+pub fn default_rules<'a>(
+    root_path: &'a str,
+    templates_path: &'a str,
+) -> ParseResult<'a, Configuration<'a>> {
     #![expect(clippy::allow_attributes, reason = "rust-clippy issue #13358")]
 
     #[allow(clippy::wildcard_imports, reason = "convenience")]
     use crate::config::actions::functions::*;
 
-    // FIXME wrong
-    let settings =
-        ConfigSettings { root: parsed("/"), templates: parsed("/templates") };
+    let settings = ConfigSettings {
+        root: parsed(root_path),
+        templates: parsed(templates_path),
+    };
 
     let mut config = ConfigurationBuilder::new();
     // *.md redact_source(canonical($clean_path))

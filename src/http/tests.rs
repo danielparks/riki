@@ -25,7 +25,9 @@ async fn init_app() -> (
     >,
 ) {
     let temp_dir = TempDir::new().unwrap();
-    let config = Configuration::default_in(temp_dir.path());
+    let config = Configuration::default_in(
+        temp_dir.path().to_str().expect("TempDir path not UTF-8"),
+    );
     fs::create_dir(config.templates()).unwrap();
     fs::write(config.templates().join("default.hbs"), "{{{ body }}}").unwrap();
     fs::write(config.templates().join("error403.hbs"), "403").unwrap();

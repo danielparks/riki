@@ -27,7 +27,7 @@ use crate::rules;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tracing_actix_web::TracingLogger;
 
 // TODO better error handling
@@ -128,7 +128,7 @@ impl<'tpls> Router<'tpls> {
         'tpls: 'req,
     {
         RequestContext::new(
-            self.config.root_path.clone(),
+            self.config.root().to_path_buf(),
             self.manager
                 .templates_for_directory(&self.config.templates_path)?,
             req,
@@ -150,7 +150,11 @@ impl<'tpls> Router<'tpls> {
     ) -> actions::Result<HttpResponse> {
         let context = self.context(request)?;
         tracing::trace!("route request: {:?}", request);
-        let config = rules::default_rules().map_err(|error| {
+        let config = rules::default_rules(
+            &self.config.root_path,
+            &self.config.templates_path,
+        )
+        .map_err(|error| {
             // FIXME better error
             actions::Error::InternalString(format!(
                 "Failed to build globs: {error:?}"
@@ -180,9 +184,9 @@ impl<'tpls> Router<'tpls> {
 #[derive(Debug, Clone)]
 pub struct Configuration {
     /// The path to the directory containing pages and static assets.
-    pub root_path: PathBuf,
+    pub root_path: String,
     /// The path to the directory containing templates.
-    pub templates_path: PathBuf,
+    pub templates_path: String,
 }
 
 impl Default for Configuration {
@@ -195,9 +199,10 @@ impl Default for Configuration {
 
 impl Configuration {
     /// Create a configuration using the default subdirectories under `root`.
-    pub fn default_in<P: Into<PathBuf>>(root: P) -> Self {
-        let root: PathBuf = root.into();
-        Self { templates_path: root.join("templates"), root_path: root }
+    pub fn default_in<S: Into<String>>(root: S) -> Self {
+        let root_path = root.into();
+        let templates_path = format!("{root_path}/templates");
+        Self { root_path, templates_path }
     }
 
     /// Get `self.root_path` as a `Path`.
