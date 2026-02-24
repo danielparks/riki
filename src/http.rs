@@ -21,14 +21,13 @@
 mod tests;
 pub mod util;
 
-use crate::actions::{self, RequestContext, Return};
+use crate::actions::{self, RequestContext, Return, VariableMap};
 use crate::render::{TemplatesManager, base_templates};
 use crate::rules;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
 use std::path::{Path, PathBuf};
-use tracing;
 use tracing_actix_web::TracingLogger;
 
 // TODO better error handling
@@ -151,7 +150,14 @@ impl<'tpls> Router<'tpls> {
     ) -> actions::Result<HttpResponse> {
         let context = self.context(request)?;
         tracing::trace!("route request: {:?}", request);
-        for rule in rules::default_rules() {
+        let config = rules::default_rules().map_err(|error| {
+            // FIXME better error
+            actions::Error::InternalString(format!(
+                "Failed to build globs: {error:?}"
+            ))
+        })?;
+
+        for rule in config.matches(&context.variables.clean_path()) {
             match rule.evaluate(&context) {
                 Ok(ret) => {
                     tracing::trace!("success {}: {ret:?}", rule.canonical());
