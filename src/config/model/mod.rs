@@ -8,7 +8,8 @@ pub use string::*;
 use super::actions::Action;
 use super::errors::{ParseError, ParseResult, SpannedErrors};
 use super::parser2::{Identifier, MatcherStack};
-use crate::actions::{self, Context, VariableMap};
+use crate::actions::{self, RequestVariables, Return};
+use crate::render::TemplatesManager;
 use globset::{GlobSet, GlobSetBuilder};
 use std::env;
 
@@ -32,11 +33,19 @@ impl<'src> Configuration<'src> {
     /// Get matching rules for a path.
     #[must_use]
     pub fn matches(&self, path: &str) -> Vec<&ConfigRule<'src>> {
+        // FIXME confirm these always return sorted?
         self.globset
             .matches(path)
             .into_iter()
             .map(|i| &self.rules[i])
             .collect()
+    }
+
+    /// Get matching rules for a path.
+    #[must_use]
+    pub fn last_matching(&self, path: &str) -> Option<&ConfigRule<'src>> {
+        // FIXME confirm these always return sorted?
+        self.globset.matches(path).last().map(|&i| &self.rules[i])
     }
 }
 
@@ -128,25 +137,47 @@ impl<'src> ConfigRule<'src> {
         format!("{} {}", self.matcher.canonical(), self.action.canonical())
     }
 
-    /// Evaluate a rule.
+    /// Evaluate a rule, ignoring `self.matcher`.
+    ///
+    /// The `matcher` should be handled externally. FIXME remove?
     ///
     /// # Errors
     ///
     /// Most variants of [`actions::Error`] should be returned as an HTTP
     /// response, except [`actions::Error::NotFound`], which means that this
     /// rule should be skipped and the next rule evaluated.
-    pub fn evaluate<'vars, V: VariableMap<'vars>>(
+    pub fn evaluate(
         &self,
-        context: &'vars Context<'vars, V>,
-    ) -> actions::Result {
-        let clean_path = context.variables.clean_path();
-        if self.matcher.is_match(&clean_path).map_err(|error| {
-            // FIXME error is a ParseError; change? better map_err?
-            actions::Error::InternalString(format!("compiling glob: {error:?}"))
-        })? {
-            self.action.evaluate(context)
-        } else {
-            Err(actions::Error::NotFound)
+        manager: &TemplatesManager<'_>,
+        request: &actix_web::HttpRequest,
+        variables: RequestVariables<'_>,
+    ) -> actions::Result<actix_web::HttpResponse> {
+        let templates_path = self.settings.templates.path_content(&variables);
+        let context = actions::Context {
+            working_path: self.settings.root.path_content(&variables).into(),
+            // FIXME? might not need to load templates
+            // Error: loading templates (no dir, bad template?)
+            tpls: manager.templates_for_directory(templates_path)?,
+            variables,
+        };
+
+        match self
+            .action
+            .evaluate(&context)
+            .and_then(|ret| ret.into_response(&context))
+        {
+            Ok(response) => {
+                tracing::trace!("success {}: {response:?}", self.canonical());
+                Ok(response)
+            }
+            Err(actions::Error::NotFound) => {
+                tracing::trace!("skip {}", self.canonical());
+                Err(actions::Error::NotFound)
+            }
+            Err(error) => {
+                tracing::trace!("error {}: {error:?}", self.canonical());
+                Ok(error.render(request, &context.tpls))
+            }
         }
     }
 }
