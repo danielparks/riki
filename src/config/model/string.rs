@@ -7,7 +7,6 @@ use crate::misc::bitfilter::BitFilter;
 use logos::Logos;
 use std::borrow::Cow;
 use std::ops::Range;
-use std::path::PathBuf;
 use std::slice;
 use tinyvec::{ArrayVec, TinyVec};
 
@@ -331,22 +330,42 @@ impl<'src> ParsedString<'src> {
 }
 
 impl<'src> From<&'src str> for ParsedString<'src> {
+    /// This contents of the resulting string will be exactly the source.
+    ///
+    /// The source will not be parsed, so variable interpolation and escape
+    /// characters will be passed through as-is.
+    ///
+    /// ```
+    /// use riki::config::model::ParsedString;
+    /// use riki::actions::StaticVariables;
+    /// assert_eq!(
+    ///     ParsedString::from(r"\n${clean_path}")
+    ///         .content(&StaticVariables::default()),
+    ///     r"\n${clean_path}",
+    /// );
+    /// ```
     fn from(src: &'src str) -> Self {
         Self { unescaped: Cow::Borrowed(src), variables: empty_tinyvec() }
     }
 }
 
 impl From<String> for ParsedString<'_> {
+    /// This contents of the resulting string will be exactly the source.
+    ///
+    /// The source will not be parsed, so variable interpolation and escape
+    /// characters will be passed through as-is.
+    ///
+    /// ```
+    /// use riki::config::model::ParsedString;
+    /// use riki::actions::StaticVariables;
+    /// assert_eq!(
+    ///     ParsedString::from(r"\n${clean_path}".to_owned())
+    ///         .content(&StaticVariables::default()),
+    ///     r"\n${clean_path}",
+    /// );
+    /// ```
     fn from(src: String) -> Self {
         Self { unescaped: Cow::Owned(src), variables: empty_tinyvec() }
-    }
-}
-
-#[expect(clippy::fallible_impl_from, reason = "wip")]
-impl From<PathBuf> for ParsedString<'_> {
-    fn from(value: PathBuf) -> Self {
-        // FIXME this should support non-UTF-8 rather than panicking.
-        value.to_str().unwrap().to_owned().into()
     }
 }
 
@@ -582,6 +601,7 @@ mod tests {
     use super::*;
     use crate::actions::StaticVariables;
     use assert2::{check, let_assert};
+    use std::path::PathBuf;
 
     /// Create a [`ParsedString`] easily.
     fn parse_str(s: &str) -> ParseResult<'_, ParsedString<'_>> {
