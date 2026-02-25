@@ -11,7 +11,6 @@ use super::parser2::{Identifier, MatcherStack};
 use crate::actions::{self, RequestVariables, Return};
 use crate::render::TemplatesManager;
 use globset::{GlobSet, GlobSetBuilder};
-use std::env;
 
 /// An entire configuration
 #[derive(Clone, Debug)]
@@ -241,10 +240,7 @@ impl Default for ConfigSettings<'_> {
     ///   * `root`: `.`
     ///   * `templates`: `./templates`
     fn default() -> Self {
-        let root: ParsedString<'_> =
-            env::current_dir().unwrap_or_default().into();
-        let templates = root.join_path(&"templates".into());
-        Self { root, templates }
+        Self { root: ".".into(), templates: "templates".into() }
     }
 }
 
@@ -254,7 +250,6 @@ mod tests {
     use crate::actions::StaticVariables;
     use assert2::check;
     use globset::Glob;
-    use std::path::PathBuf;
 
     fn into_glob<'a, I: IntoIterator<Item = &'a str>>(
         globs: I,
@@ -306,14 +301,6 @@ mod tests {
         host: "example.com",
     };
 
-    /// Helper to create an absolute `PathBuf`.
-    fn pathbuf(path: &str) -> PathBuf {
-        PathBuf::from(".")
-            .canonicalize()
-            .expect("finding current directory")
-            .join(path)
-    }
-
     /// Helper to create a `ParsedString` literal.
     fn literal(s: &str) -> Action<'_> {
         Action::Literal(ParsedString::from_literal(s))
@@ -325,19 +312,14 @@ mod tests {
         settings
             .apply(&Identifier("root"), literal("new/root"))
             .unwrap();
-        check!(settings.root.path_content(&VARS) == pathbuf("./new/root"));
-        check!(
-            settings.templates.path_content(&VARS) == pathbuf("./templates")
-        );
+        check!(settings.root.path_content(&VARS) == "./new/root");
+        check!(settings.templates.path_content(&VARS) == "templates");
 
         settings
             .apply(&Identifier("templates"), literal("tpls"))
             .unwrap();
-        check!(settings.root.path_content(&VARS) == pathbuf("./new/root"));
-        check!(
-            settings.templates.path_content(&VARS)
-                == pathbuf("./new/root/tpls")
-        );
+        check!(settings.root.path_content(&VARS) == "./new/root");
+        check!(settings.templates.path_content(&VARS) == "./new/root/tpls");
     }
 
     #[test_log::test]
@@ -346,11 +328,11 @@ mod tests {
         settings
             .apply(&Identifier("root"), literal("/root/a/b"))
             .unwrap();
-        check!(settings.root.path_content(&VARS) == pathbuf("/root/a/b"));
+        check!(settings.root.path_content(&VARS) == "/root/a/b");
         settings
             .apply(&Identifier("root"), literal("../c"))
             .unwrap();
-        check!(settings.root.path_content(&VARS) == pathbuf("/root/a/b/../c"));
+        check!(settings.root.path_content(&VARS) == "/root/a/b/../c");
     }
 
     #[test_log::test]
@@ -359,23 +341,19 @@ mod tests {
         settings
             .apply(&Identifier("root"), literal("/a/b"))
             .unwrap();
-        check!(settings.root.path_content(&VARS) == pathbuf("/a/b"));
-        check!(
-            settings.templates.path_content(&VARS) == pathbuf("./templates")
-        );
+        check!(settings.root.path_content(&VARS) == "/a/b");
+        check!(settings.templates.path_content(&VARS) == "templates");
 
         settings
             .apply(&Identifier("templates"), literal("templates"))
             .unwrap();
-        check!(settings.root.path_content(&VARS) == pathbuf("/a/b"));
-        check!(
-            settings.templates.path_content(&VARS) == pathbuf("/a/b/templates")
-        );
+        check!(settings.root.path_content(&VARS) == "/a/b");
+        check!(settings.templates.path_content(&VARS) == "/a/b/templates");
 
         settings
             .apply(&Identifier("templates"), literal("/templates"))
             .unwrap();
-        check!(settings.root.path_content(&VARS) == pathbuf("/a/b"));
-        check!(settings.templates.path_content(&VARS) == pathbuf("/templates"));
+        check!(settings.root.path_content(&VARS) == "/a/b");
+        check!(settings.templates.path_content(&VARS) == "/templates");
     }
 }
