@@ -600,6 +600,8 @@ const fn add(a: usize, b: isize) -> usize {
 mod tests {
     use super::*;
     use crate::actions::StaticVariables;
+    use crate::config::errors::SpannedError;
+    use crate::config::model::ParseError;
     use assert2::{check, let_assert};
     use std::path::PathBuf;
 
@@ -773,6 +775,39 @@ mod tests {
         check!(s.ends_with('/') == None);
         check!(s.variables().len() == 1);
         check!(s.variables()[0].variable == Variable::CleanPath);
+    }
+
+    #[test_log::test]
+    fn parse_string_invalid_variable() {
+        let_assert!(Err(errors) = parse_str("$foo"));
+        check!(
+            let [
+                SpannedError { error: ParseError::UnknownVariable("foo"), ..}
+            ] = errors.as_slice()
+        );
+    }
+
+    #[test_log::test]
+    fn parse_string_bad_dollar() {
+        let_assert!(Err(errors) = parse_str("$"));
+        check!(
+            let [
+                SpannedError { error: ParseError::StringBadDollar(_), ..}
+            ] = errors.as_slice()
+        );
+    }
+
+    #[test_log::test]
+    fn parse_string_trailing_backslash() {
+        let_assert!(Err(errors) = parse_str("a\\"));
+        check!(
+            let [
+                SpannedError {
+                    error: ParseError::StringTrailingBackslash(_),
+                    ..
+                }
+            ] = errors.as_slice()
+        );
     }
 
     #[test_log::test]
