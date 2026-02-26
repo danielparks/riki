@@ -1,7 +1,8 @@
 //! Test HTTP server.
 #![cfg(test)]
 
-use super::{Configuration, Router, path_handler};
+use super::{Router, path_handler};
+use crate::rules;
 use actix_http::{Request, header};
 use actix_web::body::BoxBody;
 use actix_web::dev::{Service, ServiceResponse};
@@ -11,13 +12,14 @@ use actix_web::web::{Bytes, Data};
 use actix_web::{App, body, http, test};
 use assert2::assert;
 use std::fs;
+use std::path::{Path, PathBuf};
 use temp_dir::TempDir;
 
 /// Initialize the test app.
 #[expect(clippy::future_not_send, reason = "Required by Actix")]
 async fn init_app() -> (
     TempDir,
-    Configuration,
+    PathBuf,
     impl Service<
         Request,
         Response = ServiceResponse<BoxBody>,
@@ -25,28 +27,29 @@ async fn init_app() -> (
     >,
 ) {
     let temp_dir = TempDir::new().unwrap();
-    let config = Configuration::default_in(
-        temp_dir.path().to_str().expect("TempDir path not UTF-8"),
-    );
-    fs::create_dir(config.templates()).unwrap();
-    fs::write(config.templates().join("default.hbs"), "{{{ body }}}").unwrap();
-    fs::write(config.templates().join("error403.hbs"), "403").unwrap();
-    fs::write(config.templates().join("error404.hbs"), "404").unwrap();
+    let root = temp_dir.path().to_owned();
+    let root_str = root.to_str().expect("TempDir path not UTF-8").to_owned();
+    let templates_str = format!("{root_str}/templates");
+    let templates: &Path = templates_str.as_ref();
+
+    fs::create_dir(templates).unwrap();
+    fs::write(templates.join("default.hbs"), "{{{ body }}}").unwrap();
+    fs::write(templates.join("error403.hbs"), "403").unwrap();
+    fs::write(templates.join("error404.hbs"), "404").unwrap();
+    fs::write(templates.join("error500.hbs"), "{{{ error_debug }}}").unwrap();
     fs::write(
-        config.templates().join("error500.hbs"),
-        "{{{ error_debug }}}",
-    )
-    .unwrap();
-    fs::write(
-        config.templates().join("redirect301.hbs"),
+        templates.join("redirect301.hbs"),
         "redirect {{ canonical_url }}",
     )
     .unwrap();
 
-    let router = Data::new(Router::from_configuration(config.clone()));
+    let router = Data::new(Router::from_configuration(
+        rules::default_rules(root_str, templates_str).unwrap(),
+    ));
+
     (
         temp_dir,
-        config,
+        root,
         test::init_service(App::new().app_data(router).service(path_handler))
             .await,
     )
@@ -178,11 +181,11 @@ where
 #[actix_web::test]
 #[test_log::test]
 async fn test_directory_page_get() {
-    let (_dir, config, app) = init_app().await;
+    let (_dir, root, app) = init_app().await;
 
-    fs::write(config.root().join("index.md"), "index").unwrap();
-    fs::create_dir(config.root().join("dir")).unwrap();
-    fs::write(config.root().join("dir/index.md"), "DIR").unwrap();
+    fs::write(root.join("index.md"), "index").unwrap();
+    fs::create_dir(root.join("dir")).unwrap();
+    fs::write(root.join("dir/index.md"), "DIR").unwrap();
 
     assert!(
         Response::page_html(
@@ -209,9 +212,9 @@ async fn test_directory_page_get() {
 #[actix_web::test]
 #[test_log::test]
 async fn test_file_page_get() {
-    let (_dir, config, app) = init_app().await;
+    let (_dir, root, app) = init_app().await;
 
-    fs::write(config.root().join("page.md"), "PAGE").unwrap();
+    fs::write(root.join("page.md"), "PAGE").unwrap();
 
     assert!(
         Response::page_html(
@@ -227,9 +230,9 @@ async fn test_file_page_get() {
 #[actix_web::test]
 #[test_log::test]
 async fn test_static_file_get() {
-    let (_dir, config, app) = init_app().await;
+    let (_dir, root, app) = init_app().await;
 
-    fs::write(config.root().join("a.txt"), "AAA").unwrap();
+    fs::write(root.join("a.txt"), "AAA").unwrap();
 
     assert!(
         Response::static_other("AAA", mime::TEXT_PLAIN_UTF_8)
@@ -243,10 +246,10 @@ async fn test_static_file_get() {
 #[actix_web::test]
 #[test_log::test]
 async fn test_static_directory_get() {
-    let (_dir, config, app) = init_app().await;
+    let (_dir, root, app) = init_app().await;
 
-    fs::create_dir(config.root().join("b")).unwrap();
-    fs::write(config.root().join("b/index.html"), "BBB").unwrap();
+    fs::create_dir(root.join("b")).unwrap();
+    fs::write(root.join("b/index.html"), "BBB").unwrap();
 
     assert!(Response::static_html("BBB") == get(&app, "/b/").await);
     assert!(Response::redirect("/b/") == get(&app, "/b").await);
@@ -257,11 +260,11 @@ async fn test_static_directory_get() {
 #[actix_web::test]
 #[test_log::test]
 async fn test_static_index_with_page() {
-    let (_dir, config, app) = init_app().await;
+    let (_dir, root, app) = init_app().await;
 
-    fs::create_dir(config.root().join("static")).unwrap();
-    fs::write(config.root().join("static/index.html"), "STATIC").unwrap();
-    fs::write(config.root().join("static/page.md"), "PAGE").unwrap();
+    fs::create_dir(root.join("static")).unwrap();
+    fs::write(root.join("static/index.html"), "STATIC").unwrap();
+    fs::write(root.join("static/page.md"), "PAGE").unwrap();
 
     assert!(Response::redirect("/static/") == get(&app, "/static").await);
     assert!(Response::static_html("STATIC") == get(&app, "/static/").await);
@@ -281,10 +284,10 @@ async fn test_static_index_with_page() {
 #[actix_web::test]
 #[test_log::test]
 async fn test_static_hides_page() {
-    let (_dir, config, app) = init_app().await;
+    let (_dir, root, app) = init_app().await;
 
-    fs::write(config.root().join("index.html"), "STATIC").unwrap();
-    fs::write(config.root().join("index.md"), "PAGE").unwrap();
+    fs::write(root.join("index.html"), "STATIC").unwrap();
+    fs::write(root.join("index.md"), "PAGE").unwrap();
 
     assert!(Response::static_html("STATIC") == get(&app, "/").await);
     assert!(Response::redirect("/") == get(&app, "/index.html").await);
@@ -294,7 +297,7 @@ async fn test_static_hides_page() {
 #[actix_web::test]
 #[test_log::test]
 async fn test_not_found_get() {
-    let (_dir, _config, app) = init_app().await;
+    let (_dir, _root, app) = init_app().await;
 
     assert!(
         Response {
@@ -314,9 +317,9 @@ async fn test_not_found_get() {
 async fn test_forbidden_page_get() {
     use std::os::unix::fs::PermissionsExt;
 
-    let (_dir, config, app) = init_app().await;
+    let (_dir, root, app) = init_app().await;
 
-    let path = config.root().join("forbidden.md");
+    let path = root.join("forbidden.md");
     fs::write(&path, "forbidden").unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).unwrap();
 
@@ -349,9 +352,9 @@ async fn test_forbidden_page_get() {
 async fn test_forbidden_static_get() {
     use std::os::unix::fs::PermissionsExt;
 
-    let (_dir, config, app) = init_app().await;
+    let (_dir, root, app) = init_app().await;
 
-    let path = config.root().join("forbidden.txt");
+    let path = root.join("forbidden.txt");
     fs::write(&path, "forbidden").unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).unwrap();
 

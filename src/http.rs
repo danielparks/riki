@@ -22,12 +22,12 @@ mod tests;
 pub mod util;
 
 use crate::actions::{self, RequestVariables, VariableMap};
+use crate::config::model::Configuration;
 use crate::render::{TemplatesManager, base_templates};
 use crate::rules;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
-use std::path::Path;
 use tracing_actix_web::TracingLogger;
 
 // TODO better error handling
@@ -41,14 +41,18 @@ use tracing_actix_web::TracingLogger;
 /// May return an error if the server could not start correctly.
 #[actix_web::main]
 pub async fn serve<S: AsRef<str>>(
-    config: Configuration,
+    base_dir: String,
     address: S,
 ) -> crate::Result<()> {
     let address = address.as_ref();
 
-    util::check_dir(&config.root_path)?;
+    util::check_dir(&base_dir)?;
 
-    let router = Data::new(Router::from_configuration(config));
+    let template_dir = format!("{base_dir}/templates");
+    let router = Data::new(Router::from_configuration(rules::default_rules(
+        base_dir,
+        template_dir,
+    )?));
 
     HttpServer::new(move || {
         App::new()
@@ -71,7 +75,7 @@ pub async fn serve<S: AsRef<str>>(
 #[get("/{path:.*}")]
 pub async fn path_handler(
     req: HttpRequest,
-    router: Data<Router<'_>>,
+    router: Data<Router<'_, '_>>,
 ) -> impl Responder {
     router
         .route(&req)
@@ -83,28 +87,26 @@ pub async fn path_handler(
 }
 
 /// Route requests to the right actions
-#[derive(Debug, Default)]
-pub struct Router<'tpls> {
-    /// Root path and template paths
-    config: Configuration,
+#[derive(Debug)]
+pub struct Router<'src, 'tpls> {
+    /// Configured rules
+    config: Configuration<'src>,
 
     /// Manage template registries
     manager: TemplatesManager<'tpls>,
 }
 
-impl Router<'_> {
+impl<'src> Router<'src, '_> {
     /// Create a router from a [`Configuration`].
     ///
     /// # Errors
     ///
     /// Returns an error if there is a problem loading templates.
     #[must_use]
-    pub fn from_configuration(config: Configuration) -> Self {
+    pub fn from_configuration(config: Configuration<'src>) -> Self {
         Self { config, manager: TemplatesManager::default() }
     }
-}
 
-impl Router<'_> {
     /// Route a request
     ///
     /// Uses hard coded rules from [`rules::default_rules()`].
@@ -119,23 +121,13 @@ impl Router<'_> {
         request: &HttpRequest,
     ) -> actions::Result<HttpResponse> {
         tracing::trace!("route request: {:?}", request);
-        let config = rules::default_rules(
-            &self.config.root_path,
-            &self.config.templates_path,
-        )
-        .map_err(|error| {
-            // FIXME better error -- print and die
-            actions::Error::InternalString(format!(
-                "Failed to build globs: {error:?}"
-            ))
-        })?;
 
         // This errors if clean_path() failed, which should never happen.
         // FIXME? move clean_path() out for explicit error handling?
         let variables = RequestVariables::new(request)?;
 
         match (|| {
-            for rule in config.matches(&variables.clean_path()) {
+            for rule in self.config.matches(&variables.clean_path()) {
                 // FIXME &variables instead of clone()
                 match rule.evaluate(&self.manager, request, variables.clone()) {
                     Err(actions::Error::NotFound) => (), // skip
@@ -148,7 +140,7 @@ impl Router<'_> {
             Err(error) => {
                 tracing::trace!("error returned from rules: {error:?}");
                 if let Some(rule) =
-                    config.last_matching(&variables.clean_path())
+                    self.config.last_matching(&variables.clean_path())
                 {
                     let templates_path =
                         rule.settings.templates.path_content(&variables);
@@ -162,43 +154,5 @@ impl Router<'_> {
                 }
             }
         }
-    }
-}
-
-/// Application configuration.
-#[derive(Debug, Clone)]
-pub struct Configuration {
-    /// The path to the directory containing pages and static assets.
-    pub root_path: String,
-    /// The path to the directory containing templates.
-    pub templates_path: String,
-}
-
-impl Default for Configuration {
-    /// Create a configuration using the default subdirectories names in the
-    /// current directory.
-    fn default() -> Self {
-        Self::default_in(".")
-    }
-}
-
-impl Configuration {
-    /// Create a configuration using the default subdirectories under `root`.
-    pub fn default_in<S: Into<String>>(root: S) -> Self {
-        let root_path = root.into();
-        let templates_path = format!("{root_path}/templates");
-        Self { root_path, templates_path }
-    }
-
-    /// Get `self.root_path` as a `Path`.
-    #[must_use]
-    pub fn root(&self) -> &Path {
-        self.root_path.as_ref()
-    }
-
-    /// Get `self.templates_path` as a `Path`.
-    #[must_use]
-    pub fn templates(&self) -> &Path {
-        self.templates_path.as_ref()
     }
 }
