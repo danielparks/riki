@@ -81,7 +81,13 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             );
         }
         Command::Serve { base_dir, bind } => {
-            http::serve(base_dir.clone(), bind)?;
+            match http::serve(base_dir.clone(), bind, &params.err_stream()) {
+                Err(riki::Error::ExitWithCode(code)) => {
+                    // If there was an error, it was already outputted.
+                    return Ok(code);
+                }
+                other => other,
+            }?;
         }
         Command::Dump { path, just_tokens } => {
             config::dump_config(path, &params.err_stream(), *just_tokens)?;

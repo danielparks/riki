@@ -145,11 +145,16 @@ impl<'src> SpannedError<'src> {
     #[must_use]
     pub fn into_diagnostic(self, source: &str) -> Diagnostic {
         let mut diagnostic = Diagnostic::error().with_message(self.error);
-        let mut iter = self.spans.iter().map(|span| span.to_lexer_span(source));
-        if let Some(span) = iter.next() {
-            diagnostic = diagnostic.with_label(Label::primary((), span));
-            for span in iter {
-                diagnostic = diagnostic.with_label(Label::secondary((), span));
+        // FIXME? dedicated Source type?
+        if !source.is_empty() {
+            let mut iter =
+                self.spans.iter().map(|span| span.to_lexer_span(source));
+            if let Some(span) = iter.next() {
+                diagnostic = diagnostic.with_label(Label::primary((), span));
+                for span in iter {
+                    diagnostic =
+                        diagnostic.with_label(Label::secondary((), span));
+                }
             }
         }
         diagnostic
