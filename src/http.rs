@@ -23,6 +23,7 @@ pub mod util;
 
 use crate::actions::{self, RequestVariables, VariableMap};
 use crate::config::model::Configuration;
+use crate::config::parser2::GeneratedSource;
 use crate::render::{TemplatesManager, base_templates};
 use crate::rules;
 use actix_web::{
@@ -56,7 +57,11 @@ pub async fn serve<S: AsRef<str>>(
         match rules::default_rules(base_dir, template_dir) {
             Ok(config) => config,
             Err(error) => {
-                crate::config::print_errors("", "", err_stream, error);
+                crate::config::print_errors(
+                    &GeneratedSource("default rules"),
+                    err_stream,
+                    error,
+                );
                 return Err(crate::Error::ExitWithCode(ExitCode::FAILURE));
             }
         },

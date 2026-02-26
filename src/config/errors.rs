@@ -1,7 +1,7 @@
 //! Errors related to the second pass parsing
 
 use super::lexer::{Diagnostic, TokenType};
-use super::parser2::{Span, StringType};
+use super::parser2::{Source, Span, StringType};
 use codespan_reporting::diagnostic::Label;
 
 /// Errors that could be produced from parsing code.
@@ -143,10 +143,9 @@ impl<'src> SpannedError<'src> {
     ///
     /// See [`Span::to_lexer_span()`].
     #[must_use]
-    pub fn into_diagnostic(self, source: &str) -> Diagnostic {
+    pub fn into_diagnostic<S: Source + ?Sized>(self, source: &S) -> Diagnostic {
         let mut diagnostic = Diagnostic::error().with_message(self.error);
-        // FIXME? dedicated Source type?
-        if !source.is_empty() {
+        if let Some(source) = source.source() {
             let mut iter =
                 self.spans.iter().map(|span| span.to_lexer_span(source));
             if let Some(span) = iter.next() {

@@ -9,15 +9,15 @@ pub mod parser;
 pub mod parser2;
 mod tests;
 
-use bstr::{BStr, BString, ByteVec};
+use crate::config::parser2::{FileSource, Source};
+use bstr::BStr;
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::{self, Config};
 use errors::SpannedErrors;
 use lexer::{Diagnostic, tokenize};
 use model::ConfigSettings;
 use parser::Parser;
-use std::fs;
-use std::io;
+use std::io::{self, Write};
 use std::path::Path;
 use termcolor::StandardStream;
 
@@ -37,15 +37,18 @@ pub fn dump_config(
     err_stream: &StandardStream,
     just_tokens: bool,
 ) -> io::Result<()> {
-    let source = fs::read_to_string(path)?;
+    let source = FileSource::read(path)?;
 
     let mut diagnostics = vec![];
     if just_tokens {
-        for (token, span) in tokenize(&source, &mut diagnostics) {
-            println!("{token:?}({:?})", BStr::new(&source.as_bytes()[span]));
+        for (token, span) in tokenize(&source.content, &mut diagnostics) {
+            println!(
+                "{token:?}({:?})",
+                BStr::new(&source.content.as_bytes()[span])
+            );
         }
     } else {
-        let cst = Parser::parse(&source, &mut diagnostics);
+        let cst = Parser::parse(&source.content, &mut diagnostics);
 
         println!("{cst}");
 
@@ -77,7 +80,7 @@ pub fn dump_config(
         println!();
     }
 
-    print_diagnostics(path, &source, err_stream, &diagnostics);
+    print_diagnostics(&source, err_stream, &diagnostics);
     Ok(()) // FIXME error?
 }
 
@@ -86,14 +89,12 @@ pub fn dump_config(
 /// # Panics
 ///
 /// Panics if it can’t write to `err_stream` (probably stderr).
-pub fn print_errors<'src, P: AsRef<Path>>(
-    path: P,
-    source: &'src str,
+pub fn print_errors<'src, S: Source>(
+    source: &'src S,
     err_stream: &StandardStream,
     errors: SpannedErrors<'src>,
 ) {
     print_diagnostics(
-        path,
         source,
         err_stream,
         &errors
@@ -108,17 +109,24 @@ pub fn print_errors<'src, P: AsRef<Path>>(
 /// # Panics
 ///
 /// Panics if it can’t write to `err_stream` (probably stderr).
-pub fn print_diagnostics<P: AsRef<Path>>(
-    path: P,
-    source: &str,
+pub fn print_diagnostics<S: Source>(
+    source: &S,
     err_stream: &StandardStream,
     diagnostics: &[Diagnostic],
 ) {
+    let out = &mut err_stream.lock();
     let config = Config::default();
-    let path = BString::new(Vec::from_path_lossy(path.as_ref()).to_vec());
-    let file = SimpleFile::new(path, source); // BString implements Display
+    let file = SimpleFile::new(
+        source.name(),
+        if let Some(content) = source.source() {
+            content
+        } else {
+            writeln!(out, "Found errors in {}:", source.name()).unwrap();
+            ""
+        },
+    );
 
     for diag in diagnostics {
-        term::emit(&mut err_stream.lock(), &config, &file, diag).unwrap();
+        term::emit(out, &config, &file, diag).unwrap();
     }
 }

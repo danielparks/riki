@@ -5,8 +5,12 @@ use super::super::errors::{ParseError, ParseResult, SpannedErrors};
 use super::super::lexer;
 use super::super::model::{ConfigSettings, ParsedGlob};
 use super::super::parser2::TokenType;
+use bstr::{BString, ByteVec};
 use globset::{Glob, GlobBuilder};
 use std::fmt;
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::slice;
 
 /// The context stack for the parser.
@@ -360,6 +364,121 @@ pub struct StringToken<'src> {
 
     /// The slice of the source representing this string
     pub src: &'src str,
+}
+
+/// A source that provides content.
+pub trait Source {
+    /// Get the source content, if available.
+    fn source(&self) -> Option<&str>;
+
+    /// Get the path, if available.
+    fn path(&self) -> Option<&Path>;
+
+    /// Get a name for the source.
+    fn name(&self) -> BString;
+}
+
+/// A source that provides content.
+pub trait ContentSource: Source {
+    /// Get the source content.
+    fn content(&self) -> &str;
+}
+
+/// No source content; objects where generated in code.
+///
+/// Contains a name for the source.
+#[derive(Clone, Debug)]
+pub struct GeneratedSource<'a>(
+    /// The name of the source.
+    pub &'a str,
+);
+
+impl Source for GeneratedSource<'_> {
+    #[inline]
+    fn source(&self) -> Option<&str> {
+        None
+    }
+
+    #[inline]
+    fn path(&self) -> Option<&Path> {
+        None
+    }
+
+    #[inline]
+    fn name(&self) -> BString {
+        (*self.0).into()
+    }
+}
+
+/// A file source.
+#[derive(Clone, Debug)]
+pub struct FileSource {
+    /// The path to the source file.
+    pub path: PathBuf,
+
+    /// The actual source.
+    pub content: String,
+}
+
+impl FileSource {
+    /// Create by reading a file.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`io::Error`] for problems reading the file.
+    pub fn read<P: Into<PathBuf>>(path: P) -> io::Result<Self> {
+        let path = path.into();
+        let content = fs::read_to_string(&path)?;
+        Ok(Self { path, content })
+    }
+}
+
+impl ContentSource for FileSource {
+    #[inline]
+    fn content(&self) -> &str {
+        &self.content
+    }
+}
+
+impl Source for FileSource {
+    #[inline]
+    fn source(&self) -> Option<&str> {
+        Some(self.content())
+    }
+
+    #[inline]
+    fn path(&self) -> Option<&Path> {
+        Some(&self.path)
+    }
+
+    #[inline]
+    fn name(&self) -> BString {
+        BString::new(Vec::from_path_lossy(&self.path).to_vec())
+    }
+}
+
+impl ContentSource for str {
+    #[inline]
+    fn content(&self) -> &str {
+        self
+    }
+}
+
+impl Source for str {
+    #[inline]
+    fn source(&self) -> Option<&str> {
+        Some(self.content())
+    }
+
+    #[inline]
+    fn path(&self) -> Option<&Path> {
+        None
+    }
+
+    #[inline]
+    fn name(&self) -> BString {
+        BString::from("memory")
+    }
 }
 
 /// A value representable by a string in the configuration file.

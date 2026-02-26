@@ -15,9 +15,11 @@ use std::fmt;
 /// # Errors
 ///
 /// Returns [`Diagnostic`]s that point out problems in `source`.
-pub fn parse(source: &str) -> Result<Configuration<'_>, Vec<Diagnostic>> {
+pub fn parse<S: ContentSource + ?Sized>(
+    source: &S,
+) -> Result<Configuration<'_>, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let cst = Parser::parse(source, &mut diagnostics);
+    let cst = Parser::parse(source.content(), &mut diagnostics);
     if diagnostics.is_empty() {
         process_cst(&cst).map_err(|errors| {
             errors
