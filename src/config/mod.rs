@@ -86,8 +86,8 @@ pub fn dump_config(
 /// # Panics
 ///
 /// Panics if it can’t write to `err_stream` (probably stderr).
-pub fn print_errors<'src>(
-    path: &Path,
+pub fn print_errors<'src, P: AsRef<Path>>(
+    path: P,
     source: &'src str,
     err_stream: &StandardStream,
     errors: SpannedErrors<'src>,
@@ -108,15 +108,15 @@ pub fn print_errors<'src>(
 /// # Panics
 ///
 /// Panics if it can’t write to `err_stream` (probably stderr).
-pub fn print_diagnostics(
-    path: &Path,
+pub fn print_diagnostics<P: AsRef<Path>>(
+    path: P,
     source: &str,
     err_stream: &StandardStream,
     diagnostics: &[Diagnostic],
 ) {
     let config = Config::default();
-    let path = BString::new(Vec::from_path_lossy(path).to_vec()); // Display
-    let file = SimpleFile::new(path, source);
+    let path = BString::new(Vec::from_path_lossy(path.as_ref()).to_vec());
+    let file = SimpleFile::new(path, source); // BString implements Display
 
     for diag in diagnostics {
         term::emit(&mut err_stream.lock(), &config, &file, diag).unwrap();

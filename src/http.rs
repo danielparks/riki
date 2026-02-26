@@ -28,6 +28,8 @@ use crate::rules;
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
+use std::process::ExitCode;
+use termcolor::StandardStream;
 use tracing_actix_web::TracingLogger;
 
 // TODO better error handling
@@ -43,16 +45,22 @@ use tracing_actix_web::TracingLogger;
 pub async fn serve<S: AsRef<str>>(
     base_dir: String,
     address: S,
+    err_stream: &StandardStream,
 ) -> crate::Result<()> {
     let address = address.as_ref();
 
     util::check_dir(&base_dir)?;
 
     let template_dir = format!("{base_dir}/templates");
-    let router = Data::new(Router::from_configuration(rules::default_rules(
-        base_dir,
-        template_dir,
-    )?));
+    let router = Data::new(Router::from_configuration(
+        match rules::default_rules(base_dir, template_dir) {
+            Ok(config) => config,
+            Err(error) => {
+                crate::config::print_errors("", "", err_stream, error);
+                return Err(crate::Error::ExitWithCode(ExitCode::FAILURE));
+            }
+        },
+    ));
 
     HttpServer::new(move || {
         App::new()

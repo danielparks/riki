@@ -21,9 +21,9 @@ fn rule<'src, A: Into<Action<'src>>>(
 /// # Panics
 ///
 /// Panics if the string cannot be parsed.
-fn parsed(s: &str) -> ParsedString<'_> {
+fn parsed(s: &str) -> ParseResult<'_, ParsedString<'_>> {
     use crate::config::parser2::StringType;
-    ParsedString::from_string_content(s, StringType::QuotedDouble).unwrap()
+    ParsedString::from_string_content(s, StringType::QuotedDouble)
 }
 
 /// Get the default rules for Riki.
@@ -62,13 +62,13 @@ pub fn default_rules_for_settings(
     config.add(rule(
         "**/*.md",
         &settings,
-        redact_source(canonical(parsed("$clean_path"))),
+        redact_source(canonical(parsed("$clean_path")?)),
     ))?;
     // index.html canonical("${dirname($clean_path)}/")
     config.add(rule(
         "**/index.html",
         &settings,
-        canonical(as_dir(dirname(parsed("$clean_path")))),
+        canonical(as_dir(dirname(parsed("$clean_path")?))),
     ))?;
 
     // if file_exists("$clean_path") {
@@ -77,7 +77,7 @@ pub fn default_rules_for_settings(
     config.add(rule(
         "**",
         &settings,
-        canonical(if_file(parsed("$clean_path"))),
+        canonical(if_file(parsed("$clean_path")?)),
     ))?;
 
     // if file_exists("$clean_path/index.html") {
@@ -90,10 +90,10 @@ pub fn default_rules_for_settings(
         &settings,
         condition(
             canonical(condition(
-                if_file(parsed("${clean_path}/index.html")),
-                as_dir(parsed("$clean_path")),
+                if_file(parsed("${clean_path}/index.html")?),
+                as_dir(parsed("$clean_path")?),
             )),
-            parsed("${clean_path}/index.html"),
+            parsed("${clean_path}/index.html")?,
         ),
     ))?;
 
@@ -101,7 +101,7 @@ pub fn default_rules_for_settings(
     config.add(rule(
         "**/index",
         &settings,
-        canonical(as_dir(dirname(parsed("$clean_path")))),
+        canonical(as_dir(dirname(parsed("$clean_path")?))),
     ))?;
 
     // if file_exists("${clean_path}.md") {
@@ -114,10 +114,10 @@ pub fn default_rules_for_settings(
         &settings,
         condition(
             canonical(condition(
-                if_file(parsed("${clean_path}.md")),
-                parsed("$clean_path"),
+                if_file(parsed("${clean_path}.md")?),
+                parsed("$clean_path")?,
             )),
-            render(markdown(if_file(parsed("${clean_path}.md")))),
+            render(markdown(if_file(parsed("${clean_path}.md")?))),
         ),
     ))?;
 
@@ -131,10 +131,10 @@ pub fn default_rules_for_settings(
         &settings,
         condition(
             canonical(condition(
-                if_file(parsed("${clean_path}/index.md")),
-                as_dir(parsed("$clean_path")),
+                if_file(parsed("${clean_path}/index.md")?),
+                as_dir(parsed("$clean_path")?),
             )),
-            render(markdown(if_file(parsed("${clean_path}/index.md")))),
+            render(markdown(if_file(parsed("${clean_path}/index.md")?))),
         ),
     ))?;
 
