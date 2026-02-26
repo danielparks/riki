@@ -32,18 +32,30 @@ fn parsed(s: &str) -> ParsedString<'_> {
 ///
 /// Returns an error if there is a problem creating a glob.
 pub fn default_rules<'a>(
-    root_path: &'a str,
-    templates_path: &'a str,
+    root_path: String,
+    templates_path: String,
 ) -> ParseResult<'a, Configuration<'a>> {
-    #![expect(clippy::allow_attributes, reason = "rust-clippy issue #13358")]
+    default_rules_for_settings(ConfigSettings {
+        root: root_path.into(),
+        templates: templates_path.into(),
+    })
+}
 
+/// Get the default rules for Riki.
+///
+/// # Errors
+///
+/// Returns an error if there is a problem creating a glob.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "&ConfigSettings would have to outlive function"
+)]
+#[expect(clippy::allow_attributes, reason = "rust-clippy issue #13358")]
+pub fn default_rules_for_settings(
+    settings: ConfigSettings<'_>,
+) -> ParseResult<'_, Configuration<'_>> {
     #[allow(clippy::wildcard_imports, reason = "convenience")]
     use crate::config::actions::functions::*;
-
-    let settings = ConfigSettings {
-        root: parsed(root_path),
-        templates: parsed(templates_path),
-    };
 
     let mut config = ConfigurationBuilder::new();
     // *.md redact_source(canonical($clean_path))

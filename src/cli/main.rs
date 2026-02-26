@@ -81,7 +81,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             );
         }
         Command::Serve { base_dir, bind } => {
-            http::serve(http::Configuration::default_in(base_dir), bind)?;
+            http::serve(base_dir.clone(), bind)?;
         }
         Command::Dump { path, just_tokens } => {
             config::dump_config(path, &params.err_stream(), *just_tokens)?;

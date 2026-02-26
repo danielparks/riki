@@ -1,6 +1,7 @@
 //! Errors returned by the crate.
 
 use crate::actions::Source;
+use crate::config::errors::{ParseError, SpannedError, SpannedErrors};
 use std::ffi::OsString;
 use std::io;
 use std::path::PathBuf;
@@ -20,6 +21,11 @@ pub enum Error {
         /// The address the socket could not bind on
         address: String,
     },
+
+    // FIXME ParseError
+    /// Error in configuration
+    #[error("Configuration Error")]
+    ConfigurationError,
 
     /// IO error
     #[error("Error in IO: {0}")]
@@ -87,6 +93,30 @@ impl From<OsString> for Error {
     #[inline]
     fn from(invalid: OsString) -> Self {
         NotUtf8::OsString(invalid).into()
+    }
+}
+
+impl From<ParseError<'_>> for Error {
+    #[inline]
+    fn from(_: ParseError<'_>) -> Self {
+        // FIXME
+        Self::ConfigurationError
+    }
+}
+
+impl From<SpannedError<'_>> for Error {
+    #[inline]
+    fn from(_: SpannedError<'_>) -> Self {
+        // FIXME
+        Self::ConfigurationError
+    }
+}
+
+impl From<SpannedErrors<'_>> for Error {
+    #[inline]
+    fn from(_: SpannedErrors<'_>) -> Self {
+        // FIXME
+        Self::ConfigurationError
     }
 }
 
