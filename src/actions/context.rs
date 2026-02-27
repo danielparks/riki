@@ -188,25 +188,6 @@ impl<'a, V: VariableMap<'a> + Default> Default for Context<'a, V> {
     }
 }
 
-impl<'a> Context<'a, RequestVariables<'a>> {
-    /// Get a new context for a request.
-    ///
-    /// # Errors
-    ///
-    /// See [`clean_path()`].
-    pub fn new(
-        working_path: PathBuf,
-        tpls: Arc<Handlebars<'a>>,
-        request: &'a HttpRequest,
-    ) -> crate::Result<Self> {
-        Ok(Self {
-            working_path,
-            tpls,
-            variables: RequestVariables::new(request)?,
-        })
-    }
-}
-
 /// Convenient alias for a context with static variables.
 pub type StaticContext = Context<'static, StaticVariables<'static>>;
 
