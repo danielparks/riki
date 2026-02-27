@@ -5,6 +5,7 @@ mod params;
 
 use anyhow::anyhow;
 use params::{Command, Params, Parser};
+use riki::actions::is_not_found;
 use riki::actions::{RealFileReturn, StaticContext};
 use riki::{actions, config, http, render, rules};
 use std::ffi::OsStr;
@@ -81,13 +82,19 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             );
         }
         Command::Serve { base_dir, bind } => {
-            match http::serve(base_dir.clone(), bind, &params.err_stream()) {
-                Err(riki::Error::ExitWithCode(code)) => {
-                    // If there was an error, it was already outputted.
-                    return Ok(code);
+            check_dir(base_dir)?;
+            let template_dir = format!("{base_dir}/templates");
+            match rules::default_rules(base_dir.clone(), template_dir) {
+                Ok(configuration) => http::serve(configuration, bind)?,
+                Err(diagnostics) => {
+                    config::print_diagnostics(
+                        &rules::SOURCE,
+                        &params.err_stream(),
+                        &diagnostics,
+                    );
+                    return Ok(ExitCode::FAILURE);
                 }
-                other => other,
-            }?;
+            }
         }
         Command::Dump { path, kind } => {
             let source = config::parser2::FileSource::read(path)?;
@@ -141,4 +148,19 @@ fn find_templates_dir(page_path: &Path) -> Option<PathBuf> {
             .parent()?
             .join("templates"),
     )
+}
+
+/// Check that path is a directory or a symlink that resolves to a directory.
+///
+/// # Errors
+///
+///   * [`riki::Error::MissingDirectory`] not a directory or doesn’t exist.
+///   * [`riki::Error::Io`] some other problem getting info about `path`.
+pub fn check_dir<P: AsRef<Path>>(path: P) -> riki::Result<()> {
+    let path = path.as_ref();
+    match path.metadata().map(|m| m.is_dir()) {
+        Ok(true) => Ok(()),
+        Err(error) if !is_not_found(&error) => Err(riki::Error::Io(error)),
+        _ => Err(riki::Error::MissingDirectory(path.to_path_buf())),
+    }
 }
