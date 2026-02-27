@@ -9,99 +9,93 @@ pub mod parser;
 pub mod parser2;
 mod tests;
 
-use crate::config::parser2::{FileSource, Source};
+use crate::config::parser::Cst;
+use crate::config::parser2::{ContentSource, Source};
 use bstr::BStr;
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::{self, Config};
-use errors::SpannedErrors;
 use lexer::{Diagnostic, tokenize};
-use model::ConfigSettings;
+use model::{ConfigSettings, Configuration};
 use parser::Parser;
-use std::io::{self, Write};
-use std::path::Path;
+use std::io::Write;
 use termcolor::StandardStream;
 
-/// Dump the CST of a configuration file to stdout.
+/// Dump canonical configuration to stdout.
 ///
 /// For debugging and development.
 ///
 /// # Errors
 ///
-/// Returns an `io::Error` if it can’t read the configuration file.
-///
-/// # Panics
-///
-/// Panics if it can’t write to `err_stream` (probably stderr).
-pub fn dump_config(
-    path: &Path,
-    err_stream: &StandardStream,
-    just_tokens: bool,
-) -> io::Result<()> {
-    let source = FileSource::read(path)?;
+/// Returns <code>Vec<[Diagnostic]></code> for parse errors.
+pub fn dump_config<S: ContentSource>(
+    source: &S,
+) -> Result<(), Vec<Diagnostic>> {
+    let configuration = parse(source)?;
 
-    let mut diagnostics = vec![];
-    if just_tokens {
-        for (token, span) in tokenize(&source.content, &mut diagnostics) {
-            println!(
-                "{token:?}({:?})",
-                BStr::new(&source.content.as_bytes()[span])
-            );
+    let mut settings = &ConfigSettings::default();
+    for rule in configuration.rules() {
+        if &rule.settings != settings {
+            settings = &rule.settings;
+            println!("{}", settings.canonical("/**").join("\n"));
         }
-    } else {
-        let cst = Parser::parse(&source.content, &mut diagnostics);
-
-        println!("{cst}");
-
-        if diagnostics.is_empty() {
-            diagnostics = match parser2::process_cst(&cst) {
-                Ok(configuration) => {
-                    let mut settings = &ConfigSettings::default();
-                    println!();
-                    for rule in configuration.rules() {
-                        if &rule.settings != settings {
-                            settings = &rule.settings;
-                            println!(
-                                "{}",
-                                settings.canonical("/**").join("\n")
-                            );
-                        }
-                        println!("{}", rule.canonical());
-                    }
-
-                    return Ok(());
-                }
-                Err(errors) => errors
-                    .into_iter()
-                    .map(|error| error.into_diagnostic(&source))
-                    .collect(),
-            }
-        }
-
-        println!();
+        println!("{}", rule.canonical());
     }
 
-    print_diagnostics(&source, err_stream, &diagnostics);
-    Ok(()) // FIXME error?
+    Ok(())
 }
 
-/// Print errors found in configuration file.
+/// Dump the tokens from a configuration file to stdout.
 ///
-/// # Panics
+/// For debugging and development.
 ///
-/// Panics if it can’t write to `err_stream` (probably stderr).
-pub fn print_errors<'src, S: Source>(
-    source: &'src S,
-    err_stream: &StandardStream,
-    errors: SpannedErrors<'src>,
-) {
-    print_diagnostics(
-        source,
-        err_stream,
-        &errors
-            .into_iter()
-            .map(|error| error.into_diagnostic(source))
-            .collect::<Vec<_>>(),
-    );
+/// # Errors
+///
+/// Returns <code>Vec<[Diagnostic]></code> for parse errors.
+pub fn dump_config_tokens<S: ContentSource>(
+    source: &S,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = vec![];
+    for (token, span) in tokenize(source.content(), &mut diagnostics) {
+        println!(
+            "{token:?}({:?})",
+            BStr::new(&source.content().as_bytes()[span])
+        );
+    }
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+/// Parse a configuration
+///
+/// # Errors
+///
+/// Returns <code>Vec<[Diagnostic]></code> for parse errors.
+pub fn parse<S: ContentSource>(
+    source: &S,
+) -> Result<Configuration<'_>, Vec<Diagnostic>> {
+    parser2::process_cst(&parse_cst(source)?)
+        .map_err(|errors| errors::errors_to_diagnostics(errors, source))
+}
+
+/// Parse a configuration to a CST.
+///
+/// # Errors
+///
+/// Returns <code>Vec<[Diagnostic]></code> for parse errors.
+pub fn parse_cst<S: ContentSource>(
+    source: &S,
+) -> Result<Cst<'_>, Vec<Diagnostic>> {
+    let mut diagnostics = vec![];
+    let cst = Parser::parse(source.content(), &mut diagnostics);
+    if diagnostics.is_empty() {
+        Ok(cst)
+    } else {
+        Err(diagnostics)
+    }
 }
 
 /// Print diagnostics found in configuration file.

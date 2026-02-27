@@ -89,8 +89,25 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
                 other => other,
             }?;
         }
-        Command::Dump { path, just_tokens } => {
-            config::dump_config(path, &params.err_stream(), *just_tokens)?;
+        Command::Dump { path, kind } => {
+            let source = config::parser2::FileSource::read(path)?;
+            match if kind.tokens {
+                config::dump_config_tokens(&source)
+            } else if kind.cst {
+                config::parse_cst(&source).map(|cst| println!("{cst}"))
+            } else {
+                config::dump_config(&source)
+            } {
+                Ok(()) => {}
+                Err(diagnostics) => {
+                    config::print_diagnostics(
+                        &source,
+                        &params.err_stream(),
+                        &diagnostics,
+                    );
+                    return Ok(ExitCode::FAILURE);
+                }
+            }
         }
     }
 
