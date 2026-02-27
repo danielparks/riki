@@ -46,8 +46,8 @@ pub enum Command {
     },
     /// Start web server
     Serve {
-        /// Directory tree containing templates and pages
-        #[arg(name = "path", default_value = ".")]
+        /// Web root directory
+        #[arg(name = "root_path", default_value = ".")]
         base_dir: String,
 
         /// Address to bind to
@@ -62,6 +62,16 @@ pub enum Command {
         /// What to dump
         #[command(flatten)]
         kind: DumpKind,
+    },
+    /// Dump default rules.
+    DumpDefaultRules {
+        /// Web root directory
+        #[arg(name = "root_path", default_value = ".")]
+        root: String,
+
+        /// Templates directory
+        #[arg(name = "templates_path", default_value = "templates")]
+        templates: String,
     },
 }
 

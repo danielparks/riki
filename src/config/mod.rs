@@ -9,29 +9,19 @@ pub mod parser;
 pub mod parser2;
 mod tests;
 
-use crate::config::parser::Cst;
-use crate::config::parser2::{ContentSource, Source};
 use bstr::BStr;
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::{self, Config};
 use lexer::{Diagnostic, tokenize};
 use model::{ConfigSettings, Configuration};
+use parser::Cst;
 use parser::Parser;
+use parser2::{ContentSource, Source};
 use std::io::Write;
 use termcolor::StandardStream;
 
-/// Dump canonical configuration to stdout.
-///
-/// For debugging and development.
-///
-/// # Errors
-///
-/// Returns <code>Vec<[Diagnostic]></code> for parse errors.
-pub fn dump_config<S: ContentSource>(
-    source: &S,
-) -> Result<(), Vec<Diagnostic>> {
-    let configuration = parse(source)?;
-
+/// Dump canonical version of `configuration` to stdout.
+pub fn dump_canonical(configuration: &Configuration<'_>) {
     let mut settings = &ConfigSettings::default();
     for rule in configuration.rules() {
         if &rule.settings != settings {
@@ -40,8 +30,6 @@ pub fn dump_config<S: ContentSource>(
         }
         println!("{}", rule.canonical());
     }
-
-    Ok(())
 }
 
 /// Dump the tokens from a configuration file to stdout.

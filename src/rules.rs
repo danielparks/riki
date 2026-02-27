@@ -1,21 +1,27 @@
 //! Code to represent rules about how data is processed and returned.
 
 use crate::config::actions::Action;
-use crate::config::errors::ParseResult;
+use crate::config::errors::{ParseResult, errors_to_diagnostics};
+use crate::config::lexer::Diagnostic;
 use crate::config::model::{
     ConfigRule, ConfigSettings, Configuration, ConfigurationBuilder,
     ParsedString,
 };
+use crate::config::parser2::GeneratedSource;
+
+/// Source for default rules.
+pub const SOURCE: GeneratedSource = GeneratedSource("default rules");
 
 /// Get the default rules for Riki.
 ///
 /// # Errors
 ///
-/// Returns an error if there is a problem creating a glob.
+/// Returns <code>Vec<[Diagnostic]></code> for problems creating a glob, parsing
+/// a string, etc.
 pub fn default_rules<'a>(
     root_path: String,
     templates_path: String,
-) -> ParseResult<'a, Configuration<'a>> {
+) -> Result<Configuration<'a>, Vec<Diagnostic>> {
     default_rules_for_settings(ConfigSettings {
         root: root_path.into(),
         templates: templates_path.into(),
@@ -26,13 +32,26 @@ pub fn default_rules<'a>(
 ///
 /// # Errors
 ///
+/// Returns <code>Vec<[Diagnostic]></code> for problems creating a glob, parsing
+/// a string, etc.
+pub fn default_rules_for_settings(
+    settings: ConfigSettings<'_>,
+) -> Result<Configuration<'_>, Vec<Diagnostic>> {
+    inner_default_rules_for_settings(settings)
+        .map_err(|errors| errors_to_diagnostics(errors, &SOURCE))
+}
+
+/// Get the default rules for Riki (internal [`ParseResult`] version).
+///
+/// # Errors
+///
 /// Returns an error if there is a problem creating a glob.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "&ConfigSettings would have to outlive function"
 )]
 #[expect(clippy::allow_attributes, reason = "rust-clippy issue #13358")]
-pub fn default_rules_for_settings(
+fn inner_default_rules_for_settings(
     settings: ConfigSettings<'_>,
 ) -> ParseResult<'_, Configuration<'_>> {
     #[allow(clippy::wildcard_imports, reason = "convenience")]

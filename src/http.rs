@@ -23,7 +23,6 @@ pub mod util;
 
 use crate::actions::{self, RequestVariables, VariableMap};
 use crate::config::model::Configuration;
-use crate::config::parser2::GeneratedSource;
 use crate::render::{TemplatesManager, base_templates};
 use crate::rules;
 use actix_web::{
@@ -54,20 +53,16 @@ pub async fn serve<S: AsRef<str>>(
 
     let template_dir = format!("{base_dir}/templates");
     let router = Data::new(Router::from_configuration(
-        match rules::default_rules(base_dir, template_dir) {
-            Ok(config) => config,
-            Err(errors) => {
-                let source = GeneratedSource("default rules");
+        rules::default_rules(base_dir, template_dir).map_err(
+            |diagnostics| {
                 crate::config::print_diagnostics(
-                    &source,
+                    &rules::SOURCE,
                     err_stream,
-                    &crate::config::errors::errors_to_diagnostics(
-                        errors, &source,
-                    ),
+                    &diagnostics,
                 );
-                return Err(crate::Error::ExitWithCode(ExitCode::FAILURE));
-            }
-        },
+                crate::Error::ExitWithCode(ExitCode::FAILURE)
+            },
+        )?,
     ));
 
     HttpServer::new(move || {
