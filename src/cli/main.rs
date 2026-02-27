@@ -6,7 +6,7 @@ mod params;
 use anyhow::anyhow;
 use params::{Command, Params, Parser};
 use riki::actions::{RealFileReturn, StaticContext};
-use riki::{actions, config, http, render};
+use riki::{actions, config, http, render, rules};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -96,12 +96,26 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             } else if kind.cst {
                 config::parse_cst(&source).map(|cst| println!("{cst}"))
             } else {
-                config::dump_config(&source)
+                config::parse(&source)
+                    .map(|rules| config::dump_canonical(&rules))
             } {
                 Ok(()) => {}
                 Err(diagnostics) => {
                     config::print_diagnostics(
                         &source,
+                        &params.err_stream(),
+                        &diagnostics,
+                    );
+                    return Ok(ExitCode::FAILURE);
+                }
+            }
+        }
+        Command::DumpDefaultRules { root, templates } => {
+            match rules::default_rules(root.clone(), templates.clone()) {
+                Ok(rules) => config::dump_canonical(&rules),
+                Err(diagnostics) => {
+                    config::print_diagnostics(
+                        &rules::SOURCE,
                         &params.err_stream(),
                         &diagnostics,
                     );
