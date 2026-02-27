@@ -1,4 +1,25 @@
-//! Code to represent rules about how data is processed and returned.
+//! # Code to represent rules about how data is processed and returned.
+//!
+//! The default rules ([`default_rules()`] and
+//! [`default_rules_for_settings()`]) check for:
+//!
+//!   1. An `*.md` source that should be redacted and returned.
+//!   2. A static file to return as-is.
+//!   3. A `${path}.md` file to render and return.
+//!
+//! ## Canonical URLs and redirects
+//!
+//! Riki redirects to the canonical URL of a page when possible.
+//!
+//! The canonical URL will end with a / if (and only if) it corresponds to a
+//! `index.html`-like page or static file.
+//!
+//! | Source path       | Canonical path   |
+//! |-------------------|------------------|
+//! | `page.md`         | `/page`          |
+//! | `dir/index.md`    | `/dir/`          |
+//! | `static.html`     | `/static.html`   |
+//! | `dir/index.html`  | `/dir/`          |
 
 use crate::config::actions::Action;
 use crate::config::errors::{ParseResult, errors_to_diagnostics};
