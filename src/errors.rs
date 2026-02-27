@@ -4,7 +4,6 @@ use crate::actions::Source;
 use std::ffi::OsString;
 use std::io;
 use std::path::PathBuf;
-use std::process::ExitCode;
 use std::result;
 use std::string::FromUtf8Error;
 use thiserror::Error; // doesn’t conflict with the enum.
@@ -21,10 +20,6 @@ pub enum Error {
         /// The address the socket could not bind on
         address: String,
     },
-
-    /// Error in configuration
-    #[error("Configuration Error")]
-    ExitWithCode(ExitCode),
 
     /// IO error
     #[error("Error in IO: {0}")]
