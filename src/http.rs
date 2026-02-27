@@ -1,22 +1,7 @@
 //! # Serve pages over HTTP
 //!
-//! [`path_handler()`][path_handler] first checks if the URL path corresponds to
-//! something in the static directory, then it checks the pages. If nothing is
-//! found it renders the error404 template.
-//!
-//! ## Canonical URLs and redirects
-//!
-//! Riki redirects to the canonical URL of a page when possible.
-//!
-//! The canonical URL will end with a / if (and only if) it corresponds to a
-//! `index.html`-like page or static file.
-//!
-//! | Source path             | Canonical path   |
-//! |-------------------------|------------------|
-//! | `pages/page.md`         | `/page`          |
-//! | `pages/dir/index.md`    | `/dir/`          |
-//! | `static/static.html`    | `/static.html`   |
-//! | `static/dir/index.html` | `/dir/`          |
+//! How pages are served are determined by a sequence of rules. See
+//! [`riki::rules`][crate::rules].
 
 mod tests;
 pub mod util;
@@ -118,9 +103,7 @@ impl<'src> Router<'src, '_> {
         Self { config, manager: TemplatesManager::default() }
     }
 
-    /// Route a request
-    ///
-    /// Uses hard coded rules from [`rules::default_rules()`].
+    /// Route a request.
     ///
     /// # Errors
     ///
