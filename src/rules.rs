@@ -7,25 +7,6 @@ use crate::config::model::{
     ParsedString,
 };
 
-/// Create a [`ConfigRule`]
-fn rule<'src, A: Into<Action<'src>>>(
-    glob: &'src str,
-    settings: &ConfigSettings<'src>,
-    action: A,
-) -> ConfigRule<'src> {
-    ConfigRule::new(glob, settings.clone(), action.into())
-}
-
-/// Create a [`ParsedString`] from string content with variable interpolation.
-///
-/// # Panics
-///
-/// Panics if the string cannot be parsed.
-fn parsed(s: &str) -> ParseResult<'_, ParsedString<'_>> {
-    use crate::config::parser2::StringType;
-    ParsedString::from_string_content(s, StringType::QuotedDouble)
-}
-
 /// Get the default rules for Riki.
 ///
 /// # Errors
@@ -58,33 +39,36 @@ pub fn default_rules_for_settings(
     use crate::config::actions::functions::*;
 
     let mut config = ConfigurationBuilder::new();
+    // root = ...
+    // templates = ...
     // *.md redact_source(canonical($clean_path))
     config.add(rule(
         "**/*.md",
         &settings,
         redact_source(canonical(parsed("$clean_path")?)),
     ))?;
-    // index.html canonical("${dirname($clean_path)}/")
+    // index.html canonical(as_dir(dirname($clean_path)))")
     config.add(rule(
         "**/index.html",
         &settings,
         canonical(as_dir(dirname(parsed("$clean_path")?))),
     ))?;
 
-    // if file_exists("$clean_path") {
-    //     canonical($clean_path) // returns $clean_path as a file if it
-    // matches. }
+    // Returns $clean_path as a file if it matches:
+    //     canonical(if_file($clean_path))
     config.add(rule(
         "**",
         &settings,
         canonical(if_file(parsed("$clean_path")?)),
     ))?;
 
-    // if file_exists("$clean_path/index.html") {
-    //     if canonical("${clean_path}/") {
-    //         $clean_path/index.html
-    //     }
-    // }
+    // condition(
+    //     canonical(condition(
+    //         if_file("${clean_path}/index.html"),
+    //         as_dir($clean_path),
+    //     )),
+    //     "${clean_path}/index.html",
+    // )
     config.add(rule(
         "**",
         &settings,
@@ -97,18 +81,20 @@ pub fn default_rules_for_settings(
         ),
     ))?;
 
-    // index canonical("${dirname($clean_path)}/")
+    // index canonical(as_dir(dirname($clean_path)))
     config.add(rule(
         "**/index",
         &settings,
         canonical(as_dir(dirname(parsed("$clean_path")?))),
     ))?;
 
-    // if file_exists("${clean_path}.md") {
-    //     if canonical($clean_path) {
-    //         render(markdown("${clean_path}.md"))
-    //     }
-    // }
+    // condition(
+    //     canonical(condition(
+    //         if_file("${clean_path}.md"),
+    //         $clean_path,
+    //     )),
+    //     render(markdown(if_file("${clean_path}.md"))),
+    // ),
     config.add(rule(
         "**",
         &settings,
@@ -121,11 +107,13 @@ pub fn default_rules_for_settings(
         ),
     ))?;
 
-    // if file_exists("$clean_path/index.md") {
-    //     if canonical("${clean_path}/") {
-    //         render(markdown("$clean_path/index.md"))
-    //     }
-    // }
+    // condition(
+    //     canonical(condition(
+    //         if_file("${clean_path}/index.md"),
+    //         as_dir($clean_path),
+    //     )),
+    //     render(markdown(if_file("${clean_path}/index.md"))),
+    // ),
     config.add(rule(
         "**",
         &settings,
@@ -139,4 +127,23 @@ pub fn default_rules_for_settings(
     ))?;
 
     config.build()
+}
+
+/// Create a [`ConfigRule`]
+fn rule<'src, A: Into<Action<'src>>>(
+    glob: &'src str,
+    settings: &ConfigSettings<'src>,
+    action: A,
+) -> ConfigRule<'src> {
+    ConfigRule::new(glob, settings.clone(), action.into())
+}
+
+/// Create a [`ParsedString`] from string content with variable interpolation.
+///
+/// # Panics
+///
+/// Panics if the string cannot be parsed.
+fn parsed(s: &str) -> ParseResult<'_, ParsedString<'_>> {
+    use crate::config::parser2::StringType;
+    ParsedString::from_string_content(s, StringType::QuotedDouble)
 }
