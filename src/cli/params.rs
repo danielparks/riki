@@ -59,10 +59,27 @@ pub enum Command {
         /// Configuration file to dump
         path: PathBuf,
 
-        /// Just print list of tokens
-        #[arg(short = 't', long)]
-        just_tokens: bool,
+        /// What to dump
+        #[command(flatten)]
+        kind: DumpKind,
     },
+}
+
+/// What to dump
+#[derive(clap::Args, Debug)]
+#[group(required = false, multiple = false)]
+pub struct DumpKind {
+    /// Output tokens
+    #[arg(short, long)]
+    pub tokens: bool,
+
+    /// Output CST
+    #[arg(short, long)]
+    pub cst: bool,
+
+    /// Output canonical rules
+    #[arg(short, long)]
+    pub rules: bool,
 }
 
 impl Params {

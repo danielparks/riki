@@ -56,11 +56,14 @@ pub async fn serve<S: AsRef<str>>(
     let router = Data::new(Router::from_configuration(
         match rules::default_rules(base_dir, template_dir) {
             Ok(config) => config,
-            Err(error) => {
-                crate::config::print_errors(
-                    &GeneratedSource("default rules"),
+            Err(errors) => {
+                let source = GeneratedSource("default rules");
+                crate::config::print_diagnostics(
+                    &source,
                     err_stream,
-                    error,
+                    &crate::config::errors::errors_to_diagnostics(
+                        errors, &source,
+                    ),
                 );
                 return Err(crate::Error::ExitWithCode(ExitCode::FAILURE));
             }
