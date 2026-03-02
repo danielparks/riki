@@ -109,7 +109,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
                     .check(&params.err_stream())
             });
         }
-        Command::DumpDefaultRules { root, templates } => {
+        Command::DumpDefault { root, templates } => {
             unwrap_diagnostics_result(
                 rules::default_rules(root.clone(), templates.clone())
                     .map(|conf| config::dump_canonical(&conf)),
