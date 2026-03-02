@@ -22,8 +22,7 @@
 //! | `dir/index.html`  | `/dir/`          |
 
 use crate::config::actions::Action;
-use crate::config::errors::{ParseResult, errors_to_diagnostics};
-use crate::config::lexer::Diagnostic;
+use crate::config::errors::{Diagnostics, ParseResult};
 use crate::config::model::{
     ConfigRule, ConfigSettings, Configuration, ConfigurationBuilder,
     ParsedString,
@@ -37,12 +36,11 @@ pub const SOURCE: GeneratedSource = GeneratedSource("default rules");
 ///
 /// # Errors
 ///
-/// Returns <code>Vec<[Diagnostic]></code> for problems creating a glob, parsing
-/// a string, etc.
+/// Returns [`Diagnostics`] for problems creating a glob, parsing a string, etc.
 pub fn default_rules<'a>(
     root_path: String,
     templates_path: String,
-) -> Result<Configuration<'a>, Vec<Diagnostic>> {
+) -> Result<Configuration<'a>, Diagnostics<GeneratedSource<'static>>> {
     default_rules_for_settings(ConfigSettings {
         root: root_path.into(),
         templates: templates_path.into(),
@@ -53,13 +51,12 @@ pub fn default_rules<'a>(
 ///
 /// # Errors
 ///
-/// Returns <code>Vec<[Diagnostic]></code> for problems creating a glob, parsing
-/// a string, etc.
+/// Returns [`Diagnostics`] for problems creating a glob, parsing a string, etc.
 pub fn default_rules_for_settings(
     settings: ConfigSettings<'_>,
-) -> Result<Configuration<'_>, Vec<Diagnostic>> {
+) -> Result<Configuration<'_>, Diagnostics<GeneratedSource<'static>>> {
     inner_default_rules_for_settings(settings)
-        .map_err(|errors| errors_to_diagnostics(errors, &SOURCE))
+        .map_err(|errors| Diagnostics::from_errors(errors, SOURCE))
 }
 
 /// Get the default rules for Riki (internal [`ParseResult`] version).
