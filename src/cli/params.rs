@@ -54,7 +54,7 @@ pub enum Command {
         #[arg(long, default_value = "localhost:8000")]
         bind: String,
     },
-    /// Dump configuration file CST
+    /// Dump configuration file in various formats
     Dump {
         /// Configuration file to dump
         path: PathBuf,
@@ -64,7 +64,7 @@ pub enum Command {
         kind: DumpKind,
     },
     /// Dump default rules.
-    DumpDefaultRules {
+    DumpDefault {
         /// Web root directory
         #[arg(name = "root_path", default_value = ".")]
         root: String,
