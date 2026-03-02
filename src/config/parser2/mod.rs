@@ -42,6 +42,7 @@ pub fn parse<S: ContentSource + ?Sized>(
 /// # Panics
 ///
 /// Should only panic if [`Parser::parse()`] messed up.
+#[expect(clippy::too_many_lines, reason = "processing CST with match")]
 pub fn process_cst<'src>(
     cst: &Cst<'src>,
 ) -> ParseResult<'src, Configuration<'src>> {

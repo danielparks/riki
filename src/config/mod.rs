@@ -1,5 +1,4 @@
 //! Handle configuration files
-#![allow(clippy::too_many_lines, reason = "wip")]
 
 pub mod actions;
 pub mod errors;
