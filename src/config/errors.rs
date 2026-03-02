@@ -3,6 +3,10 @@
 use super::lexer::{Diagnostic, TokenType};
 use super::parser2::{Source, Span, StringType};
 use codespan_reporting::diagnostic::Label;
+use codespan_reporting::files::SimpleFile;
+use codespan_reporting::term::{self, Config};
+use std::io::Write;
+use termcolor::StandardStream;
 
 /// Errors that could be produced from parsing code.
 ///
@@ -132,6 +136,78 @@ pub fn errors_to_diagnostics<S: Source>(
         .into_iter()
         .map(|error| error.into_diagnostic(source))
         .collect()
+}
+
+/// A sequence of [`Diagnostic`]s with their [`Source`].
+#[derive(Clone, Debug)]
+pub struct Diagnostics<S: Source> {
+    /// The diagnostics
+    pub diagnostics: Vec<Diagnostic>,
+
+    /// The source
+    pub source: S,
+}
+
+impl<S: Source> Diagnostics<S> {
+    /// Create [`Diagnostics`] from [`SpannedErrors`].
+    pub fn from_errors(errors: SpannedErrors<'_>, source: S) -> Self {
+        Self {
+            diagnostics: errors
+                .into_iter()
+                .map(|error| error.into_diagnostic(&source))
+                .collect(),
+            source,
+        }
+    }
+
+    /// Create [`Diagnostics`] from `Vec<Diagnostic>`.
+    pub const fn from_diagnostics(
+        diagnostics: Vec<Diagnostic>,
+        source: S,
+    ) -> Self {
+        Self { diagnostics, source }
+    }
+
+    /// Output diagnostics and exit with code 1.
+    pub fn check(&self, err_stream: &StandardStream) -> ! {
+        self.print(err_stream);
+        std::process::exit(1)
+    }
+
+    /// Print diagnostics found in configuration file.
+    ///
+    /// # Panics
+    ///
+    /// Panics if it can’t write to `err_stream` (probably stderr).
+    pub fn print(&self, err_stream: &StandardStream) {
+        let out = &mut err_stream.lock();
+        let config = Config::default();
+        let file = SimpleFile::new(
+            self.source.name(),
+            if let Some(content) = self.source.source() {
+                content
+            } else {
+                writeln!(out, "Found errors in {}:", self.source.name())
+                    .unwrap();
+                ""
+            },
+        );
+
+        for diag in &self.diagnostics {
+            term::emit(out, &config, &file, diag).unwrap();
+        }
+    }
+}
+
+/// Unwrap a `Result<_, Diagnostics>`.
+pub fn unwrap_diagnostics_result<T, S: Source>(
+    result: Result<T, Diagnostics<S>>,
+    err_stream: &StandardStream,
+) -> T {
+    match result {
+        Ok(value) => value,
+        Err(diagnostics) => diagnostics.check(err_stream),
+    }
 }
 
 /// A [`ParseError`] along with its source.

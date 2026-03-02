@@ -10,15 +10,11 @@ pub mod parser2;
 mod tests;
 
 use bstr::BStr;
-use codespan_reporting::files::SimpleFile;
-use codespan_reporting::term::{self, Config};
 use lexer::{Diagnostic, tokenize};
 use model::{ConfigSettings, Configuration};
 use parser::Cst;
 use parser::Parser;
-use parser2::{ContentSource, Source};
-use std::io::Write;
-use termcolor::StandardStream;
+use parser2::ContentSource;
 
 /// Dump canonical version of `configuration` to stdout.
 pub fn dump_canonical(configuration: &Configuration<'_>) {
@@ -83,32 +79,5 @@ pub fn parse_cst<S: ContentSource>(
         Ok(cst)
     } else {
         Err(diagnostics)
-    }
-}
-
-/// Print diagnostics found in configuration file.
-///
-/// # Panics
-///
-/// Panics if it can’t write to `err_stream` (probably stderr).
-pub fn print_diagnostics<S: Source>(
-    source: &S,
-    err_stream: &StandardStream,
-    diagnostics: &[Diagnostic],
-) {
-    let out = &mut err_stream.lock();
-    let config = Config::default();
-    let file = SimpleFile::new(
-        source.name(),
-        if let Some(content) = source.source() {
-            content
-        } else {
-            writeln!(out, "Found errors in {}:", source.name()).unwrap();
-            ""
-        },
-    );
-
-    for diag in diagnostics {
-        term::emit(out, &config, &file, diag).unwrap();
     }
 }

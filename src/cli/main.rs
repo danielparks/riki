@@ -7,6 +7,8 @@ use anyhow::anyhow;
 use params::{Command, Params, Parser};
 use riki::actions::is_not_found;
 use riki::actions::{RealFileReturn, StaticContext};
+use riki::config::errors::{Diagnostics, unwrap_diagnostics_result};
+use riki::config::parser2::FileSource;
 use riki::{actions, config, http, render, rules};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -84,51 +86,35 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
         Command::Serve { base_dir, bind } => {
             check_dir(base_dir)?;
             let template_dir = format!("{base_dir}/templates");
-            match rules::default_rules(base_dir.clone(), template_dir) {
-                Ok(configuration) => http::serve(configuration, bind)?,
-                Err(diagnostics) => {
-                    config::print_diagnostics(
-                        &rules::SOURCE,
-                        &params.err_stream(),
-                        &diagnostics,
-                    );
-                    return Ok(ExitCode::FAILURE);
-                }
-            }
+            http::serve(
+                unwrap_diagnostics_result(
+                    rules::default_rules(base_dir.clone(), template_dir),
+                    &params.err_stream(),
+                ),
+                bind,
+            )?;
         }
         Command::Dump { path, kind } => {
-            let source = config::parser2::FileSource::read(path)?;
-            match if kind.tokens {
+            let source = FileSource::read(path)?;
+            if kind.tokens {
                 config::dump_config_tokens(&source)
             } else if kind.cst {
                 config::parse_cst(&source).map(|cst| println!("{cst}"))
             } else {
                 config::parse(&source)
                     .map(|rules| config::dump_canonical(&rules))
-            } {
-                Ok(()) => {}
-                Err(diagnostics) => {
-                    config::print_diagnostics(
-                        &source,
-                        &params.err_stream(),
-                        &diagnostics,
-                    );
-                    return Ok(ExitCode::FAILURE);
-                }
             }
+            .map_err(|diagnostics| {
+                Diagnostics::from_diagnostics(diagnostics, source)
+                    .check(&params.err_stream())
+            });
         }
         Command::DumpDefaultRules { root, templates } => {
-            match rules::default_rules(root.clone(), templates.clone()) {
-                Ok(rules) => config::dump_canonical(&rules),
-                Err(diagnostics) => {
-                    config::print_diagnostics(
-                        &rules::SOURCE,
-                        &params.err_stream(),
-                        &diagnostics,
-                    );
-                    return Ok(ExitCode::FAILURE);
-                }
-            }
+            unwrap_diagnostics_result(
+                rules::default_rules(root.clone(), templates.clone())
+                    .map(|conf| config::dump_canonical(&conf)),
+                &params.err_stream(),
+            );
         }
     }
 
@@ -156,7 +142,7 @@ fn find_templates_dir(page_path: &Path) -> Option<PathBuf> {
 ///
 ///   * [`riki::Error::MissingDirectory`] not a directory or doesn’t exist.
 ///   * [`riki::Error::Io`] some other problem getting info about `path`.
-pub fn check_dir<P: AsRef<Path>>(path: P) -> riki::Result<()> {
+fn check_dir<P: AsRef<Path>>(path: P) -> riki::Result<()> {
     let path = path.as_ref();
     match path.metadata().map(|m| m.is_dir()) {
         Ok(true) => Ok(()),
