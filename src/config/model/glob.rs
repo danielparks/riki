@@ -42,7 +42,7 @@ impl<'src> ParsedGlob<'src> {
     }
 
     /// Parse glob string contents
-    #[expect(clippy::unnecessary_wraps, reason = "wip")]
+    #[expect(clippy::unnecessary_wraps, reason = "FIXME")]
     const fn from_string_content(src: &'src str) -> ParseResult<'src, Self> {
         // FIXME
         Ok(Self { unescaped: Cow::Borrowed(src), span: src })
