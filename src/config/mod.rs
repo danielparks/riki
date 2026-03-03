@@ -11,8 +11,7 @@ mod tests;
 use bstr::BStr;
 use lexer::{Diagnostic, tokenize};
 use model::{ConfigSettings, Configuration};
-use parser::Cst;
-use parser::Parser;
+use parser::{Cst, Parser};
 use parser2::ContentSource;
 
 /// Dump canonical version of `configuration` to stdout.
