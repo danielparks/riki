@@ -127,17 +127,6 @@ pub type ParseResult<'src, T, E = SpannedErrors<'src>> = Result<T, E>;
 /// Possibly multiple [`SpannedError`]s.
 pub type SpannedErrors<'src> = Vec<SpannedError<'src>>;
 
-/// Convert [`SpannedErrors`] into <code>Vec<[Diagnostic]></code>.
-pub fn errors_to_diagnostics<S: Source>(
-    errors: SpannedErrors<'_>,
-    source: &S,
-) -> Vec<Diagnostic> {
-    errors
-        .into_iter()
-        .map(|error| error.into_diagnostic(source))
-        .collect()
-}
-
 /// A sequence of [`Diagnostic`]s with their [`Source`].
 #[derive(Clone, Debug)]
 pub struct Diagnostics<S: Source> {
