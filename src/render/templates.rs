@@ -14,12 +14,12 @@ mod helpers;
 /// This keeps track of the live registry object ([`Handlebars`]) for each
 /// template directory that we use.
 #[derive(Debug, Default)]
-pub struct TemplatesManager<'tpls> {
+pub struct TemplatesManager {
     /// A map of template directories to template registries.
-    by_path: RwLock<HashMap<PathBuf, Arc<Handlebars<'tpls>>>>,
+    by_path: RwLock<HashMap<PathBuf, Arc<Handlebars<'static>>>>,
 }
 
-impl<'tpls> TemplatesManager<'tpls> {
+impl TemplatesManager {
     /// Get the template registry for a directory.
     ///
     /// This will create a new registry if it doesn’t already exist.
@@ -37,7 +37,7 @@ impl<'tpls> TemplatesManager<'tpls> {
     pub fn templates_for_directory<P: Into<PathBuf>>(
         &self,
         path: P,
-    ) -> Result<Arc<Handlebars<'tpls>>> {
+    ) -> Result<Arc<Handlebars<'static>>> {
         let path = path.into();
         if !path.is_dir() {
             return Err(Error::MissingDirectory(path));

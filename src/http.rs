@@ -56,7 +56,7 @@ pub async fn serve<A: AsRef<str>>(
 #[get("/{path:.*}")]
 pub async fn path_handler(
     req: HttpRequest,
-    router: Data<Router<'_>>,
+    router: Data<Router>,
 ) -> impl Responder {
     router
         .route(&req)
@@ -68,15 +68,15 @@ pub async fn path_handler(
 }
 
 /// Route requests to the right actions
-pub struct Router<'tpls> {
+pub struct Router {
     /// Configured rules
     config: SourcedConfiguration<GeneratedSource<'static>>,
 
     /// Manage template registries
-    manager: TemplatesManager<'tpls>,
+    manager: TemplatesManager,
 }
 
-impl Router<'_> {
+impl Router {
     /// Create a router from a [`SourcedConfiguration`].
     ///
     /// # Errors
@@ -138,7 +138,7 @@ impl Router<'_> {
 }
 
 // Implement manually for future generics that might not be `fmt::Debug`.
-impl fmt::Debug for Router<'_> {
+impl fmt::Debug for Router {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Router")
             .field("config", &self.config)

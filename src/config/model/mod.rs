@@ -147,7 +147,7 @@ impl<'src> ConfigRule<'src> {
     /// rule should be skipped and the next rule evaluated.
     pub fn evaluate(
         &self,
-        manager: &TemplatesManager<'_>,
+        manager: &TemplatesManager,
         request: &actix_web::HttpRequest,
         variables: RequestVariables<'_>,
     ) -> actions::Result<actix_web::HttpResponse> {
