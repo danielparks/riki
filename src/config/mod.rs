@@ -14,6 +14,22 @@ use model::{ConfigSettings, Configuration};
 use parser::{Cst, Parser};
 use parser2::ContentSource;
 
+/// Parse a configuration
+///
+/// # Errors
+///
+/// Returns <code>Vec<[Diagnostic]></code> for parse errors.
+pub fn parse<S: ContentSource>(
+    source: &S,
+) -> Result<Configuration<'_>, Vec<Diagnostic>> {
+    parser2::process_cst(&parse_cst(source)?).map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| error.into_diagnostic(source))
+            .collect()
+    })
+}
+
 /// Dump canonical version of `configuration` to stdout.
 pub fn dump_canonical(configuration: &Configuration<'_>) {
     let mut settings = &ConfigSettings::default();
@@ -49,22 +65,6 @@ pub fn dump_config_tokens<S: ContentSource>(
     } else {
         Err(diagnostics)
     }
-}
-
-/// Parse a configuration
-///
-/// # Errors
-///
-/// Returns <code>Vec<[Diagnostic]></code> for parse errors.
-pub fn parse<S: ContentSource>(
-    source: &S,
-) -> Result<Configuration<'_>, Vec<Diagnostic>> {
-    parser2::process_cst(&parse_cst(source)?).map_err(|errors| {
-        errors
-            .into_iter()
-            .map(|error| error.into_diagnostic(source))
-            .collect()
-    })
 }
 
 /// Parse a configuration to a CST.
