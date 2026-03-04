@@ -21,6 +21,7 @@
 //! | `static.html`     | `/static.html`   |
 //! | `dir/index.html`  | `/dir/`          |
 
+use crate::config::SourcedConfiguration;
 use crate::config::actions::Action;
 use crate::config::errors::{Diagnostics, ParseResult};
 use crate::config::model::{
@@ -37,10 +38,13 @@ pub const SOURCE: GeneratedSource = GeneratedSource("default rules");
 /// # Errors
 ///
 /// Returns [`Diagnostics`] for problems creating a glob, parsing a string, etc.
-pub fn default_rules<'a>(
+pub fn default_rules(
     root_path: String,
     templates_path: String,
-) -> Result<Configuration<'a>, Diagnostics<GeneratedSource<'static>>> {
+) -> Result<
+    SourcedConfiguration<GeneratedSource<'static>>,
+    Diagnostics<GeneratedSource<'static>>,
+> {
     default_rules_for_settings(ConfigSettings {
         root: root_path.into(),
         templates: templates_path.into(),
@@ -53,9 +57,15 @@ pub fn default_rules<'a>(
 ///
 /// Returns [`Diagnostics`] for problems creating a glob, parsing a string, etc.
 pub fn default_rules_for_settings(
-    settings: ConfigSettings<'_>,
-) -> Result<Configuration<'_>, Diagnostics<GeneratedSource<'static>>> {
+    settings: ConfigSettings<'static>,
+) -> Result<
+    SourcedConfiguration<GeneratedSource<'static>>,
+    Diagnostics<GeneratedSource<'static>>,
+> {
     inner_default_rules_for_settings(settings)
+        .map(|configuration| {
+            SourcedConfiguration::generated(SOURCE, configuration)
+        })
         .map_err(|errors| Diagnostics::from_errors(errors, SOURCE))
 }
 

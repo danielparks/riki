@@ -410,6 +410,12 @@ impl Source for GeneratedSource<'_> {
     }
 }
 
+impl<'a> From<&'a str> for GeneratedSource<'a> {
+    fn from(name: &'a str) -> Self {
+        Self(name)
+    }
+}
+
 /// A file source.
 #[derive(Clone, Debug)]
 pub struct FileSource {

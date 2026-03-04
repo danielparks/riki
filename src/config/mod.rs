@@ -14,17 +14,111 @@ use model::{ConfigSettings, Configuration};
 use parser::{Cst, Parser};
 use parser2::ContentSource;
 
-/// Confirms that `Configuration<'_>` is [covariant] over its lifetime.
+/// Wrapper for [`SourcedConfiguration`] definition.
 ///
-/// From [self_cell] crate.
-///
-/// [covariant]: https://doc.rust-lang.org/reference/subtyping.html#r-subtyping.variance
-/// [self_cell]: https://docs.rs/self_cell/latest/self_cell/macro.self_cell.html
-const fn _assert_covariance_configuration<'x: 'y, 'y>(
-    x: &'y Configuration<'x>,
-) -> &'y Configuration<'y> {
-    x
+/// Module allows `#[expect]` to work on [`SourcedConfiguration`].
+mod internal {
+    #![expect(clippy::future_not_send, reason = "self_referencing")]
+    #![expect(clippy::mem_forget, reason = "self_referencing")]
+
+    use super::errors::Diagnostics;
+    use super::model::{ConfigRule, Configuration};
+    use super::parser2::{ContentSource, GeneratedSource, Source};
+    use ouroboros::self_referencing;
+    use std::fmt;
+
+    /// A [`Configuration`] with its [`ContentSource`].
+    #[self_referencing]
+    pub struct SourcedConfiguration<S: Source + 'static> {
+        /// The source of the configuration.
+        source: S,
+
+        /// The parsed configuration.
+        #[borrows(source)]
+        #[covariant]
+        configuration: Configuration<'this>,
+    }
+
+    impl<S: ContentSource + 'static> SourcedConfiguration<S> {
+        /// Parse a [`ContentSource`].
+        ///
+        /// # Errors
+        ///
+        /// Returns [`Diagnostics`] on parse errors.
+        pub fn parse_from(source: S) -> Result<Self, Diagnostics<S>> {
+            SourcedConfigurationTryBuilder {
+                source,
+                configuration_builder: |source| super::parse(source),
+            }
+            .try_build_or_recover()
+            .map_err(|(diagnostics, heads)| {
+                Diagnostics::from_diagnostics(diagnostics, heads.source)
+            })
+        }
+    }
+
+    impl<'a> SourcedConfiguration<GeneratedSource<'a>> {
+        /// Create a [`SourcedConfiguration`] from rules generated in code.
+        pub fn generated<N: Into<GeneratedSource<'a>>>(
+            source: N,
+            configuration: Configuration<'static>,
+        ) -> Self {
+            SourcedConfigurationBuilder {
+                source: source.into(),
+                configuration_builder: |_| configuration,
+            }
+            .build()
+        }
+    }
+
+    impl<S: Source + 'static> SourcedConfiguration<S> {
+        /// Get the source.
+        #[inline]
+        #[must_use]
+        pub fn source(&self) -> &S {
+            self.borrow_source()
+        }
+
+        /// Get the configuration.
+        #[inline]
+        #[must_use]
+        pub fn configuration(&self) -> &Configuration<'_> {
+            self.borrow_configuration()
+        }
+
+        /// Get all the rules.
+        #[inline]
+        #[must_use]
+        pub fn rules(&self) -> &[ConfigRule<'_>] {
+            self.configuration().rules()
+        }
+
+        /// Get matching rules for a path.
+        #[inline]
+        #[must_use]
+        pub fn matches(&self, path: &str) -> Vec<&ConfigRule<'_>> {
+            self.configuration().matches(path)
+        }
+
+        /// Get matching rules for a path.
+        #[inline]
+        #[must_use]
+        pub fn last_matching(&self, path: &str) -> Option<&ConfigRule<'_>> {
+            self.configuration().last_matching(path)
+        }
+    }
+
+    impl<S: Source + fmt::Debug + 'static> fmt::Debug for SourcedConfiguration<S> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("SourcedConfiguration")
+                .field("source", &self.source())
+                .field("configuration", &self.configuration())
+                .finish()
+        }
+    }
 }
+
+pub use internal::SourcedConfiguration;
 
 /// Parse a configuration
 ///

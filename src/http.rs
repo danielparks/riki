@@ -6,11 +6,13 @@
 mod tests;
 
 use crate::actions::{self, RequestVariables, VariableMap};
-use crate::config::model::Configuration;
+use crate::config::SourcedConfiguration;
+use crate::config::parser2::GeneratedSource;
 use crate::render::{TemplatesManager, base_templates};
 use actix_web::{
     self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
 };
+use std::fmt;
 use tracing_actix_web::TracingLogger;
 
 // TODO better error handling
@@ -27,7 +29,7 @@ use tracing_actix_web::TracingLogger;
 /// May return an error if the server could not start correctly.
 #[actix_web::main]
 pub async fn serve<A: AsRef<str>>(
-    configuration: Configuration<'static>,
+    configuration: SourcedConfiguration<GeneratedSource<'static>>,
     address: A,
 ) -> crate::Result<()> {
     let address = address.as_ref();
@@ -54,7 +56,7 @@ pub async fn serve<A: AsRef<str>>(
 #[get("/{path:.*}")]
 pub async fn path_handler(
     req: HttpRequest,
-    router: Data<Router<'_, '_>>,
+    router: Data<Router<'_>>,
 ) -> impl Responder {
     router
         .route(&req)
@@ -66,23 +68,24 @@ pub async fn path_handler(
 }
 
 /// Route requests to the right actions
-#[derive(Debug)]
-pub struct Router<'src, 'tpls> {
+pub struct Router<'tpls> {
     /// Configured rules
-    config: Configuration<'src>,
+    config: SourcedConfiguration<GeneratedSource<'static>>,
 
     /// Manage template registries
     manager: TemplatesManager<'tpls>,
 }
 
-impl<'src> Router<'src, '_> {
-    /// Create a router from a [`Configuration`].
+impl Router<'_> {
+    /// Create a router from a [`SourcedConfiguration`].
     ///
     /// # Errors
     ///
     /// Returns an error if there is a problem loading templates.
     #[must_use]
-    pub fn from_configuration(config: Configuration<'src>) -> Self {
+    pub fn from_configuration(
+        config: SourcedConfiguration<GeneratedSource<'static>>,
+    ) -> Self {
         Self { config, manager: TemplatesManager::default() }
     }
 
@@ -131,5 +134,15 @@ impl<'src> Router<'src, '_> {
                 }
             }
         }
+    }
+}
+
+// Implement manually for future generics that might not be `fmt::Debug`.
+impl fmt::Debug for Router<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Router")
+            .field("config", &self.config)
+            .field("manager", &self.manager)
+            .finish()
     }
 }
