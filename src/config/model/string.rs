@@ -8,7 +8,6 @@ use logos::Logos;
 use std::borrow::Cow;
 use std::ops::Range;
 use std::slice;
-use tinyvec::{ArrayVec, TinyVec};
 
 /// A string that’s been parsed to expand escapes and for easy interpolation
 ///
@@ -21,7 +20,7 @@ pub struct ParsedString<'src> {
     unescaped: Cow<'src, str>,
 
     /// Any variables to be interpolated.
-    variables: TinyVec<[Interpolation<'src>; 1]>,
+    variables: Vec<Interpolation<'src>>,
 }
 
 impl<'src> ParsedString<'src> {
@@ -216,7 +215,7 @@ impl<'src> ParsedString<'src> {
     #[must_use]
     #[inline]
     pub const fn from_literal(src: &'src str) -> Self {
-        Self { unescaped: Cow::Borrowed(src), variables: empty_tinyvec() }
+        Self { unescaped: Cow::Borrowed(src), variables: Vec::new() }
     }
 
     /// Parse string contents.
@@ -237,7 +236,7 @@ impl<'src> ParsedString<'src> {
     ) -> ParseResult<'src, Self> {
         let lexer = StringLexToken::lexer(src);
         let mut out = String::new();
-        let mut variables = TinyVec::default();
+        let mut variables = Vec::new();
         let mut offset: isize = 0;
         let mut next_index_to_copy = 0;
         let mut errors = Vec::new();
@@ -345,7 +344,7 @@ impl<'src> From<&'src str> for ParsedString<'src> {
     /// );
     /// ```
     fn from(src: &'src str) -> Self {
-        Self { unescaped: Cow::Borrowed(src), variables: empty_tinyvec() }
+        Self { unescaped: Cow::Borrowed(src), variables: Vec::new() }
     }
 }
 
@@ -365,7 +364,7 @@ impl From<String> for ParsedString<'_> {
     /// );
     /// ```
     fn from(src: String) -> Self {
-        Self { unescaped: Cow::Owned(src), variables: empty_tinyvec() }
+        Self { unescaped: Cow::Owned(src), variables: Vec::new() }
     }
 }
 
@@ -495,9 +494,7 @@ pub fn escape_quoted(input: &str, quote: u8) -> Cow<'_, str> {
     }
 }
 
-/// Interpolated variable
-///
-/// This only implements `Default` for [`TinyVec`].
+/// Interpolated variable.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Interpolation<'src> {
     /// The variable.
@@ -508,20 +505,6 @@ pub struct Interpolation<'src> {
 
     /// The range in the string to replace.
     range: Range<usize>,
-}
-
-impl Interpolation<'_> {
-    /// This should only be used to initialize `TinyVec`.
-    const fn empty() -> Self {
-        Self { variable: Variable::Host, span: "", range: 0..0 }
-    }
-}
-
-impl Default for Interpolation<'_> {
-    /// This should only be used to initialize `TinyVec`.
-    fn default() -> Self {
-        Self::empty()
-    }
 }
 
 impl<'src> TryFrom<(&'src str, Range<usize>)> for Interpolation<'src> {
@@ -578,11 +561,6 @@ pub enum StringLexToken {
     /// Other string content
     #[regex(r"[^$\\]")]
     Content,
-}
-
-/// Generate an empty [`TinyVec`] in `const`.
-const fn empty_tinyvec<'a>() -> TinyVec<[Interpolation<'a>; 1]> {
-    TinyVec::Inline(ArrayVec::from_array_empty([Interpolation::empty(); 1]))
 }
 
 /// Helper for `usize + isize`.

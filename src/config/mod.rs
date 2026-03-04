@@ -14,6 +14,18 @@ use model::{ConfigSettings, Configuration};
 use parser::{Cst, Parser};
 use parser2::ContentSource;
 
+/// Confirms that `Configuration<'_>` is [covariant] over its lifetime.
+///
+/// From [self_cell] crate.
+///
+/// [covariant]: https://doc.rust-lang.org/reference/subtyping.html#r-subtyping.variance
+/// [self_cell]: https://docs.rs/self_cell/latest/self_cell/macro.self_cell.html
+const fn _assert_covariance_configuration<'x: 'y, 'y>(
+    x: &'y Configuration<'x>,
+) -> &'y Configuration<'y> {
+    x
+}
+
 /// Parse a configuration
 ///
 /// # Errors
