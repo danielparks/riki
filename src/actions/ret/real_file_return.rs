@@ -115,7 +115,7 @@ impl RealFileReturn {
         let etag = self.etag();
         let last_modified = self.last_modified_header();
 
-        let headers = context.request_headers();
+        let headers = context.variables.request_headers();
         if self.is_not_modified(headers, etag.as_deref()) {
             return Ok(http::Response::builder()
                 .status(StatusCode::NOT_MODIFIED)

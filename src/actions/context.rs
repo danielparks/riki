@@ -12,6 +12,7 @@
 //!     [`StaticVariables`]. It’s useful for testing.
 
 use super::{Error, Result};
+use crate::http::util::HeaderMapHelper;
 use handlebars::Handlebars;
 use http::HeaderMap;
 use std::borrow::Cow;
@@ -147,8 +148,7 @@ impl VariableMap for RequestVariables<'_> {
             Variable::Host => self
                 .request_parts
                 .headers
-                .get("host")
-                .and_then(|v| v.to_str().ok())
+                .get_str(http::header::HOST)
                 .unwrap_or(""),
         })
     }
@@ -181,11 +181,6 @@ impl<V: VariableMap> Context<V> {
     /// absolute, in which case it will be returned itself.
     pub fn real_path<P: AsRef<Path>>(&self, path: P) -> PathBuf {
         self.working_path.join(path)
-    }
-
-    /// Get the request headers from the variable map, if available.
-    pub fn request_headers(&self) -> Option<&HeaderMap> {
-        self.variables.request_headers()
     }
 }
 
