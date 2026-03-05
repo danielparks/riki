@@ -124,7 +124,7 @@ pub struct RequestVariables<'vars> {
     pub request_parts: &'vars http::request::Parts,
 
     /// The cleaned request path.
-    pub path: String,
+    pub cleaned_path: String,
 }
 
 impl<'vars> RequestVariables<'vars> {
@@ -134,15 +134,15 @@ impl<'vars> RequestVariables<'vars> {
     ///
     /// See [`clean_path()`].
     pub fn new(request_parts: &'vars http::request::Parts) -> Result<Self> {
-        let path = clean_path(request_parts.uri.path())?;
-        Ok(Self { request_parts, path })
+        let cleaned_path = clean_path(request_parts.uri.path())?;
+        Ok(Self { request_parts, cleaned_path })
     }
 }
 
 impl VariableMap for RequestVariables<'_> {
     fn get(&self, variable: Variable) -> Cow<'_, str> {
         Cow::Borrowed(match variable {
-            Variable::CleanPath => &self.path,
+            Variable::CleanPath => &self.cleaned_path,
             Variable::RequestPath => self.request_parts.uri.path(),
             Variable::Verb => self.request_parts.method.as_str(),
             Variable::Host => self
