@@ -17,10 +17,9 @@ use std::process::ExitCode;
 /// Wrapper to handle errors.
 ///
 /// See [`cli()`].
-#[tokio::main]
-async fn main() -> ExitCode {
+fn main() -> ExitCode {
     let params = Params::parse();
-    cli(&params).await.unwrap_or_else(|error| {
+    cli(&params).unwrap_or_else(|error| {
         tracing::debug!("Exiting with error: {error:#?}");
         let error = format!("{error}\n");
         if error.to_lowercase().starts_with("error") {
@@ -41,7 +40,7 @@ async fn main() -> ExitCode {
 ///
 /// This returns any errors encountered during the run so that they can be
 /// outputted nicely in [`main()`].
-async fn cli(params: &Params) -> anyhow::Result<ExitCode> {
+fn cli(params: &Params) -> anyhow::Result<ExitCode> {
     logging::init(params.verbose)?;
 
     match &params.command {
@@ -93,8 +92,7 @@ async fn cli(params: &Params) -> anyhow::Result<ExitCode> {
                     &params.err_stream(),
                 ),
                 bind,
-            )
-            .await?;
+            )?;
         }
         Command::Dump { path, kind } => {
             let source = FileSource::read(path)?;

@@ -29,6 +29,8 @@ use tower_http::trace::TraceLayer;
 /// # Errors
 ///
 /// May return an error if the server could not start correctly.
+#[expect(clippy::missing_panics_doc, reason = "bug?")]
+#[tokio::main]
 pub async fn serve<A: AsRef<str>>(
     configuration: SourcedConfiguration<GeneratedSource<'static>>,
     address: A,
@@ -53,13 +55,13 @@ pub fn init_app(
     configuration: SourcedConfiguration<GeneratedSource<'static>>,
 ) -> axum::Router {
     axum::Router::new()
-        .fallback(axum::routing::get(path_handler))
+        .fallback(axum::routing::get(get_handler))
         .with_state(Arc::new(Router::from_configuration(configuration)))
         .layer(TraceLayer::new_for_http())
 }
 
 /// Handle all GET requests
-pub async fn path_handler(
+async fn get_handler(
     State(router): State<Arc<Router>>,
     request: axum::extract::Request,
 ) -> Response {
@@ -103,10 +105,7 @@ impl Router {
     /// # Errors
     ///
     /// Returned errors will be converted to appropriate HTTP responses.
-    #[expect(
-        clippy::unused_async,
-        reason = "Required by Axum handler signature"
-    )]
+    #[expect(clippy::unused_async, reason = "Required by Axum")]
     pub async fn route(
         &self,
         parts: &http::request::Parts,
