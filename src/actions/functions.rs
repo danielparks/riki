@@ -22,8 +22,8 @@ use tracing;
 ///
 /// Will return [`Error`][super::Error] if there is a problem getting content
 /// from `ret` or rendering the template.
-pub fn render<'a, V: VariableMap<'a>, R: Return>(
-    context: &'a Context<'a, V>,
+pub fn render<V: VariableMap, R: Return>(
+    context: &Context<V>,
     ret: R,
 ) -> Result<ContentReturn> {
     // FIXME: caching headers based on template and Page.
@@ -80,8 +80,8 @@ pub fn render<'a, V: VariableMap<'a>, R: Return>(
 ///
 /// Will return [`Error`][super::Error] if there is a problem getting content
 /// from `ret` or parsing page metadata from the content.
-pub fn markdown_to_html<'a, V: VariableMap<'a>, R: Return>(
-    context: &'a Context<'a, V>,
+pub fn markdown_to_html<V: VariableMap, R: Return>(
+    context: &Context<V>,
     ret: R,
 ) -> Result<ContentReturn> {
     let mut ret = ret.into_content_return(context)?;
@@ -103,8 +103,8 @@ pub fn markdown_to_html<'a, V: VariableMap<'a>, R: Return>(
 /// # Errors
 ///
 /// Returns [`Error`][super::Error] for problems getting content from `ret`.
-pub fn redact_source<'a, V: VariableMap<'a>, R: Return>(
-    context: &'a Context<'a, V>,
+pub fn redact_source<V: VariableMap, R: Return>(
+    context: &Context<V>,
     ret: R,
 ) -> Result<ContentReturn> {
     // FIXME: caching headers based on template and Page.

@@ -114,9 +114,9 @@ pub trait Return {
     /// # Errors
     ///
     /// Returns an [`Error`] if the path is not a file that can be opened.
-    fn ensure_file<'a, V: VariableMap<'a>>(
+    fn ensure_file<V: VariableMap>(
         self,
-        context: &'a Context<'a, V>,
+        context: &Context<V>,
     ) -> Result<ActionReturn>;
 
     /// Convert the return to a [`StringReturn`].
@@ -133,9 +133,9 @@ pub trait Return {
     /// # Errors
     ///
     /// Returns an [`Error`] if the path could not be read into memory.
-    fn into_content_return<'a, V: VariableMap<'a>>(
+    fn into_content_return<V: VariableMap>(
         self,
-        context: &'a Context<'a, V>,
+        context: &Context<V>,
     ) -> Result<ContentReturn>;
 
     /// Generate a response (or an error).

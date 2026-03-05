@@ -72,9 +72,9 @@ impl RealFileReturn {
     ///
     /// Returns [`io::Error`] if the equivalent file system path doesn’t exist,
     /// isn’t a file, or otherwise couldn’t be read.
-    pub fn from_inner_path<'a, V: VariableMap<'a>>(
+    pub fn from_inner_path<V: VariableMap>(
         path: String,
-        context: &'a Context<'a, V>,
+        context: &Context<V>,
     ) -> io::Result<Self> {
         let fs_path = context.real_path(&path);
         Self::new(path, fs_path)
@@ -132,9 +132,9 @@ impl Return for RealFileReturn {
         Ok(&self.inner_path)
     }
 
-    fn ensure_file<'a, V: VariableMap<'a>>(
+    fn ensure_file<V: VariableMap>(
         self,
-        _context: &'a Context<'a, V>,
+        _context: &Context<V>,
     ) -> Result<ActionReturn> {
         Ok(self.into())
     }
@@ -143,9 +143,9 @@ impl Return for RealFileReturn {
         Ok(StringReturn::from(self.inner_path))
     }
 
-    fn into_content_return<'a, V: VariableMap<'a>>(
+    fn into_content_return<V: VariableMap>(
         self,
-        context: &'a Context<'a, V>,
+        context: &Context<V>,
     ) -> Result<ContentReturn> {
         let Self { mut file, inner_path: url_path, created, modified } = self;
 

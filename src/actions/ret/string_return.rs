@@ -157,9 +157,9 @@ impl StringReturn {
     ///
     /// Returns an [`Error`][super::Error] if the path represented by `self` was
     /// not a file that could be read.
-    fn into_real_file_return<'a, V: VariableMap<'a>>(
+    fn into_real_file_return<V: VariableMap>(
         self,
-        context: &'a Context<'a, V>,
+        context: &Context<V>,
     ) -> Result<RealFileReturn> {
         let ret = RealFileReturn::from_inner_path(self.into(), context)?;
         tracing::trace!("into_real_file_return() -> {ret:?}");
@@ -172,9 +172,9 @@ impl Return for StringReturn {
         Ok(&self.0)
     }
 
-    fn ensure_file<'a, V: VariableMap<'a>>(
+    fn ensure_file<V: VariableMap>(
         self,
-        context: &'a Context<'a, V>,
+        context: &Context<V>,
     ) -> Result<ActionReturn> {
         self.into_real_file_return(context)?.into()
     }
@@ -183,9 +183,9 @@ impl Return for StringReturn {
         Ok(self)
     }
 
-    fn into_content_return<'a, V: VariableMap<'a>>(
+    fn into_content_return<V: VariableMap>(
         self,
-        context: &'a Context<'a, V>,
+        context: &Context<V>,
     ) -> Result<ContentReturn> {
         self.into_real_file_return(context)?
             .into_content_return(context)

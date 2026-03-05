@@ -35,7 +35,7 @@ impl<'src> ParsedString<'src> {
     }
 
     /// Return the content of this string.
-    pub fn content<'a, V: VariableMap<'a>>(&self, variables: &'a V) -> String {
+    pub fn content<V: VariableMap>(&self, variables: &V) -> String {
         self.split_on_variables()
             .map(|part| match part {
                 StringPart::Fixed(fixed) => Cow::Borrowed(fixed),
@@ -86,10 +86,7 @@ impl<'src> ParsedString<'src> {
     ///
     /// If this starts with a variable then leading `'/'`s will be removed.
     #[inline]
-    pub fn path_content<'vars, V: VariableMap<'vars>>(
-        &self,
-        variables: &'vars V,
-    ) -> String {
+    pub fn path_content<V: VariableMap>(&self, variables: &V) -> String {
         let path = self.content(variables);
         if self.starts_with_variable() {
             // FIXME handle Windows absolute/root paths

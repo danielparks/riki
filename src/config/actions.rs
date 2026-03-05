@@ -49,9 +49,9 @@ impl Action<'_> {
     ///
     /// Returns [`actions::Error`] if there is a problem evaluating a function
     /// or opening a path.
-    pub fn evaluate<'vars, V: VariableMap<'vars>>(
+    pub fn evaluate<V: VariableMap>(
         &self,
-        context: &'vars Context<'vars, V>,
+        context: &Context<V>,
     ) -> actions::Result {
         match self {
             Self::Function(function) => function.value.evaluate(context),
@@ -71,9 +71,9 @@ impl Action<'_> {
     ///
     /// Returns [`actions::Error`] if there is a problem evaluating a function
     /// or opening a path.
-    pub fn evaluate_as_string<'vars, V: VariableMap<'vars>>(
+    pub fn evaluate_as_string<V: VariableMap>(
         &self,
-        context: &'vars Context<'vars, V>,
+        context: &Context<V>,
     ) -> actions::Result<String> {
         match self {
             Self::Function(function) => {
@@ -241,9 +241,9 @@ macro_rules! functions {
             /// # Errors
             ///
             /// Can return [`actions::Error`].
-            pub fn evaluate<'vars, M: VariableMap<'vars>>(
+            pub fn evaluate<M: VariableMap>(
                 &self,
-                $ctx: &'vars Context<'vars, M>,
+                $ctx: &Context<M>,
             ) -> actions::Result {
                 match self {
                     $(

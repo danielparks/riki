@@ -60,7 +60,7 @@ impl From<String> for ElementError {
 }
 
 /// Context information for an element handler.
-pub struct Context<'a, 'vars, V: VariableMap<'vars>> {
+pub struct Context<'a, 'vars, V: VariableMap> {
     /// The document or fragment being processed.
     pub document: &'a Document,
 
@@ -82,8 +82,8 @@ pub type Result<T, E = ElementError> = result::Result<T, E>;
 /// # Errors
 ///
 /// Returns [`ElementError`] if there is a problem.
-pub fn handle_a_email<'a, 'vars, V: VariableMap<'vars>>(
-    _ctx: &Context<'a, 'vars, V>,
+pub fn handle_a_email<V: VariableMap>(
+    _ctx: &Context<'_, '_, V>,
     node: &NodeRef,
 ) -> Result<()> {
     let mut url: Url = node
@@ -153,8 +153,8 @@ pub fn handle_a_email_source(node: &NodeRef) {
 /// # Errors
 ///
 /// Returns [`ElementError`] if there is a problem.
-pub fn handle_last_modified<'a, 'vars, V: VariableMap<'vars>>(
-    ctx: &Context<'a, 'vars, V>,
+pub fn handle_last_modified<V: VariableMap>(
+    ctx: &Context<'_, '_, V>,
     node: &NodeRef,
 ) -> Result<()> {
     let Some(time) = ctx.page.source.modified() else {

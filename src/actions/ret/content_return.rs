@@ -112,9 +112,9 @@ impl Return for ContentReturn {
         }
     }
 
-    fn ensure_file<'a, V: VariableMap<'a>>(
+    fn ensure_file<V: VariableMap>(
         self,
-        _context: &'a Context<'a, V>,
+        _context: &Context<V>,
     ) -> Result<ActionReturn> {
         Ok(self.into())
     }
@@ -130,9 +130,9 @@ impl Return for ContentReturn {
         }
     }
 
-    fn into_content_return<'a, V: VariableMap<'a>>(
+    fn into_content_return<V: VariableMap>(
         self,
-        _context: &'a Context<'a, V>,
+        _context: &Context<V>,
     ) -> Result<ContentReturn> {
         Ok(self)
     }

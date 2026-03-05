@@ -20,7 +20,7 @@ fn parsed(s: &str) -> ParsedString<'_> {
 fn make_context<'a>(
     root: &'a std::path::Path,
     request_path: &'a str,
-) -> Context<'a, StaticVariables<'a>> {
+) -> Context<StaticVariables<'a>> {
     Context {
         working_path: root.to_path_buf(),
         variables: StaticVariables {

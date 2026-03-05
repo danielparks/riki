@@ -42,7 +42,7 @@ pub enum Variable {
 /// Access variables containing request information used in configuration.
 ///
 /// These can be interpolated into the configuration, e.g. `/srv/$clean_path`.
-pub trait VariableMap<'vars> {
+pub trait VariableMap {
     /// Get a variable value by name.
     ///
     /// ```
@@ -56,17 +56,17 @@ pub trait VariableMap<'vars> {
     /// assert_eq!(vars.get("clean_path".try_into().unwrap()), "/example");
     /// assert_eq!(vars.get(Variable::Verb), "POST");
     /// ```
-    fn get(&'vars self, variable: Variable) -> Cow<'vars, str>;
+    fn get(&self, variable: Variable) -> Cow<'_, str>;
 
     /// Convenience function to get the clean request path.
     #[inline]
-    fn clean_path(&'vars self) -> Cow<'vars, str> {
+    fn clean_path(&self) -> Cow<'_, str> {
         self.get(Variable::CleanPath)
     }
 
     /// Convenience function to get the raw request path.
     #[inline]
-    fn request_path(&'vars self) -> Cow<'vars, str> {
+    fn request_path(&self) -> Cow<'_, str> {
         self.get(Variable::RequestPath)
     }
 }
@@ -84,8 +84,8 @@ pub struct StaticVariables<'vars> {
     pub host: &'vars str,
 }
 
-impl<'vars> VariableMap<'vars> for StaticVariables<'vars> {
-    fn get(&'vars self, variable: Variable) -> Cow<'vars, str> {
+impl VariableMap for StaticVariables<'_> {
+    fn get(&self, variable: Variable) -> Cow<'_, str> {
         match variable {
             Variable::CleanPath => {
                 clean_path(self.request_path).unwrap().into()
@@ -130,8 +130,8 @@ impl<'vars> RequestVariables<'vars> {
     }
 }
 
-impl<'vars> VariableMap<'vars> for RequestVariables<'vars> {
-    fn get(&'vars self, variable: Variable) -> Cow<'vars, str> {
+impl VariableMap for RequestVariables<'_> {
+    fn get(&self, variable: Variable) -> Cow<'_, str> {
         Cow::Borrowed(match variable {
             Variable::CleanPath => &self.path,
             Variable::RequestPath => self.request.path(),
@@ -148,18 +148,18 @@ impl<'vars> VariableMap<'vars> for RequestVariables<'vars> {
 
 /// Static context for actions (for testing).
 #[derive(Clone, Debug)]
-pub struct Context<'a, V: VariableMap<'a>> {
+pub struct Context<V: VariableMap> {
     /// Working directory.
     pub working_path: PathBuf,
 
     /// Templates for rendering pages.
-    pub tpls: Arc<Handlebars<'a>>,
+    pub tpls: Arc<Handlebars<'static>>,
 
     /// Variables for interpolation into strings.
     pub variables: V,
 }
 
-impl<'a, V: VariableMap<'a>> Context<'a, V> {
+impl<V: VariableMap> Context<V> {
     /// Get the file system path for a return’s inner path.
     ///
     /// See [`riki::actions::Return::inner_path()`
@@ -172,7 +172,7 @@ impl<'a, V: VariableMap<'a>> Context<'a, V> {
     }
 }
 
-impl<'a, V: VariableMap<'a> + Default> Default for Context<'a, V> {
+impl<V: VariableMap + Default> Default for Context<V> {
     /// Quick default context.
     ///
     ///   * `working_path` will be `""`.
@@ -189,10 +189,10 @@ impl<'a, V: VariableMap<'a> + Default> Default for Context<'a, V> {
 }
 
 /// Convenient alias for a context with static variables.
-pub type StaticContext = Context<'static, StaticVariables<'static>>;
+pub type StaticContext = Context<StaticVariables<'static>>;
 
 /// Convenient alias for a context with variables from a request.
-pub type RequestContext<'a> = Context<'a, RequestVariables<'a>>;
+pub type RequestContext<'a> = Context<RequestVariables<'a>>;
 
 /// Get a clean path from the request path.
 ///
