@@ -58,6 +58,11 @@ impl From<crate::NotUtf8> for Error {
     }
 }
 
+impl From<http::Error> for Error {
+    fn from(error: http::Error) -> Self {
+        Self::InternalString(error.to_string())
+    }
+}
 impl From<io::Error> for Error {
     /// Convert [`io::Error`] into [`Error`]. Handles fall-through logic.
     ///

@@ -128,10 +128,7 @@ impl RealFileReturn {
         let Self { mut file, .. } = self;
         // FIXME stream? reserve based on file size?
         let mut body = Vec::new();
-        #[expect(
-            clippy::verbose_file_reads,
-            reason = "file is already open from struct field"
-        )]
+        #[expect(clippy::verbose_file_reads, reason = "file already open")]
         file.read_to_end(&mut body)?;
 
         let mut builder = http::Response::builder().status(StatusCode::OK);
@@ -144,7 +141,7 @@ impl RealFileReturn {
         if let Some(last_modified) = last_modified {
             builder = builder.header(header::LAST_MODIFIED, last_modified);
         }
-        Ok(builder.body(Body::from(body)).expect("valid response"))
+        Ok(builder.body(Body::from(body))?)
     }
 
     /// Detect content-type for a file path, adding `charset=utf-8` for text.

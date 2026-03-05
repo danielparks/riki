@@ -143,8 +143,7 @@ impl Return for ContentReturn {
         Ok(http::Response::builder()
             .status(ret.status)
             .header(CONTENT_TYPE, HeaderValue::from(&ret.content_type))
-            .body(Body::from(ret.body))
-            .expect("valid response"))
+            .body(Body::from(ret.body))?)
     }
 }
 
