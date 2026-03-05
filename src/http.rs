@@ -65,15 +65,14 @@ async fn get_handler(
     State(router): State<Arc<Router>>,
     request: axum::extract::Request,
 ) -> Response {
-    let (parts, _body) = request.into_parts();
     router
-        .route(&parts)
+        .route(&request)
         .unwrap_or_else(|error: actions::Error| {
             tracing::error!(
                 "{} could not render error: {error:?}",
-                parts.uri.path()
+                request.uri().path()
             );
-            error.render(parts.uri.path(), &base_templates())
+            error.render(request.uri().path(), &base_templates())
         })
 }
 
@@ -106,13 +105,13 @@ impl Router {
     /// Returned errors will be converted to appropriate HTTP responses.
     pub fn route(
         &self,
-        parts: &http::request::Parts,
+        request: &axum::extract::Request,
     ) -> actions::Result<Response> {
-        tracing::trace!("route request: {:?}", parts.uri);
+        tracing::trace!("route request: {:?}", request.uri());
 
         // Returns an error if `clean_path()` fails, which should only happen if
         // the client makes a bad request.
-        let variables = RequestVariables::new(parts)?;
+        let variables = RequestVariables::new(request)?;
 
         match (|| {
             for rule in self.config.matches(&variables.clean_path()) {

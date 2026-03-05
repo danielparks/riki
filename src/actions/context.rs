@@ -120,22 +120,22 @@ impl Default for StaticVariables<'static> {
 /// Variables from a request object.
 #[derive(Clone, Debug)]
 pub struct RequestVariables<'vars> {
-    /// The request parts.
-    pub request_parts: &'vars http::request::Parts,
+    /// The request.
+    pub request: &'vars axum::extract::Request,
 
     /// The cleaned request path.
     pub cleaned_path: String,
 }
 
 impl<'vars> RequestVariables<'vars> {
-    /// Create from raw request parts.
+    /// Create from [`axum::extract::Request`].
     ///
     /// # Errors
     ///
     /// See [`clean_path()`].
-    pub fn new(request_parts: &'vars http::request::Parts) -> Result<Self> {
-        let cleaned_path = clean_path(request_parts.uri.path())?;
-        Ok(Self { request_parts, cleaned_path })
+    pub fn new(request: &'vars axum::extract::Request) -> Result<Self> {
+        let cleaned_path = clean_path(request.uri().path())?;
+        Ok(Self { request, cleaned_path })
     }
 }
 
@@ -143,18 +143,18 @@ impl VariableMap for RequestVariables<'_> {
     fn get(&self, variable: Variable) -> Cow<'_, str> {
         Cow::Borrowed(match variable {
             Variable::CleanPath => &self.cleaned_path,
-            Variable::RequestPath => self.request_parts.uri.path(),
-            Variable::Verb => self.request_parts.method.as_str(),
+            Variable::RequestPath => self.request.uri().path(),
+            Variable::Verb => self.request.method().as_str(),
             Variable::Host => self
-                .request_parts
-                .headers
+                .request
+                .headers()
                 .get_str(http::header::HOST)
                 .unwrap_or(""),
         })
     }
 
     fn request_headers(&self) -> Option<&HeaderMap> {
-        Some(&self.request_parts.headers)
+        Some(self.request.headers())
     }
 }
 
