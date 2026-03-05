@@ -52,32 +52,34 @@ struct Response {
     last_modified: bool,
     etag: bool,
     location: Option<String>,
-    body: Vec<u8>,
+    body: String,
 }
 
 impl Response {
     /// Create the summary from an Axum response.
     async fn from(resp: axum::response::Response) -> Self {
-        let status = resp.status();
         let headers = resp.headers();
 
-        let content_type = headers
-            .get(header::CONTENT_TYPE)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse().ok());
-        let last_modified = headers.contains_key(header::LAST_MODIFIED);
-        let etag = headers.contains_key(header::ETAG);
-        let location = headers
-            .get(header::LOCATION)
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_owned);
-
-        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
-            .await
-            .unwrap()
-            .to_vec();
-
-        Self { status, content_type, last_modified, etag, location, body }
+        Self {
+            status: resp.status(),
+            content_type: headers
+                .get(header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|string| string.parse().ok()),
+            last_modified: headers.contains_key(header::LAST_MODIFIED),
+            etag: headers.contains_key(header::ETAG),
+            location: headers
+                .get(header::LOCATION)
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_owned),
+            body: String::from_utf8(
+                axum::body::to_bytes(resp.into_body(), usize::MAX)
+                    .await
+                    .unwrap()
+                    .to_vec(),
+            )
+            .unwrap(),
+        }
     }
 
     /// An expected 301 Moved Permanently response.
@@ -88,7 +90,7 @@ impl Response {
             last_modified: false,
             etag: false,
             location: Some(to.to_owned()),
-            body: format!("redirect {to}").into_bytes(),
+            body: format!("redirect {to}"),
         }
     }
 
@@ -100,7 +102,7 @@ impl Response {
             last_modified: false,
             etag: false,
             location: None,
-            body: body.as_bytes().to_vec(),
+            body: body.to_owned(),
         }
     }
 
@@ -112,7 +114,7 @@ impl Response {
             last_modified: false,
             etag: false,
             location: None,
-            body: body.as_bytes().to_vec(),
+            body: body.to_owned(),
         }
     }
 
@@ -129,7 +131,7 @@ impl Response {
             last_modified: true,
             etag: true,
             location: None,
-            body: body.as_bytes().to_vec(),
+            body: body.to_owned(),
         }
     }
 }
@@ -218,6 +220,19 @@ async fn test_static_file_get() {
 
 #[tokio::test]
 #[test_log::test]
+async fn test_static_file_get_no_extension() {
+    let (_dir, root, app) = init_app();
+
+    fs::write(root.join("a"), "AAA").unwrap();
+
+    assert!(
+        Response::static_other("AAA", mime::APPLICATION_OCTET_STREAM)
+            == get(&app, "/a").await
+    );
+}
+
+#[tokio::test]
+#[test_log::test]
 async fn test_static_directory_get() {
     let (_dir, root, app) = init_app();
 
@@ -279,7 +294,7 @@ async fn test_not_found_get() {
             last_modified: false,
             etag: false,
             location: None,
-            body: b"404".to_vec(),
+            body: "404".to_owned(),
         } == get(&app, "/not-found").await
     );
 }
@@ -303,7 +318,7 @@ async fn test_forbidden_page_get() {
             last_modified: false,
             etag: false,
             location: None,
-            body: b"403".to_vec(),
+            body: "403".to_owned(),
         } == get(&app, "/forbidden").await
     );
 
@@ -314,7 +329,7 @@ async fn test_forbidden_page_get() {
             last_modified: false,
             etag: false,
             location: None,
-            body: b"403".to_vec(),
+            body: "403".to_owned(),
         } == get(&app, "/forbidden.md").await
     );
 }
@@ -338,7 +353,7 @@ async fn test_forbidden_static_get() {
             last_modified: false,
             etag: false,
             location: None,
-            body: b"403".to_vec(),
+            body: "403".to_owned(),
         } == get(&app, "/forbidden.txt").await
     );
 }
