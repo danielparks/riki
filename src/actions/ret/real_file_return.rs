@@ -102,7 +102,9 @@ impl RealFileReturn {
     ///
     /// # Errors
     ///
-    ///   * [`io::Error`]s from reading the file.
+    /// Returns the mapped [`io::Error`] if there are problems reading the file.
+    /// It should only ever map to [`Error::Internal`][super::Error::Internal]
+    /// since the file is already open.
     fn into_static_response<V: VariableMap>(
         self,
         context: &Context<V>,
@@ -124,6 +126,7 @@ impl RealFileReturn {
         }
 
         let Self { mut file, .. } = self;
+        // FIXME stream? reserve based on file size?
         let mut body = Vec::new();
         #[expect(
             clippy::verbose_file_reads,
@@ -131,27 +134,28 @@ impl RealFileReturn {
         )]
         file.read_to_end(&mut body)?;
 
-        let mut builder = http::Response::builder()
-            .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, &content_type);
+        let mut builder = http::Response::builder().status(StatusCode::OK);
+        if let Some(content_type) = content_type {
+            builder = builder.header(header::CONTENT_TYPE, &content_type);
+        }
         if let Some(etag) = etag {
             builder = builder.header(header::ETAG, etag);
         }
-        if let Some(lm) = last_modified {
-            builder = builder.header(header::LAST_MODIFIED, lm);
+        if let Some(last_modified) = last_modified {
+            builder = builder.header(header::LAST_MODIFIED, last_modified);
         }
         Ok(builder.body(Body::from(body)).expect("valid response"))
     }
 
     /// Detect content-type for a file path, adding `charset=utf-8` for text.
-    fn content_type_for_path(path: &str) -> String {
-        let mime = mime_guess::from_path(path).first_or_octet_stream();
+    fn content_type_for_path(path: &str) -> Option<String> {
+        let mime = mime_guess::from_path(path).first()?;
         if mime.type_() == mime::TEXT
             && !mime.params().any(|(name, _)| name == mime::CHARSET)
         {
-            format!("{mime}; charset=utf-8")
+            Some(format!("{mime}; charset=utf-8"))
         } else {
-            mime.to_string()
+            Some(mime.to_string())
         }
     }
 

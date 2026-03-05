@@ -120,14 +120,14 @@ impl Response {
 
     /// An expected response for a static HTML file.
     fn static_html(body: &str) -> Self {
-        Self::static_other(body, mime::TEXT_HTML_UTF_8)
+        Self::static_other(body, Some(mime::TEXT_HTML_UTF_8))
     }
 
     /// An expected response for a static file of type `content_type`.
-    fn static_other(body: &str, content_type: mime::Mime) -> Self {
+    fn static_other(body: &str, content_type: Option<mime::Mime>) -> Self {
         Self {
             status: http::StatusCode::OK,
-            content_type: Some(content_type),
+            content_type,
             last_modified: true,
             etag: true,
             location: None,
@@ -210,7 +210,7 @@ async fn test_static_file_get() {
     fs::write(root.join("a.txt"), "AAA").unwrap();
 
     assert!(
-        Response::static_other("AAA", mime::TEXT_PLAIN_UTF_8)
+        Response::static_other("AAA", Some(mime::TEXT_PLAIN_UTF_8))
             == get(&app, "/a.txt").await
     );
     assert!(Response::redirect("/a.txt") == get(&app, "/a.txt/").await);
@@ -225,10 +225,7 @@ async fn test_static_file_get_no_extension() {
 
     fs::write(root.join("a"), "AAA").unwrap();
 
-    assert!(
-        Response::static_other("AAA", mime::APPLICATION_OCTET_STREAM)
-            == get(&app, "/a").await
-    );
+    assert!(Response::static_other("AAA", None) == get(&app, "/a").await);
 }
 
 #[tokio::test]
