@@ -3,8 +3,8 @@
 mod logging;
 mod params;
 
-use anyhow::anyhow;
-use params::{Command, Params, Parser};
+use anyhow::{anyhow, bail};
+use params::{Command, Params, Parser, ServeKind};
 use riki::actions::is_not_found;
 use riki::actions::{RealFileReturn, StaticContext};
 use riki::config::errors::{Diagnostics, unwrap_diagnostics_result};
@@ -17,9 +17,10 @@ use std::process::ExitCode;
 /// Wrapper to handle errors.
 ///
 /// See [`cli()`].
-fn main() -> ExitCode {
+#[tokio::main]
+async fn main() -> ExitCode {
     let params = Params::parse();
-    cli(&params).unwrap_or_else(|error| {
+    cli(&params).await.unwrap_or_else(|error| {
         tracing::debug!("Exiting with error: {error:#?}");
         let error = format!("{error}\n");
         if error.to_lowercase().starts_with("error") {
@@ -40,7 +41,7 @@ fn main() -> ExitCode {
 ///
 /// This returns any errors encountered during the run so that they can be
 /// outputted nicely in [`main()`].
-fn cli(params: &Params) -> anyhow::Result<ExitCode> {
+async fn cli(params: &Params) -> anyhow::Result<ExitCode> {
     logging::init(params.verbose)?;
 
     match &params.command {
@@ -59,17 +60,37 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
                 )?
             );
         }
-        Command::Serve { base_dir, bind } => {
-            check_dir(base_dir)?;
-            let template_dir = format!("{base_dir}/templates");
-            http::serve(
-                unwrap_diagnostics_result(
-                    rules::default_rules(base_dir.clone(), template_dir),
-                    &params.err_stream(),
-                ),
-                bind,
-            )?;
-        }
+        Command::Serve { kind, bind } => match kind {
+            ServeKind { default: None, configuration: Some(path) } => {
+                let source = FileSource::read(path)?;
+                http::serve(
+                    unwrap_diagnostics_result(
+                        config::SourcedConfiguration::parse_from(source).await,
+                        &params.err_stream(),
+                    ),
+                    bind,
+                )
+                .await?;
+            }
+            ServeKind { default: Some(base_dir), configuration: None } => {
+                check_dir(base_dir)?;
+                let template_dir = format!("{base_dir}/templates");
+                http::serve(
+                    unwrap_diagnostics_result(
+                        rules::default_rules(base_dir.clone(), template_dir),
+                        &params.err_stream(),
+                    ),
+                    bind,
+                )
+                .await?;
+            }
+            ServeKind { default: None, configuration: None } => {
+                bail!("One of --default or conf_path must be specified");
+            }
+            ServeKind { default: Some(_), configuration: Some(_) } => {
+                bail!("Only one of --default or conf_path must be specified");
+            }
+        },
         Command::Dump { path, kind } => {
             let source = FileSource::read(path)?;
             if kind.tokens {

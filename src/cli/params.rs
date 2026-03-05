@@ -46,9 +46,9 @@ pub enum Command {
     },
     /// Start web server
     Serve {
-        /// Web root directory
-        #[arg(name = "root_path", default_value = ".")]
-        base_dir: String,
+        /// What to serve
+        #[command(flatten)]
+        kind: ServeKind,
 
         /// Address to bind to
         #[arg(long, default_value = "localhost:8000")]
@@ -73,6 +73,19 @@ pub enum Command {
         #[arg(name = "templates_path", default_value = "templates")]
         templates: String,
     },
+}
+
+/// What to serve
+#[derive(clap::Args, Debug)]
+#[group(required = false, multiple = false)]
+pub struct ServeKind {
+    /// Default rules in directory
+    #[arg(short, long, name = "root_path")]
+    pub default: Option<String>,
+
+    /// Use rules from a configuration file
+    #[arg(name = "conf_path")]
+    pub configuration: Option<PathBuf>,
 }
 
 /// What to dump

@@ -29,8 +29,6 @@ use tower_http::trace::TraceLayer;
 /// # Errors
 ///
 /// May return an error if the server could not start correctly.
-#[expect(clippy::missing_panics_doc, reason = "bug?")]
-#[tokio::main]
 pub async fn serve<S: Source + Sync, A: AsRef<str>>(
     configuration: SourcedConfiguration<S>,
     address: A,
