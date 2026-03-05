@@ -29,7 +29,7 @@ mod internal {
 
     /// A [`Configuration`] with its [`ContentSource`].
     #[self_referencing]
-    pub struct SourcedConfiguration<S: Source + 'static> {
+    pub struct SourcedConfiguration<S: Source + Sync + 'static> {
         /// The source of the configuration.
         source: S,
 
@@ -39,18 +39,21 @@ mod internal {
         configuration: Configuration<'this>,
     }
 
-    impl<S: ContentSource + 'static> SourcedConfiguration<S> {
+    impl<S: ContentSource + Sync + 'static> SourcedConfiguration<S> {
         /// Parse a [`ContentSource`].
         ///
         /// # Errors
         ///
         /// Returns [`Diagnostics`] on parse errors.
-        pub fn parse_from(source: S) -> Result<Self, Diagnostics<S>> {
-            SourcedConfigurationTryBuilder {
+        pub async fn parse_from(source: S) -> Result<Self, Diagnostics<S>> {
+            SourcedConfigurationAsyncSendTryBuilder {
                 source,
-                configuration_builder: |source| super::parse(source),
+                configuration_builder: |source| {
+                    Box::pin(async move { super::parse(source) })
+                },
             }
             .try_build_or_recover()
+            .await
             .map_err(|(diagnostics, heads)| {
                 Diagnostics::from_diagnostics(diagnostics, heads.source)
             })
@@ -71,7 +74,7 @@ mod internal {
         }
     }
 
-    impl<S: Source + 'static> SourcedConfiguration<S> {
+    impl<S: Source + Sync + 'static> SourcedConfiguration<S> {
         /// Get the source.
         #[inline]
         #[must_use]
@@ -108,7 +111,9 @@ mod internal {
         }
     }
 
-    impl<S: Source + fmt::Debug + 'static> fmt::Debug for SourcedConfiguration<S> {
+    impl<S: Source + Sync + fmt::Debug + 'static> fmt::Debug
+        for SourcedConfiguration<S>
+    {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             f.debug_struct("SourcedConfiguration")
                 .field("source", &self.source())

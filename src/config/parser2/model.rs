@@ -367,7 +367,7 @@ pub struct StringToken<'src> {
 }
 
 /// A source that provides content.
-pub trait Source {
+pub trait Source: Send {
     /// Get the source content, if available.
     fn source(&self) -> Option<&str>;
 

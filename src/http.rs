@@ -8,7 +8,7 @@ pub mod util;
 
 use crate::actions::{self, RequestVariables, VariableMap};
 use crate::config::SourcedConfiguration;
-use crate::config::parser2::GeneratedSource;
+use crate::config::parser2::Source;
 use crate::render::{TemplatesManager, base_templates};
 use axum::extract::State;
 use axum::response::Response;
@@ -31,8 +31,8 @@ use tower_http::trace::TraceLayer;
 /// May return an error if the server could not start correctly.
 #[expect(clippy::missing_panics_doc, reason = "bug?")]
 #[tokio::main]
-pub async fn serve<A: AsRef<str>>(
-    configuration: SourcedConfiguration<GeneratedSource<'static>>,
+pub async fn serve<S: Source + Sync, A: AsRef<str>>(
+    configuration: SourcedConfiguration<S>,
     address: A,
 ) -> crate::Result<()> {
     let address = address.as_ref();
@@ -51,8 +51,8 @@ pub async fn serve<A: AsRef<str>>(
 }
 
 /// Initialize the Axum app to be served.
-pub fn init_app(
-    configuration: SourcedConfiguration<GeneratedSource<'static>>,
+pub fn init_app<S: Source + Sync>(
+    configuration: SourcedConfiguration<S>,
 ) -> axum::Router {
     axum::Router::new()
         .fallback(axum::routing::get(get_handler))
@@ -61,8 +61,8 @@ pub fn init_app(
 }
 
 /// Handle all GET requests
-async fn get_handler(
-    State(router): State<Arc<Router>>,
+async fn get_handler<S: Source + Sync>(
+    State(router): State<Arc<Router<S>>>,
     request: axum::extract::Request,
 ) -> Response {
     router
@@ -77,24 +77,22 @@ async fn get_handler(
 }
 
 /// Route requests to the right actions
-pub struct Router {
+pub struct Router<S: Source + Sync + 'static> {
     /// Configured rules
-    config: SourcedConfiguration<GeneratedSource<'static>>,
+    config: SourcedConfiguration<S>,
 
     /// Manage template registries
     manager: TemplatesManager,
 }
 
-impl Router {
+impl<S: Source + Sync + 'static> Router<S> {
     /// Create a router from a [`SourcedConfiguration`].
     ///
     /// # Errors
     ///
     /// Returns an error if there is a problem loading templates.
     #[must_use]
-    pub fn from_configuration(
-        config: SourcedConfiguration<GeneratedSource<'static>>,
-    ) -> Self {
+    pub fn from_configuration(config: SourcedConfiguration<S>) -> Self {
         Self { config, manager: TemplatesManager::default() }
     }
 
@@ -144,8 +142,7 @@ impl Router {
     }
 }
 
-// Implement manually for future generics that might not be `fmt::Debug`.
-impl fmt::Debug for Router {
+impl<S: Source + Sync + fmt::Debug> fmt::Debug for Router<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Router")
             .field("config", &self.config)
