@@ -58,6 +58,7 @@ fn embedded_template() {
         embedded_names
             == vec![
                 "default",
+                "error400",
                 "error403",
                 "error404",
                 "error500",

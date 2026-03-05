@@ -112,8 +112,8 @@ impl Router {
     ) -> actions::Result<Response> {
         tracing::trace!("route request: {:?}", parts.uri);
 
-        // This errors if clean_path() failed, which should never happen.
-        // FIXME? move clean_path() out for explicit error handling?
+        // Returns an error if `clean_path()` fails, which should only happen if
+        // the client makes a bad request.
         let variables = RequestVariables::new(parts)?;
 
         match (|| {

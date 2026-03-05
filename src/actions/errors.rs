@@ -34,6 +34,10 @@ pub enum Error {
     #[error("{0}")]
     InternalString(String),
 
+    /// Bad request error.
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+
     /// Page not found error.
     ///
     /// This generally means that the request will fall through to the next
@@ -106,6 +110,14 @@ impl Error {
                 hashmap! {
                     "error" => error.clone(),
                     "error_debug" => error.clone(),
+                    "req_path" => req_path.to_owned(),
+                },
+            ),
+            Self::BadRequest(error) => (
+                builder.status(StatusCode::BAD_REQUEST),
+                "error400",
+                hashmap! {
+                    "error" => error.clone(),
                     "req_path" => req_path.to_owned(),
                 },
             ),

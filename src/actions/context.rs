@@ -11,7 +11,7 @@
 //!   * [`StaticContext`] is a context that has static variable values stored in
 //!     [`StaticVariables`]. It’s useful for testing.
 
-use crate::Error;
+use super::{Error, Result};
 use handlebars::Handlebars;
 use http::HeaderMap;
 use std::borrow::Cow;
@@ -132,9 +132,7 @@ impl<'vars> RequestVariables<'vars> {
     /// # Errors
     ///
     /// See [`clean_path()`].
-    pub fn new(
-        request_parts: &'vars http::request::Parts,
-    ) -> crate::Result<Self> {
+    pub fn new(request_parts: &'vars http::request::Parts) -> Result<Self> {
         let path = clean_path(request_parts.uri.path())?;
         Ok(Self { request_parts, path })
     }
@@ -217,14 +215,17 @@ pub type RequestContext<'a> = Context<RequestVariables<'a>>;
 ///
 /// # Errors
 ///
-///   * [`Error::RequestPathNotAbsolute`] if the path doesn’t start with '/'.
-///   * [`Error::RequestPathContainsDotDot`] if the path contains a .. segment.
-pub fn clean_path(path: &str) -> crate::Result<String> {
-    // TODO? Actix seems to do deal with .. and maybe // for us. Simplify?
+/// Returns [`Error::BadRequest`] if the path doesn’t start with '/' or if it
+/// contains a .. segment.
+pub fn clean_path(path: &str) -> Result<String> {
     if !path.starts_with('/') {
-        Err(Error::RequestPathNotAbsolute(path.to_owned()))
+        Err(Error::BadRequest(format!(
+            "Request path {path:?} did not start with '/'"
+        )))
     } else if path.split('/').any(|v| v == "..") {
-        Err(Error::RequestPathContainsDotDot(path.to_owned()))
+        Err(Error::BadRequest(format!(
+            "Request path {path:?} contained \"..\" segment"
+        )))
     } else {
         // This guarantees the returned path:
         //   * either is "/" or doesn’t end with '/'
@@ -295,15 +296,18 @@ mod unit_tests {
     fn clean_path_errors() {
         check!(
             wrapped_clean_path("/../a")
-                == err("Request path \"/../a\" contained \"..\" segment")
+                == err("Bad request: Request path \"/../a\" contained \"..\" \
+                    segment")
         );
         check!(
             wrapped_clean_path("a")
-                == err("Request path \"a\" did not start with '/'")
+                == err(
+                    "Bad request: Request path \"a\" did not start with '/'"
+                )
         );
         check!(
             wrapped_clean_path("")
-                == err("Request path \"\" did not start with '/'")
+                == err("Bad request: Request path \"\" did not start with '/'")
         );
     }
 }
