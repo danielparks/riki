@@ -45,31 +45,7 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
 
     match &params.command {
         Command::Render { templates_dir, page_path } => {
-            let context = StaticContext {
-                tpls: render::templates_from_directory(
-                    templates_dir
-                        .clone()
-                        .or_else(|| find_templates_dir(page_path))
-                        .ok_or_else(|| {
-                            anyhow!("Could not find templates directory")
-                        })?,
-                )?
-                .into(),
-                ..StaticContext::default()
-            };
-
-            print!(
-                "{}",
-                actions::render(
-                    &context,
-                    actions::markdown_to_html(
-                        &context,
-                        RealFileReturn::from_file_system(page_path)?
-                    )?
-                )?
-                .body
-                .into_string()?
-            );
+            render(templates_dir, page_path)?;
         }
         Command::Info { page_path } => {
             print!(
@@ -119,6 +95,39 @@ fn cli(params: &Params) -> anyhow::Result<ExitCode> {
     }
 
     Ok(ExitCode::SUCCESS)
+}
+
+/// Render a page.
+#[expect(clippy::ref_option, reason = "simplicity")]
+fn render(
+    templates_dir: &Option<PathBuf>,
+    page_path: &PathBuf,
+) -> anyhow::Result<()> {
+    let context = StaticContext {
+        tpls: render::templates_from_directory(
+            templates_dir
+                .clone()
+                .or_else(|| find_templates_dir(page_path))
+                .ok_or_else(|| anyhow!("Could not find templates directory"))?,
+        )?
+        .into(),
+        ..StaticContext::default()
+    };
+
+    print!(
+        "{}",
+        actions::render(
+            &context,
+            actions::markdown_to_html(
+                &context,
+                RealFileReturn::from_file_system(page_path)?
+            )?
+        )?
+        .body
+        .into_string()?
+    );
+
+    Ok(())
 }
 
 /// Find the template directory.
