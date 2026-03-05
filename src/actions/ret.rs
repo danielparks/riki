@@ -1,7 +1,8 @@
 //! ## Returns
 //!
 //! Types that implement [`Return`] can be passed from action to action for
-//! processing then converted into an HTTP response for return to the client.
+//! processing then converted into an [`axum::response::Response`] for return to
+//! the client.
 //!
 //!   * A [`StringReturn`] is a short string that might be part of a path, an
 //!     error code, etc.

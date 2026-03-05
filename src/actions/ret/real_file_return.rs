@@ -98,7 +98,7 @@ impl RealFileReturn {
     /// Build an HTTP response for this file, handling conditional requests.
     ///
     /// Sets `ETag`, `Last-Modified`, and `Content-Type` headers. Returns 304
-    /// if the client's cached version is still fresh.
+    /// if the client’s cached version is still fresh.
     ///
     /// # Errors
     ///
