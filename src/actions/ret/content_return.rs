@@ -6,8 +6,6 @@ use super::{
 };
 use axum::body::Body;
 use axum::response::Response;
-use http::HeaderValue;
-use http::header::CONTENT_TYPE;
 use jiff::Timestamp;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -137,13 +135,12 @@ impl Return for ContentReturn {
 
     fn into_response<'a>(
         self,
-        context: &'a RequestContext<'a>,
+        _context: &'a RequestContext<'a>,
     ) -> Result<Response> {
-        let ret = self.into_content_return(context)?;
         Ok(http::Response::builder()
-            .status(ret.status)
-            .header(CONTENT_TYPE, HeaderValue::from(&ret.content_type))
-            .body(Body::from(ret.body))?)
+            .status(self.status)
+            .header(http::header::CONTENT_TYPE, &self.content_type)
+            .body(Body::from(self.body))?)
     }
 }
 
@@ -239,8 +236,8 @@ impl Default for Content {
 impl From<Content> for Body {
     fn from(content: Content) -> Self {
         match content {
-            Content::String(string) => Self::from(string),
-            Content::Bytes(vec) => Self::from(vec),
+            Content::String(string) => string.into(),
+            Content::Bytes(vec) => vec.into(),
         }
     }
 }
