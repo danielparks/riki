@@ -24,8 +24,8 @@ path = "src/cli/main.rs"
 
 [dependencies]
 ambassador = "0.5.0"
-axum = "0.8"
 anyhow = "1.0.95"
+axum = "0.8.8"
 base64 = "0.22.1"
 bstr = "1.12.0"
 clap = { version = "4.5.27", features = ["derive"] }
@@ -34,13 +34,13 @@ derive_more = { version = "2.1.1", features = ["from", "display"] }
 dom_query = "0.24.0"
 globset = "0.4.18"
 handlebars = { version = "6.3.2", features = ["dir_source", "rust-embed"] }
-http = "1"
 htmlize = "1.0.6"
+http = "1.4.0"
 jiff = { version = "0.2.15", features = ["serde"] }
 logos = "0.15.1"
 maplit = "1.0.2"
 mime = "0.3.17"
-mime_guess = "2"
+mime_guess = "2.0.5"
 os_str_bytes = { version = "7.1.1", features = ["conversions"] }
 ouroboros = "0.18.5"
 pastey = "0.2.1"
@@ -55,9 +55,9 @@ strum = { version = "0.27.2", features = ["derive"] }
 tendril = "0.4.3"
 termcolor = "1.4.1"
 thiserror = "2.0.15"
-tokio = { version = "1", features = ["full"] }
-tower = "0.5"
-tower-http = { version = "0.6", features = ["trace"] }
+tokio = { version = "1.50.0", features = ["full"] }
+tower = "0.5.3"
+tower-http = { version = "0.6.8", features = ["trace"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["chrono", "env-filter"] }
 url = "2.5.7"
