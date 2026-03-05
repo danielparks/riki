@@ -11,8 +11,8 @@
 //!     metadata attached to it. It does not hold open a file descriptor.
 //!   * [`ActionReturn`] is an enum that can hold any of the other returns.
 //!
-//! `StringReturn` is an [`OsString`][std::ffi::OsString] internally, so
-//! non-Unicode paths are supported on platforms that allow them.
+//! `StringReturn` is an [`String`] internally — we don’t support non-UTF-8 URLs
+//! or paths.
 //!
 //! ### Very large files
 //!
