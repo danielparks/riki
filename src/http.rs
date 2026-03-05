@@ -4,6 +4,7 @@
 //! [`riki::rules`][crate::rules].
 
 mod tests;
+pub mod util;
 
 use crate::actions::{self, RequestVariables, VariableMap};
 use crate::config::SourcedConfiguration;

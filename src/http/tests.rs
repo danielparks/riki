@@ -1,6 +1,7 @@
 //! Test HTTP server.
 #![cfg(test)]
 
+use crate::http::util::HeaderMapHelper;
 use crate::rules;
 use assert2::assert;
 use axum::body::Body;
@@ -56,15 +57,11 @@ impl Response {
         Self {
             status: resp.status(),
             content_type: headers
-                .get(header::CONTENT_TYPE)
-                .and_then(|value| value.to_str().ok())
+                .get_str(header::CONTENT_TYPE)
                 .and_then(|string| string.parse().ok()),
             last_modified: headers.contains_key(header::LAST_MODIFIED),
             etag: headers.contains_key(header::ETAG),
-            location: headers
-                .get(header::LOCATION)
-                .and_then(|value| value.to_str().ok())
-                .map(str::to_owned),
+            location: headers.get_str(header::LOCATION).map(str::to_owned),
             body: String::from_utf8(
                 axum::body::to_bytes(resp.into_body(), usize::MAX)
                     .await
