@@ -68,7 +68,6 @@ async fn get_handler(
     let (parts, _body) = request.into_parts();
     router
         .route(&parts)
-        .await
         .unwrap_or_else(|error: actions::Error| {
             tracing::error!(
                 "{} could not render error: {error:?}",
@@ -105,8 +104,7 @@ impl Router {
     /// # Errors
     ///
     /// Returned errors will be converted to appropriate HTTP responses.
-    #[expect(clippy::unused_async, reason = "Required by Axum")]
-    pub async fn route(
+    pub fn route(
         &self,
         parts: &http::request::Parts,
     ) -> actions::Result<Response> {
