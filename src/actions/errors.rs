@@ -82,9 +82,12 @@ impl Error {
     /// cannot happen with the values used here.
     #[must_use]
     pub fn render(&self, req_path: &str, tpls: &Handlebars) -> Response {
-        let (status, template_name, data) = match self {
+        let builder = http::Response::builder()
+            .header(header::CONTENT_TYPE, "text/html; charset=UTF-8");
+
+        let (builder, template_name, data) = match self {
             Self::Internal(error) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                builder.status(StatusCode::INTERNAL_SERVER_ERROR),
                 "error500",
                 hashmap! {
                     "error" => error.to_string(),
@@ -93,7 +96,7 @@ impl Error {
                 },
             ),
             Self::InternalString(error) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                builder.status(StatusCode::INTERNAL_SERVER_ERROR),
                 "error500",
                 hashmap! {
                     "error" => error.clone(),
@@ -102,42 +105,30 @@ impl Error {
                 },
             ),
             Self::NotFound => (
-                StatusCode::NOT_FOUND,
+                builder.status(StatusCode::NOT_FOUND),
                 "error404",
                 hashmap! { "req_path" => req_path.to_owned() },
             ),
             Self::Forbidden => (
-                StatusCode::FORBIDDEN,
+                builder.status(StatusCode::FORBIDDEN),
                 "error403",
                 hashmap! { "req_path" => req_path.to_owned() },
             ),
-            Self::RedirectCanonical(url) => {
-                let buffer = tpls
-                    .render(
-                        "redirect301",
-                        &hashmap! { "canonical_url" => url.clone() },
-                    )
-                    .unwrap_or_else(|e| {
-                        self.fallback_render(req_path, &e.into())
-                    });
-                return http::Response::builder()
+            Self::RedirectCanonical(url) => (
+                builder
                     .status(StatusCode::MOVED_PERMANENTLY)
-                    .header(header::LOCATION, url.as_str())
-                    .header(header::CONTENT_TYPE, "text/html; charset=UTF-8")
-                    .body(Body::from(buffer))
-                    .expect("valid response");
-            }
+                    .header(header::LOCATION, url.as_str()),
+                "redirect301",
+                hashmap! { "canonical_url" => url.clone() },
+            ),
         };
 
-        let buffer =
-            tpls.render(template_name, &data).unwrap_or_else(|error2| {
-                self.fallback_render(req_path, &error2.into())
-            });
-
-        http::Response::builder()
-            .status(status)
-            .header(header::CONTENT_TYPE, "text/html; charset=UTF-8")
-            .body(Body::from(buffer))
+        builder
+            .body(Body::from(
+                tpls.render(template_name, &data).unwrap_or_else(|error2| {
+                    self.fallback_render(req_path, &error2.into())
+                }),
+            ))
             .expect("valid response")
     }
 
