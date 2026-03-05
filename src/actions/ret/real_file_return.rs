@@ -4,10 +4,12 @@ use super::{
     ActionReturn, ContentReturn, Context, MediaType, RequestContext, Result,
     Return, Source, StringReturn, VariableMap,
 };
+use crate::http::util::HeaderMapHelper;
 use axum::body::Body;
 use axum::response::Response;
 use http::{StatusCode, header};
 use jiff::Timestamp;
+use jiff::fmt::rfc2822;
 use std::fs;
 use std::io::{self, Read, Seek};
 use std::path::Path;
@@ -114,11 +116,7 @@ impl RealFileReturn {
         let last_modified = self.last_modified_header();
 
         let headers = context.request_headers();
-        if Self::is_not_modified(
-            headers,
-            etag.as_deref(),
-            last_modified.as_deref(),
-        ) {
+        if self.is_not_modified(headers, etag.as_deref()) {
             return Ok(http::Response::builder()
                 .status(StatusCode::NOT_MODIFIED)
                 .body(Body::empty())
@@ -157,10 +155,15 @@ impl RealFileReturn {
     }
 
     /// Compute an `ETag` from file metadata.
+    ///
+    /// The format is `"{modified}-{size}"`.
     fn etag(&self) -> Option<String> {
         self.modified.map(|ts| {
-            let size = self.file.metadata().map(|m| m.len()).unwrap_or(0);
-            format!("\"{}-{}\"", ts.as_second(), size)
+            format!(
+                "\"{}-{}\"",
+                ts.as_second(),
+                self.file.metadata().map(|m| m.len()).unwrap_or(0)
+            )
         })
     }
 
@@ -175,28 +178,26 @@ impl RealFileReturn {
 
     /// Check `If-None-Match` and `If-Modified-Since` headers for a 304.
     fn is_not_modified(
+        &self,
         headers: Option<&http::HeaderMap>,
         etag: Option<&str>,
-        last_modified: Option<&str>,
     ) -> bool {
         let Some(headers) = headers else { return false };
 
-        if let (Some(etag), Some(inm)) = (
-            etag,
-            headers
-                .get(header::IF_NONE_MATCH)
-                .and_then(|v| v.to_str().ok()),
-        ) {
-            return inm == "*" || inm.split(',').any(|e| e.trim() == etag);
+        if let (Some(etag), Some(candidates)) =
+            (etag, headers.get_str(header::IF_NONE_MATCH))
+        {
+            return candidates == "*"
+                || candidates.split(',').any(|e| e.trim() == etag);
         }
 
-        if let (Some(lm), Some(ims)) = (
-            last_modified,
+        if let (Some(last_modified), Some(reference)) = (
+            self.modified,
             headers
-                .get(header::IF_MODIFIED_SINCE)
-                .and_then(|v| v.to_str().ok()),
+                .get_str(header::IF_MODIFIED_SINCE)
+                .and_then(|value| rfc2822::parse(value).ok()),
         ) {
-            return lm == ims;
+            return last_modified < reference.into();
         }
 
         false
