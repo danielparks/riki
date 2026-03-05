@@ -8,7 +8,7 @@ pub use string::*;
 use super::actions::Action;
 use super::errors::{ParseError, ParseResult, SpannedErrors};
 use super::parser2::{Identifier, MatcherStack};
-use crate::actions::{self, RequestVariables, Return};
+use crate::actions::{self, RequestVariables, Return, VariableMap};
 use crate::render::TemplatesManager;
 use globset::{GlobSet, GlobSetBuilder};
 
@@ -151,7 +151,6 @@ impl<'src> ConfigRule<'src> {
         variables: RequestVariables<'_>,
     ) -> actions::Result<axum::response::Response> {
         let templates_path = self.settings.templates.path_content(&variables);
-        let req_path = variables.request_path.to_owned();
         let context = actions::Context {
             working_path: self.settings.root.path_content(&variables).into(),
             // FIXME? might not need to load templates
@@ -175,7 +174,8 @@ impl<'src> ConfigRule<'src> {
             }
             Err(error) => {
                 tracing::trace!("error {}: {error:?}", self.canonical());
-                Ok(error.render(&req_path, &context.tpls))
+                Ok(error
+                    .render(&context.variables.request_path(), &context.tpls))
             }
         }
     }

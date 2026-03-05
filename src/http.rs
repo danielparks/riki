@@ -11,6 +11,7 @@ use crate::config::parser2::GeneratedSource;
 use crate::render::{TemplatesManager, base_templates};
 use axum::extract::State;
 use axum::response::Response;
+use std::borrow::Borrow;
 use std::fmt;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
@@ -113,11 +114,7 @@ impl Router {
 
         // This errors if clean_path() failed, which should never happen.
         // FIXME? move clean_path() out for explicit error handling?
-        let variables = RequestVariables::new(
-            &parts.headers,
-            parts.uri.path(),
-            parts.method.as_str(),
-        )?;
+        let variables = RequestVariables::new(parts)?;
 
         match (|| {
             for rule in self.config.matches(&variables.clean_path()) {
@@ -140,7 +137,7 @@ impl Router {
                     // Error: loading templates (no dir, bad template?)
                     let tpls =
                         self.manager.templates_for_directory(templates_path)?;
-                    Ok(error.render(variables.request_path, &tpls))
+                    Ok(error.render(variables.request_path().borrow(), &tpls))
                 } else {
                     // Use default templates to render error.
                     Err(error)

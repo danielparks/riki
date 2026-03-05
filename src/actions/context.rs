@@ -119,17 +119,8 @@ impl Default for StaticVariables<'static> {
 /// Variables from a request object.
 #[derive(Clone, Debug)]
 pub struct RequestVariables<'vars> {
-    /// The request headers (for conditional request checking).
-    pub headers: &'vars HeaderMap,
-
-    /// The raw request path.
-    pub request_path: &'vars str,
-
-    /// The HTTP method, e.g. `"GET"`.
-    pub verb: &'vars str,
-
-    /// The `Host` header value, or `""`.
-    pub host: String,
+    /// The request parts.
+    pub request_parts: &'vars http::request::Parts,
 
     /// The cleaned request path.
     pub path: String,
@@ -142,17 +133,10 @@ impl<'vars> RequestVariables<'vars> {
     ///
     /// See [`clean_path()`].
     pub fn new(
-        headers: &'vars HeaderMap,
-        request_path: &'vars str,
-        verb: &'vars str,
+        request_parts: &'vars http::request::Parts,
     ) -> crate::Result<Self> {
-        let host = headers
-            .get("host")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("")
-            .to_owned();
-        let path = clean_path(request_path)?;
-        Ok(Self { headers, request_path, verb, host, path })
+        let path = clean_path(request_parts.uri.path())?;
+        Ok(Self { request_parts, path })
     }
 }
 
@@ -160,14 +144,19 @@ impl VariableMap for RequestVariables<'_> {
     fn get(&self, variable: Variable) -> Cow<'_, str> {
         Cow::Borrowed(match variable {
             Variable::CleanPath => &self.path,
-            Variable::RequestPath => self.request_path,
-            Variable::Verb => self.verb,
-            Variable::Host => &self.host,
+            Variable::RequestPath => self.request_parts.uri.path(),
+            Variable::Verb => self.request_parts.method.as_str(),
+            Variable::Host => self
+                .request_parts
+                .headers
+                .get("host")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or(""),
         })
     }
 
     fn request_headers(&self) -> Option<&HeaderMap> {
-        Some(self.headers)
+        Some(&self.request_parts.headers)
     }
 }
 
