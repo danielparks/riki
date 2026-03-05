@@ -4,7 +4,7 @@ use super::{
     ActionReturn, ContentReturn, Context, RealFileReturn, RequestContext,
     Result, Return, VariableMap,
 };
-use actix_web::HttpResponse;
+use axum::response::Response;
 use std::path::{Path, PathBuf};
 
 /// A short string.
@@ -194,7 +194,7 @@ impl Return for StringReturn {
     fn into_response<'a>(
         self,
         context: &'a RequestContext<'a>,
-    ) -> Result<HttpResponse> {
+    ) -> Result<Response> {
         self.into_real_file_return(context)?.into_response(context)
     }
 }

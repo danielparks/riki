@@ -4,16 +4,14 @@ use super::{
     ActionReturn, Context, Error, MediaType, RequestContext, Result, Return,
     StringReturn, VariableMap,
 };
-use actix_web::body::BodySize;
-use actix_web::web::Bytes;
-use actix_web::{HttpResponse, HttpResponseBuilder};
+use axum::body::Body;
+use axum::response::Response;
+use http::HeaderValue;
+use http::header::CONTENT_TYPE;
 use jiff::Timestamp;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::convert::Infallible;
 use std::mem;
-use std::pin::Pin;
-use std::task;
 use tendril::StrTendril;
 
 /// Response body content (possibly associated with a path).
@@ -140,10 +138,13 @@ impl Return for ContentReturn {
     fn into_response<'a>(
         self,
         context: &'a RequestContext<'a>,
-    ) -> Result<HttpResponse> {
-        Ok(HttpResponseBuilder::new(self.status)
-            .content_type(&self.content_type)
-            .body(self.into_content_return(context)?.body))
+    ) -> Result<Response> {
+        let ret = self.into_content_return(context)?;
+        Ok(http::Response::builder()
+            .status(ret.status)
+            .header(CONTENT_TYPE, HeaderValue::from(&ret.content_type))
+            .body(Body::from(ret.body))
+            .expect("valid response"))
     }
 }
 
@@ -236,40 +237,11 @@ impl Default for Content {
     }
 }
 
-impl actix_http::body::MessageBody for Content {
-    type Error = Infallible;
-
-    #[inline]
-    fn size(&self) -> BodySize {
-        BodySize::Sized(self.len().try_into().expect("usize into u64"))
-    }
-
-    #[inline]
-    fn poll_next(
-        self: Pin<&mut Self>,
-        _cx: &mut task::Context<'_>,
-    ) -> task::Poll<Option<Result<Bytes, Self::Error>>> {
-        if self.is_empty() {
-            task::Poll::Ready(None)
-        } else {
-            task::Poll::Ready(Some(Ok(mem::take(self.get_mut()).into())))
-        }
-    }
-
-    #[inline]
-    fn try_into_bytes(self) -> Result<Bytes, Self> {
-        match self {
-            Self::String(string) => Ok(Bytes::from(string)),
-            Self::Bytes(vec) => Ok(Bytes::from(vec)),
-        }
-    }
-}
-
-impl From<Content> for actix_web::web::Bytes {
+impl From<Content> for Body {
     fn from(content: Content) -> Self {
         match content {
-            Content::String(string) => string.into(),
-            Content::Bytes(vec) => vec.into(),
+            Content::String(string) => Self::from(string),
+            Content::Bytes(vec) => Self::from(vec),
         }
     }
 }
@@ -388,15 +360,13 @@ impl Source {
     }
 }
 
-/// Remote type definition of [`actix_web::http::StatusCode`] for `serde`.
+/// Remote type definition of [`http::StatusCode`] for `serde`.
 #[derive(Serialize)]
-#[serde(remote = "actix_web::http::StatusCode")]
-struct StatusSerde(
-    #[serde(getter = "actix_web::http::StatusCode::as_u16")] u16,
-);
+#[serde(remote = "http::StatusCode")]
+struct StatusSerde(#[serde(getter = "http::StatusCode::as_u16")] u16);
 
 /// Status code type, abstracted slightly.
-pub type Status = actix_web::http::StatusCode;
+pub type Status = http::StatusCode;
 
 /// Page metadata.
 ///

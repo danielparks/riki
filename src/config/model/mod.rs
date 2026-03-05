@@ -148,10 +148,10 @@ impl<'src> ConfigRule<'src> {
     pub fn evaluate(
         &self,
         manager: &TemplatesManager,
-        request: &actix_web::HttpRequest,
         variables: RequestVariables<'_>,
-    ) -> actions::Result<actix_web::HttpResponse> {
+    ) -> actions::Result<axum::response::Response> {
         let templates_path = self.settings.templates.path_content(&variables);
+        let req_path = variables.request_path.to_owned();
         let context = actions::Context {
             working_path: self.settings.root.path_content(&variables).into(),
             // FIXME? might not need to load templates
@@ -175,7 +175,7 @@ impl<'src> ConfigRule<'src> {
             }
             Err(error) => {
                 tracing::trace!("error {}: {error:?}", self.canonical());
-                Ok(error.render(request, &context.tpls))
+                Ok(error.render(&req_path, &context.tpls))
             }
         }
     }

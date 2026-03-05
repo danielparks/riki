@@ -1,9 +1,6 @@
 //! Media type for a return.
 
-use super::Result;
-use actix_web::http::header::{
-    HeaderValue, InvalidHeaderValue, TryIntoHeaderValue,
-};
+use http::HeaderValue;
 use serde::Serialize;
 
 /// A MIME/Media type
@@ -30,10 +27,8 @@ impl Default for MediaType {
     }
 }
 
-impl TryIntoHeaderValue for &MediaType {
-    type Error = InvalidHeaderValue;
-
-    fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
-        HeaderValue::from_str(self.0)
+impl From<&MediaType> for HeaderValue {
+    fn from(media_type: &MediaType) -> Self {
+        Self::from_static(media_type.0)
     }
 }

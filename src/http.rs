@@ -9,11 +9,11 @@ use crate::actions::{self, RequestVariables, VariableMap};
 use crate::config::SourcedConfiguration;
 use crate::config::parser2::GeneratedSource;
 use crate::render::{TemplatesManager, base_templates};
-use actix_web::{
-    self, App, HttpRequest, HttpResponse, HttpServer, Responder, get, web::Data,
-};
+use axum::extract::State;
+use axum::response::Response;
 use std::fmt;
-use tracing_actix_web::TracingLogger;
+use std::sync::Arc;
+use tower_http::trace::TraceLayer;
 
 // TODO better error handling
 //      - Bad page metadata errors should be shown to admin, but not user
@@ -27,43 +27,45 @@ use tracing_actix_web::TracingLogger;
 /// # Errors
 ///
 /// May return an error if the server could not start correctly.
-#[actix_web::main]
 pub async fn serve<A: AsRef<str>>(
     configuration: SourcedConfiguration<GeneratedSource<'static>>,
     address: A,
 ) -> crate::Result<()> {
     let address = address.as_ref();
-    let router = Data::new(Router::from_configuration(configuration));
+    let router = Arc::new(Router::from_configuration(configuration));
 
-    HttpServer::new(move || {
-        App::new()
-            .app_data(Data::clone(&router))
-            .wrap(TracingLogger::default())
-            .service(path_handler)
-    })
-    .bind(address)
-    .map_err(|error| crate::Error::BindError {
-        source: error,
-        address: String::from(address),
-    })?
-    .run()
-    .await
-    .map_err(crate::Error::Io)
+    let app = axum::Router::new()
+        .route("/{*path}", axum::routing::get(path_handler))
+        .route("/", axum::routing::get(path_handler))
+        .with_state(router)
+        .layer(TraceLayer::new_for_http());
+
+    let listener =
+        tokio::net::TcpListener::bind(address)
+            .await
+            .map_err(|error| crate::Error::BindError {
+                source: error,
+                address: address.to_owned(),
+            })?;
+
+    axum::serve(listener, app).await.map_err(crate::Error::Io)
 }
 
 /// Handle all GET requests
-#[expect(clippy::future_not_send, reason = "Required by Actix")]
-#[get("/{path:.*}")]
 pub async fn path_handler(
-    req: HttpRequest,
-    router: Data<Router>,
-) -> impl Responder {
+    State(router): State<Arc<Router>>,
+    request: axum::extract::Request,
+) -> Response {
+    let (parts, _body) = request.into_parts();
     router
-        .route(&req)
+        .route(&parts)
         .await
         .unwrap_or_else(|error: actions::Error| {
-            tracing::error!("{} could not render error: {error:?}", req.path());
-            error.render(&req, &base_templates())
+            tracing::error!(
+                "{} could not render error: {error:?}",
+                parts.uri.path()
+            );
+            error.render(parts.uri.path(), &base_templates())
         })
 }
 
@@ -94,22 +96,28 @@ impl Router {
     /// # Errors
     ///
     /// Returned errors will be converted to appropriate HTTP responses.
-    #[expect(clippy::future_not_send, reason = "Actix doesn’t require Send")]
-    #[expect(clippy::unused_async, reason = "Required by Actix")]
+    #[expect(
+        clippy::unused_async,
+        reason = "Required by Axum handler signature"
+    )]
     pub async fn route(
         &self,
-        request: &HttpRequest,
-    ) -> actions::Result<HttpResponse> {
-        tracing::trace!("route request: {:?}", request);
+        parts: &http::request::Parts,
+    ) -> actions::Result<Response> {
+        tracing::trace!("route request: {:?}", parts.uri);
 
         // This errors if clean_path() failed, which should never happen.
         // FIXME? move clean_path() out for explicit error handling?
-        let variables = RequestVariables::new(request)?;
+        let variables = RequestVariables::new(
+            &parts.headers,
+            parts.uri.path(),
+            parts.method.as_str(),
+        )?;
 
         match (|| {
             for rule in self.config.matches(&variables.clean_path()) {
                 // FIXME &variables instead of clone()
-                match rule.evaluate(&self.manager, request, variables.clone()) {
+                match rule.evaluate(&self.manager, variables.clone()) {
                     Err(actions::Error::NotFound) => (), // skip
                     other => return other,
                 }
@@ -127,7 +135,7 @@ impl Router {
                     // Error: loading templates (no dir, bad template?)
                     let tpls =
                         self.manager.templates_for_directory(templates_path)?;
-                    Ok(error.render(request, &tpls))
+                    Ok(error.render(variables.request_path, &tpls))
                 } else {
                     // Use default templates to render error.
                     Err(error)

@@ -1,8 +1,7 @@
 //! ## Returns
 //!
 //! Types that implement [`Return`] can be passed from action to action for
-//! processing then converted into an [`actix_web::HttpResponse`] for return to
-//! the client.
+//! processing then converted into an HTTP response for return to the client.
 //!
 //!   * A [`StringReturn`] is a short string that might be part of a path, an
 //!     error code, etc.
@@ -16,9 +15,6 @@
 //! non-Unicode paths are supported on platforms that allow them.
 //!
 //! ### Very large files
-//!
-//! A [`RealFileReturn`] can be transformed into a [`actix_files::NamedFile`],
-//! which Actix can stream back to the client.
 //!
 //! However, to do any transformations, e.g. converting Markdown to HTML or
 //! rendering HTML into a template, the entire file must be loaded into memory
@@ -35,8 +31,8 @@ pub use real_file_return::*;
 pub use string_return::*;
 
 use super::{Context, Error, RequestContext, Result, VariableMap};
-use actix_web::HttpResponse;
 use ambassador::{Delegate, delegatable_trait};
+use axum::response::Response;
 use std::borrow::Cow;
 use std::fmt;
 
@@ -146,7 +142,7 @@ pub trait Return {
     fn into_response<'a>(
         self,
         context: &'a RequestContext<'a>,
-    ) -> Result<HttpResponse>;
+    ) -> Result<Response>;
 
     /// Get the URL path.
     ///

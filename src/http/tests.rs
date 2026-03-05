@@ -1,31 +1,20 @@
 //! Test HTTP server.
 #![cfg(test)]
 
-use super::{Router, path_handler};
+use super::Router;
 use crate::rules;
-use actix_http::{Request, header};
-use actix_web::body::BoxBody;
-use actix_web::dev::{Service, ServiceResponse};
-use actix_web::http::header::HeaderName;
-use actix_web::test::TestRequest;
-use actix_web::web::{Bytes, Data};
-use actix_web::{App, body, http, test};
 use assert2::assert;
+use axum::body::Body;
+use axum::extract::Request;
+use http::header;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use temp_dir::TempDir;
+use tower::ServiceExt;
 
 /// Initialize the test app.
-#[expect(clippy::future_not_send, reason = "Required by Actix")]
-async fn init_app() -> (
-    TempDir,
-    PathBuf,
-    impl Service<
-        Request,
-        Response = ServiceResponse<BoxBody>,
-        Error = actix_web::Error,
-    >,
-) {
+fn init_app() -> (TempDir, PathBuf, axum::Router) {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path().to_owned();
     let root_str = root.to_str().expect("TempDir path not UTF-8").to_owned();
@@ -43,46 +32,17 @@ async fn init_app() -> (
     )
     .unwrap();
 
-    let router = Data::new(Router::from_configuration(
+    let router = Arc::new(Router::from_configuration(
         rules::default_rules(root_str, templates_str).unwrap(),
     ));
 
-    (
-        temp_dir,
-        root,
-        test::init_service(App::new().app_data(router).service(path_handler))
-            .await,
-    )
-}
+    let app = axum::Router::new()
+        .route("/{*path}", axum::routing::get(super::path_handler))
+        .route("/", axum::routing::get(super::path_handler))
+        .with_state(router);
 
-/// Get body of response
-#[expect(clippy::future_not_send, reason = "Required by Actix")]
-async fn get_body(resp: ServiceResponse<BoxBody>) -> Bytes {
-    body::to_bytes(resp.into_body()).await.unwrap()
+    (temp_dir, root, app)
 }
-
-/// Get the value of a response header
-fn get_header(
-    resp: &ServiceResponse<BoxBody>,
-    name: HeaderName,
-) -> Option<Bytes> {
-    resp.headers()
-        .get(name)
-        .map(|v| v.as_bytes().to_vec().into())
-}
-
-/// Get the content-type of a response
-fn get_content_type(resp: &ServiceResponse<BoxBody>) -> Option<mime::Mime> {
-    resp.headers().get(header::CONTENT_TYPE).map(|v| {
-        v.to_str()
-            .expect("content-type to be ASCII")
-            .parse()
-            .unwrap()
-    })
-}
-
-/// Convert byte string to right type for comparison with a response body.
-const B: fn(&'static [u8]) -> Bytes = Bytes::from_static;
 
 /// A summarized response that can be compared for easy assertions.
 #[derive(Debug, Eq, PartialEq)]
@@ -92,22 +52,32 @@ struct Response {
     last_modified: bool,
     etag: bool,
     location: Option<String>,
-    body: Bytes,
+    body: Vec<u8>,
 }
 
 impl Response {
-    /// Create the summary from an actual [`ServiceResponse`].
-    #[expect(clippy::future_not_send, reason = "Required by Actix")]
-    async fn from(resp: ServiceResponse<BoxBody>) -> Self {
-        Self {
-            status: resp.status(),
-            content_type: get_content_type(&resp),
-            last_modified: get_header(&resp, header::LAST_MODIFIED).is_some(),
-            etag: get_header(&resp, header::ETAG).is_some(),
-            location: get_header(&resp, header::LOCATION)
-                .map(|v| v.to_vec().try_into().expect("Location not UTF-8")),
-            body: get_body(resp).await,
-        }
+    /// Create the summary from an Axum response.
+    async fn from(resp: axum::response::Response) -> Self {
+        let status = resp.status();
+        let headers = resp.headers();
+
+        let content_type = headers
+            .get(header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse().ok());
+        let last_modified = headers.contains_key(header::LAST_MODIFIED);
+        let etag = headers.contains_key(header::ETAG);
+        let location = headers
+            .get(header::LOCATION)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned);
+
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec();
+
+        Self { status, content_type, last_modified, etag, location, body }
     }
 
     /// An expected 301 Moved Permanently response.
@@ -118,7 +88,7 @@ impl Response {
             last_modified: false,
             etag: false,
             location: Some(to.to_owned()),
-            body: format!("redirect {to}").into(),
+            body: format!("redirect {to}").into_bytes(),
         }
     }
 
@@ -130,7 +100,7 @@ impl Response {
             last_modified: false,
             etag: false,
             location: None,
-            body: body.to_owned().into(),
+            body: body.as_bytes().to_vec(),
         }
     }
 
@@ -142,7 +112,7 @@ impl Response {
             last_modified: false,
             etag: false,
             location: None,
-            body: body.to_owned().into(),
+            body: body.as_bytes().to_vec(),
         }
     }
 
@@ -159,29 +129,32 @@ impl Response {
             last_modified: true,
             etag: true,
             location: None,
-            body: body.to_owned().into(),
+            body: body.as_bytes().to_vec(),
         }
     }
 }
 
 /// Make a GET request to the test app.
-#[expect(clippy::future_not_send, reason = "Required by Actix")]
-async fn get<S, E>(app: S, uri: &str) -> Response
-where
-    S: Service<Request, Response = ServiceResponse<BoxBody>, Error = E>,
-    E: std::fmt::Debug,
-{
+async fn get(app: &axum::Router, uri: &str) -> Response {
     Response::from(
-        test::call_service(&app, TestRequest::get().uri(uri).to_request())
-            .await,
+        app.clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(uri)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap(),
     )
     .await
 }
 
-#[actix_web::test]
+#[tokio::test]
 #[test_log::test]
 async fn test_directory_page_get() {
-    let (_dir, root, app) = init_app().await;
+    let (_dir, root, app) = init_app();
 
     fs::write(root.join("index.md"), "index").unwrap();
     fs::create_dir(root.join("dir")).unwrap();
@@ -209,10 +182,10 @@ async fn test_directory_page_get() {
     assert!(Response::page_source("DIR") == get(&app, "/dir/index.md").await);
 }
 
-#[actix_web::test]
+#[tokio::test]
 #[test_log::test]
 async fn test_file_page_get() {
-    let (_dir, root, app) = init_app().await;
+    let (_dir, root, app) = init_app();
 
     fs::write(root.join("page.md"), "PAGE").unwrap();
 
@@ -227,10 +200,10 @@ async fn test_file_page_get() {
     assert!(Response::page_source("PAGE") == get(&app, "/page.md").await);
 }
 
-#[actix_web::test]
+#[tokio::test]
 #[test_log::test]
 async fn test_static_file_get() {
-    let (_dir, root, app) = init_app().await;
+    let (_dir, root, app) = init_app();
 
     fs::write(root.join("a.txt"), "AAA").unwrap();
 
@@ -243,10 +216,10 @@ async fn test_static_file_get() {
     assert!(Response::redirect("/a.txt") == get(&app, "/a.txt/././").await);
 }
 
-#[actix_web::test]
+#[tokio::test]
 #[test_log::test]
 async fn test_static_directory_get() {
-    let (_dir, root, app) = init_app().await;
+    let (_dir, root, app) = init_app();
 
     fs::create_dir(root.join("b")).unwrap();
     fs::write(root.join("b/index.html"), "BBB").unwrap();
@@ -257,10 +230,10 @@ async fn test_static_directory_get() {
     assert!(Response::redirect("/b/") == get(&app, "/b/././index.html").await);
 }
 
-#[actix_web::test]
+#[tokio::test]
 #[test_log::test]
 async fn test_static_index_with_page() {
-    let (_dir, root, app) = init_app().await;
+    let (_dir, root, app) = init_app();
 
     fs::create_dir(root.join("static")).unwrap();
     fs::write(root.join("static/index.html"), "STATIC").unwrap();
@@ -281,10 +254,10 @@ async fn test_static_index_with_page() {
     );
 }
 
-#[actix_web::test]
+#[tokio::test]
 #[test_log::test]
 async fn test_static_hides_page() {
-    let (_dir, root, app) = init_app().await;
+    let (_dir, root, app) = init_app();
 
     fs::write(root.join("index.html"), "STATIC").unwrap();
     fs::write(root.join("index.md"), "PAGE").unwrap();
@@ -294,10 +267,10 @@ async fn test_static_hides_page() {
     assert!(Response::page_source("PAGE") == get(&app, "/index.md").await);
 }
 
-#[actix_web::test]
+#[tokio::test]
 #[test_log::test]
 async fn test_not_found_get() {
-    let (_dir, _root, app) = init_app().await;
+    let (_dir, _root, app) = init_app();
 
     assert!(
         Response {
@@ -306,18 +279,18 @@ async fn test_not_found_get() {
             last_modified: false,
             etag: false,
             location: None,
-            body: B(b"404"),
+            body: b"404".to_vec(),
         } == get(&app, "/not-found").await
     );
 }
 
 #[cfg(all(not(target_os = "hermit"), unix))]
-#[actix_web::test]
+#[tokio::test]
 #[test_log::test]
 async fn test_forbidden_page_get() {
     use std::os::unix::fs::PermissionsExt;
 
-    let (_dir, root, app) = init_app().await;
+    let (_dir, root, app) = init_app();
 
     let path = root.join("forbidden.md");
     fs::write(&path, "forbidden").unwrap();
@@ -330,7 +303,7 @@ async fn test_forbidden_page_get() {
             last_modified: false,
             etag: false,
             location: None,
-            body: B(b"403"),
+            body: b"403".to_vec(),
         } == get(&app, "/forbidden").await
     );
 
@@ -341,18 +314,18 @@ async fn test_forbidden_page_get() {
             last_modified: false,
             etag: false,
             location: None,
-            body: B(b"403"),
+            body: b"403".to_vec(),
         } == get(&app, "/forbidden.md").await
     );
 }
 
 #[cfg(all(not(target_os = "hermit"), unix))]
-#[actix_web::test]
+#[tokio::test]
 #[test_log::test]
 async fn test_forbidden_static_get() {
     use std::os::unix::fs::PermissionsExt;
 
-    let (_dir, root, app) = init_app().await;
+    let (_dir, root, app) = init_app();
 
     let path = root.join("forbidden.txt");
     fs::write(&path, "forbidden").unwrap();
@@ -365,7 +338,7 @@ async fn test_forbidden_static_get() {
             last_modified: false,
             etag: false,
             location: None,
-            body: B(b"403"),
+            body: b"403".to_vec(),
         } == get(&app, "/forbidden.txt").await
     );
 }

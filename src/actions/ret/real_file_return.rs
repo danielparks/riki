@@ -1,11 +1,12 @@
 //! A return of a real, on-disk file.
 
 use super::{
-    ActionReturn, ContentReturn, Context, Error, MediaType, RequestContext,
-    Result, Return, Source, StringReturn, VariableMap,
+    ActionReturn, ContentReturn, Context, MediaType, RequestContext, Result,
+    Return, Source, StringReturn, VariableMap,
 };
-use actix_files::NamedFile;
-use actix_web::HttpResponse;
+use axum::body::Body;
+use axum::response::Response;
+use http::{StatusCode, header};
 use jiff::Timestamp;
 use std::fs;
 use std::io::{self, Read, Seek};
@@ -94,36 +95,110 @@ impl RealFileReturn {
         Self::new(path.as_ref().display().to_string(), path)
     }
 
-    /// Convert to a [`NamedFile`].
+    /// Build an HTTP response for this file, handling conditional requests.
     ///
-    /// This makes all `text/*` files default to having `charset=utf-8`. If the
-    /// media type is not `text`, or if it already has a `charset` parameter,
-    /// then the media type will be left as-is.
+    /// Sets `ETag`, `Last-Modified`, and `Content-Type` headers. Returns 304
+    /// if the client's cached version is still fresh.
     ///
     /// # Errors
     ///
-    ///   * Mapped `io::Error`s from [`NamedFile::from_file()`].
-    ///   * [`Error::InternalString`] if the constructed content-type cannot be
-    ///     parsed (should never happen).
-    fn into_named_file(self) -> Result<NamedFile> {
-        let file = NamedFile::from_file(self.file, &self.inner_path)?;
-        let content_type = file.content_type();
-        if content_type.type_() != mime::TEXT
-            || content_type.params().any(|(name, _)| name == mime::CHARSET)
-        {
-            return Ok(file);
+    ///   * [`io::Error`]s from reading the file.
+    fn into_static_response<V: VariableMap>(
+        self,
+        context: &Context<V>,
+    ) -> Result<Response> {
+        let content_type = Self::content_type_for_path(&self.inner_path);
+        let etag = self.etag();
+        let last_modified = self.last_modified_header();
+
+        let headers = context.request_headers();
+        if Self::is_not_modified(
+            headers,
+            etag.as_deref(),
+            last_modified.as_deref(),
+        ) {
+            return Ok(http::Response::builder()
+                .status(StatusCode::NOT_MODIFIED)
+                .body(Body::empty())
+                .expect("valid response"));
         }
 
-        let new_content_type = format!("{}; charset=utf-8", &content_type);
+        let Self { mut file, .. } = self;
+        let mut body = Vec::new();
+        #[expect(
+            clippy::verbose_file_reads,
+            reason = "file is already open from struct field"
+        )]
+        file.read_to_end(&mut body)?;
 
-        Ok(file.set_content_type(new_content_type.parse().map_err(
-            |error| {
-                Error::InternalString(format!(
-                    "Parsing constructed content type {new_content_type:?}: \
-                        {error}"
-                ))
-            },
-        )?))
+        let mut builder = http::Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, &content_type);
+        if let Some(etag) = etag {
+            builder = builder.header(header::ETAG, etag);
+        }
+        if let Some(lm) = last_modified {
+            builder = builder.header(header::LAST_MODIFIED, lm);
+        }
+        Ok(builder.body(Body::from(body)).expect("valid response"))
+    }
+
+    /// Detect content-type for a file path, adding `charset=utf-8` for text.
+    fn content_type_for_path(path: &str) -> String {
+        let mime = mime_guess::from_path(path).first_or_octet_stream();
+        if mime.type_() == mime::TEXT
+            && !mime.params().any(|(name, _)| name == mime::CHARSET)
+        {
+            format!("{mime}; charset=utf-8")
+        } else {
+            mime.to_string()
+        }
+    }
+
+    /// Compute an `ETag` from file metadata.
+    fn etag(&self) -> Option<String> {
+        self.modified.map(|ts| {
+            let size = self.file.metadata().map(|m| m.len()).unwrap_or(0);
+            format!("\"{}-{}\"", ts.as_second(), size)
+        })
+    }
+
+    /// Format `Last-Modified` as an HTTP date string.
+    fn last_modified_header(&self) -> Option<String> {
+        self.modified.map(|ts| {
+            ts.to_zoned(jiff::tz::TimeZone::UTC)
+                .strftime("%a, %d %b %Y %H:%M:%S GMT")
+                .to_string()
+        })
+    }
+
+    /// Check `If-None-Match` and `If-Modified-Since` headers for a 304.
+    fn is_not_modified(
+        headers: Option<&http::HeaderMap>,
+        etag: Option<&str>,
+        last_modified: Option<&str>,
+    ) -> bool {
+        let Some(headers) = headers else { return false };
+
+        if let (Some(etag), Some(inm)) = (
+            etag,
+            headers
+                .get(header::IF_NONE_MATCH)
+                .and_then(|v| v.to_str().ok()),
+        ) {
+            return inm == "*" || inm.split(',').any(|e| e.trim() == etag);
+        }
+
+        if let (Some(lm), Some(ims)) = (
+            last_modified,
+            headers
+                .get(header::IF_MODIFIED_SINCE)
+                .and_then(|v| v.to_str().ok()),
+        ) {
+            return lm == ims;
+        }
+
+        false
     }
 }
 
@@ -171,10 +246,8 @@ impl Return for RealFileReturn {
     fn into_response<'a>(
         self,
         context: &'a RequestContext<'a>,
-    ) -> Result<HttpResponse> {
-        Ok(self
-            .into_named_file()?
-            .into_response(context.variables.request))
+    ) -> Result<Response> {
+        self.into_static_response(context)
     }
 }
 

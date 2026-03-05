@@ -12,8 +12,8 @@
 //!     [`StaticVariables`]. It’s useful for testing.
 
 use crate::Error;
-use actix_web::HttpRequest;
 use handlebars::Handlebars;
+use http::HeaderMap;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -69,6 +69,13 @@ pub trait VariableMap {
     fn request_path(&self) -> Cow<'_, str> {
         self.get(Variable::RequestPath)
     }
+
+    /// Get the request headers, if available.
+    ///
+    /// Returns `None` for static/test contexts.
+    fn request_headers(&self) -> Option<&HeaderMap> {
+        None
+    }
 }
 
 /// Static variable values (for testing).
@@ -112,21 +119,40 @@ impl Default for StaticVariables<'static> {
 /// Variables from a request object.
 #[derive(Clone, Debug)]
 pub struct RequestVariables<'vars> {
-    /// The request object.
-    pub request: &'vars HttpRequest,
+    /// The request headers (for conditional request checking).
+    pub headers: &'vars HeaderMap,
+
+    /// The raw request path.
+    pub request_path: &'vars str,
+
+    /// The HTTP method, e.g. `"GET"`.
+    pub verb: &'vars str,
+
+    /// The `Host` header value, or `""`.
+    pub host: String,
 
     /// The cleaned request path.
     pub path: String,
 }
 
 impl<'vars> RequestVariables<'vars> {
-    /// Create from an [`HttpRequest`].
+    /// Create from raw request parts.
     ///
     /// # Errors
     ///
     /// See [`clean_path()`].
-    pub fn new(request: &'vars HttpRequest) -> crate::Result<Self> {
-        Ok(Self { request, path: clean_path(request.path())? })
+    pub fn new(
+        headers: &'vars HeaderMap,
+        request_path: &'vars str,
+        verb: &'vars str,
+    ) -> crate::Result<Self> {
+        let host = headers
+            .get("host")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_owned();
+        let path = clean_path(request_path)?;
+        Ok(Self { headers, request_path, verb, host, path })
     }
 }
 
@@ -134,15 +160,14 @@ impl VariableMap for RequestVariables<'_> {
     fn get(&self, variable: Variable) -> Cow<'_, str> {
         Cow::Borrowed(match variable {
             Variable::CleanPath => &self.path,
-            Variable::RequestPath => self.request.path(),
-            Variable::Verb => self.request.method().as_str(),
-            Variable::Host => self
-                .request
-                .headers()
-                .get("host")
-                .and_then(|value| value.to_str().ok())
-                .unwrap_or(""),
+            Variable::RequestPath => self.request_path,
+            Variable::Verb => self.verb,
+            Variable::Host => &self.host,
         })
+    }
+
+    fn request_headers(&self) -> Option<&HeaderMap> {
+        Some(self.headers)
     }
 }
 
@@ -169,6 +194,11 @@ impl<V: VariableMap> Context<V> {
     /// absolute, in which case it will be returned itself.
     pub fn real_path<P: AsRef<Path>>(&self, path: P) -> PathBuf {
         self.working_path.join(path)
+    }
+
+    /// Get the request headers from the variable map, if available.
+    pub fn request_headers(&self) -> Option<&HeaderMap> {
+        self.variables.request_headers()
     }
 }
 

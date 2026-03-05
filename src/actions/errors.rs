@@ -7,7 +7,8 @@
 //! the action should be canceled and the request should fall through to the
 //! next configuration rule.
 
-use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, http};
+use axum::body::Body;
+use axum::response::Response;
 use handlebars::Handlebars;
 use htmlize::escape_text;
 use http::{StatusCode, header};
@@ -73,63 +74,77 @@ impl From<io::Error> for Error {
 }
 
 impl Error {
-    /// Render the error into an `HttpResponse`.
+    /// Render the error into a [`Response`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the response builder is given invalid header values, which
+    /// cannot happen with the values used here.
     #[must_use]
-    pub fn render(&self, req: &HttpRequest, tpls: &Handlebars) -> HttpResponse {
-        let (mut builder, template_name, data) = match self {
+    pub fn render(&self, req_path: &str, tpls: &Handlebars) -> Response {
+        let (status, template_name, data) = match self {
             Self::Internal(error) => (
-                HttpResponseBuilder::new(StatusCode::INTERNAL_SERVER_ERROR),
+                StatusCode::INTERNAL_SERVER_ERROR,
                 "error500",
                 hashmap! {
                     "error" => error.to_string(),
                     "error_debug" => format!("{error:#?}"),
-                    "req_path" => req.path().to_owned(),
+                    "req_path" => req_path.to_owned(),
                 },
             ),
             Self::InternalString(error) => (
-                HttpResponseBuilder::new(StatusCode::INTERNAL_SERVER_ERROR),
+                StatusCode::INTERNAL_SERVER_ERROR,
                 "error500",
                 hashmap! {
                     "error" => error.clone(),
                     "error_debug" => error.clone(),
-                    "req_path" => req.path().to_owned(),
+                    "req_path" => req_path.to_owned(),
                 },
             ),
             Self::NotFound => (
-                HttpResponseBuilder::new(StatusCode::NOT_FOUND),
+                StatusCode::NOT_FOUND,
                 "error404",
-                hashmap! { "req_path" => req.path().to_owned() },
+                hashmap! { "req_path" => req_path.to_owned() },
             ),
             Self::Forbidden => (
-                HttpResponseBuilder::new(StatusCode::FORBIDDEN),
+                StatusCode::FORBIDDEN,
                 "error403",
-                hashmap! { "req_path" => req.path().to_owned() },
+                hashmap! { "req_path" => req_path.to_owned() },
             ),
             Self::RedirectCanonical(url) => {
-                let mut builder =
-                    HttpResponseBuilder::new(StatusCode::MOVED_PERMANENTLY);
-                builder.insert_header((header::LOCATION, url.clone()));
-                (
-                    builder,
-                    "redirect301",
-                    hashmap! { "canonical_url" => url.clone() },
-                )
+                let buffer = tpls
+                    .render(
+                        "redirect301",
+                        &hashmap! { "canonical_url" => url.clone() },
+                    )
+                    .unwrap_or_else(|e| {
+                        self.fallback_render(req_path, &e.into())
+                    });
+                return http::Response::builder()
+                    .status(StatusCode::MOVED_PERMANENTLY)
+                    .header(header::LOCATION, url.as_str())
+                    .header(header::CONTENT_TYPE, "text/html; charset=UTF-8")
+                    .body(Body::from(buffer))
+                    .expect("valid response");
             }
         };
 
-        let buffer = tpls
-            .render(template_name, &data)
-            .unwrap_or_else(|error2| self.fallback_render(req, &error2.into()));
+        let buffer =
+            tpls.render(template_name, &data).unwrap_or_else(|error2| {
+                self.fallback_render(req_path, &error2.into())
+            });
 
-        builder
-            .content_type("text/html; charset=UTF-8")
-            .body(buffer)
+        http::Response::builder()
+            .status(status)
+            .header(header::CONTENT_TYPE, "text/html; charset=UTF-8")
+            .body(Body::from(buffer))
+            .expect("valid response")
     }
 
     /// Render an error if there was a problem with the template.
     fn fallback_render(
         &self,
-        _req: &HttpRequest,
+        _req_path: &str,
         error2: &anyhow::Error,
     ) -> String {
         let self_html = escape_text(self.to_string());
