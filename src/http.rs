@@ -32,23 +32,28 @@ pub async fn serve<A: AsRef<str>>(
     address: A,
 ) -> crate::Result<()> {
     let address = address.as_ref();
-    let router = Arc::new(Router::from_configuration(configuration));
 
-    let app = axum::Router::new()
-        .route("/{*path}", axum::routing::get(path_handler))
-        .route("/", axum::routing::get(path_handler))
-        .with_state(router)
-        .layer(TraceLayer::new_for_http());
-
-    let listener =
+    axum::serve(
         tokio::net::TcpListener::bind(address)
             .await
             .map_err(|error| crate::Error::BindError {
                 source: error,
                 address: address.to_owned(),
-            })?;
+            })?,
+        init_app(configuration),
+    )
+    .await
+    .map_err(crate::Error::Io)
+}
 
-    axum::serve(listener, app).await.map_err(crate::Error::Io)
+/// Initialize the Axum app to be served.
+pub fn init_app(
+    configuration: SourcedConfiguration<GeneratedSource<'static>>,
+) -> axum::Router {
+    axum::Router::new()
+        .fallback(axum::routing::get(path_handler))
+        .with_state(Arc::new(Router::from_configuration(configuration)))
+        .layer(TraceLayer::new_for_http())
 }
 
 /// Handle all GET requests

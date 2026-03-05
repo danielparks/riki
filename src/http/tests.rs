@@ -1,7 +1,6 @@
 //! Test HTTP server.
 #![cfg(test)]
 
-use super::Router;
 use crate::rules;
 use assert2::assert;
 use axum::body::Body;
@@ -9,7 +8,6 @@ use axum::extract::Request;
 use http::header;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use temp_dir::TempDir;
 use tower::ServiceExt;
 
@@ -32,16 +30,11 @@ fn init_app() -> (TempDir, PathBuf, axum::Router) {
     )
     .unwrap();
 
-    let router = Arc::new(Router::from_configuration(
-        rules::default_rules(root_str, templates_str).unwrap(),
-    ));
-
-    let app = axum::Router::new()
-        .route("/{*path}", axum::routing::get(super::path_handler))
-        .route("/", axum::routing::get(super::path_handler))
-        .with_state(router);
-
-    (temp_dir, root, app)
+    (
+        temp_dir,
+        root,
+        super::init_app(rules::default_rules(root_str, templates_str).unwrap()),
+    )
 }
 
 /// A summarized response that can be compared for easy assertions.
