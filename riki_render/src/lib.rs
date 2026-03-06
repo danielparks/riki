@@ -4,8 +4,8 @@
 #![forbid(unsafe_code)]
 
 mod embeds;
-pub mod error;
+mod error;
 mod templates;
 
-pub use error::{Error, Result};
+pub use error::*;
 pub use templates::*;

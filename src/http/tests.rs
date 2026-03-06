@@ -1,12 +1,12 @@
 //! Test HTTP server.
 #![cfg(test)]
 
-use crate::http::util::HeaderMapHelper;
 use crate::rules;
 use assert2::assert;
 use axum::body::Body;
 use axum::extract::Request;
 use http::header;
+use riki_misc::HeaderMapHelper;
 use std::fs;
 use std::path::{Path, PathBuf};
 use temp_dir::TempDir;

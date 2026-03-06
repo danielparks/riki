@@ -49,7 +49,6 @@ os_str_bytes = { version = "7.1.1", features = ["conversions"] }
 ouroboros = "0.18.5"
 pastey = "0.2.1"
 pulldown-cmark = "0.13.0"
-read-doc = "0.1.0"
 regex = "1.11.1"
 rust-embed = "8.7.2"
 serde = { version = "1.0.219", features = ["derive"] }

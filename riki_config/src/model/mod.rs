@@ -156,14 +156,16 @@ impl<'src> ConfigRule<'src> {
             // FIXME? might not need to load templates
             // Error: loading templates (no dir, bad template?)
             tpls: manager.templates_for_directory(templates_path).map_err(
-                |e| riki_actions::Error::InternalString(e.to_string()),
+                |error| riki_actions::Error::InternalString(error.to_string()),
             )?,
             variables,
         };
 
-        match self.action.evaluate(&context).and_then(
-            |ret: riki_actions::ActionReturn| ret.into_response(&context),
-        ) {
+        match self
+            .action
+            .evaluate(&context)
+            .and_then(|ret| ret.into_response(&context))
+        {
             Ok(response) => {
                 tracing::trace!("success {}: {response:?}", self.canonical());
                 Ok(response)
@@ -174,9 +176,8 @@ impl<'src> ConfigRule<'src> {
             }
             Err(error) => {
                 tracing::trace!("error {}: {error:?}", self.canonical());
-                let response = error
-                    .render(&context.variables.request_path(), &context.tpls);
-                Ok(response)
+                Ok(error
+                    .render(&context.variables.request_path(), &context.tpls))
             }
         }
     }

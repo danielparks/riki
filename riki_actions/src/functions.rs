@@ -16,12 +16,13 @@ use crate::elements::{
 use crate::pages::{self, render_source_to_string};
 use dom_query::Document;
 use std::mem;
+
 /// Render passed content in a template.
 ///
 /// # Errors
 ///
-/// Will return [`Error`] if there is a problem getting content
-/// from `ret` or rendering the template.
+/// Will return [`Error`] if there is a problem getting content from `ret` or
+/// rendering the template.
 pub fn render<V: VariableMap, R: Return>(
     context: &Context<V>,
     ret: R,

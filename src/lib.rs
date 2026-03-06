@@ -4,11 +4,12 @@
 #![forbid(unsafe_code)]
 
 mod errors;
+pub use errors::*;
+
+mod tests;
 
 pub mod http;
 pub mod rules;
-
-pub use errors::*;
 
 pub use riki_actions as actions;
 pub use riki_config as config;

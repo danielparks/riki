@@ -1,5 +1,8 @@
 //! Handle configuration files
 
+// Lint configuration in Cargo.toml isn't supported by cargo-geiger.
+#![forbid(unsafe_code)]
+
 pub mod actions;
 pub mod errors;
 pub mod lexer;

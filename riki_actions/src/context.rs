@@ -6,7 +6,7 @@
 //! [`Context`] has two type aliases:
 //!
 //!   * [`RequestContext`] is a context that uses [`RequestVariables`] to
-//!     extract variables from an HTTP request. It is used by the HTTP router.
+//!     extract variables from an HTTP request.
 //!   * [`StaticContext`] is a context that has static variable values stored in
 //!     [`StaticVariables`]. It’s useful for testing.
 
@@ -173,7 +173,8 @@ pub struct Context<V: VariableMap> {
 impl<V: VariableMap> Context<V> {
     /// Get the file system path for a return’s inner path.
     ///
-    /// See [`crate::Return::inner_path()`] for more information.
+    /// See [`riki_actions::Return::inner_path()`][crate::Return::inner_path()]
+    /// for more information.
     ///
     /// This assumes that `path` does not have any `/../` components. It may be
     /// absolute, in which case it will be returned itself.

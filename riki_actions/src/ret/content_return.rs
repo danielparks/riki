@@ -60,8 +60,8 @@ impl ContentReturn {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::errors::Error::NotUtf8`] if the content is not UTF-8.
-    pub fn ensure_metadata_title(&mut self) -> crate::errors::Result<&Self> {
+    /// Returns [`Error::NotUtf8`] if the content is not UTF-8.
+    pub fn ensure_metadata_title(&mut self) -> Result<&Self> {
         if !self.metadata.contains_key("title") {
             let fragment = dom_query::Document::fragment(StrTendril::try_from(
                 self.body.clone(),
@@ -190,9 +190,8 @@ impl Content {
     ///
     /// # Errors
     ///
-    /// Returns `crate::errors::Error::NotUtf8` if the content isn’t valid
-    /// UTF-8.
-    pub fn into_string(self) -> crate::errors::Result<String> {
+    /// Returns [`Error::NotUtf8`] if the content isn’t valid UTF-8.
+    pub fn into_string(self) -> Result<String> {
         String::try_from(self)
     }
 
@@ -200,9 +199,8 @@ impl Content {
     ///
     /// # Errors
     ///
-    /// Returns `crate::errors::Error::NotUtf8` if the content isn’t valid
-    /// UTF-8.
-    pub fn ensure_string(&mut self) -> crate::errors::Result<&String> {
+    /// Returns [`Error::NotUtf8`] if the content isn’t valid UTF-8.
+    pub fn ensure_string(&mut self) -> Result<&String> {
         match self {
             Self::String(string) => Ok(string),
             Self::Bytes(vec) => {
@@ -245,7 +243,7 @@ impl From<Content> for Body {
 }
 
 impl TryFrom<Content> for StrTendril {
-    type Error = crate::errors::Error;
+    type Error = Error;
 
     fn try_from(content: Content) -> Result<Self, Self::Error> {
         String::try_from(content).map(Into::into)
@@ -253,7 +251,7 @@ impl TryFrom<Content> for StrTendril {
 }
 
 impl TryFrom<Content> for String {
-    type Error = crate::errors::Error;
+    type Error = Error;
 
     fn try_from(content: Content) -> Result<Self, Self::Error> {
         match content {

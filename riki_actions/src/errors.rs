@@ -25,6 +25,8 @@ pub type Result<T = super::ActionReturn, E = Error> = result::Result<T, E>;
 /// An error from an action.
 ///
 /// These might be passed back to the client as an error page.
+///
+/// FIXME simplify
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// Internal server error (IO).
@@ -172,7 +174,7 @@ impl Error {
                 builder.status(StatusCode::INTERNAL_SERVER_ERROR),
                 "error500",
                 hashmap! {
-                    "error" => error.to_string(),
+                    "error" => self.to_string(),
                     "error_debug" => format!("{error:#?}"),
                     "req_path" => req_path.to_owned(),
                 },
@@ -181,7 +183,7 @@ impl Error {
                 builder.status(StatusCode::INTERNAL_SERVER_ERROR),
                 "error500",
                 hashmap! {
-                    "error" => format!("File ({path:?}) was too large to load"),
+                    "error" => self.to_string(),
                     "error_debug" => format!("{path:?}"),
                     "req_path" => req_path.to_owned(),
                 },
@@ -190,7 +192,7 @@ impl Error {
                 builder.status(StatusCode::INTERNAL_SERVER_ERROR),
                 "error500",
                 hashmap! {
-                    "error" => source.to_string(),
+                    "error" => self.to_string(),
                     "error_debug" => format!("{source:#?}"),
                     "req_path" => req_path.to_owned(),
                 },
@@ -199,16 +201,16 @@ impl Error {
                 builder.status(StatusCode::INTERNAL_SERVER_ERROR),
                 "error500",
                 hashmap! {
-                    "error" => error.to_string(),
+                    "error" => self.to_string(),
                     "error_debug" => format!("{error:#?}"),
                     "req_path" => req_path.to_owned(),
                 },
             ),
-            Self::ReadPageFile { source, path } => (
+            Self::ReadPageFile { source, .. } => (
                 builder.status(StatusCode::INTERNAL_SERVER_ERROR),
                 "error500",
                 hashmap! {
-                    "error" => format!("Error reading {path:?}: {source}"),
+                    "error" => self.to_string(),
                     "error_debug" => format!("{source:#?}"),
                     "req_path" => req_path.to_owned(),
                 },
@@ -287,7 +289,7 @@ impl Error {
 /// Check if an [`io::Error`] represents something not found for our purposes.
 ///
 /// Generally this is used for purpose of falling through to the next possible
-/// match, e.g. if a static file isn't found, fall through to try a page.
+/// match, e.g. if a static file isn’t found, fall through to try a page.
 #[must_use]
 pub fn is_not_found(error: &io::Error) -> bool {
     matches!(

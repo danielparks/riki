@@ -1,8 +1,8 @@
 //! A return of a real, on-disk file.
 
 use super::{
-    ActionReturn, ContentReturn, Context, MediaType, RequestContext, Result,
-    Return, Source, StringReturn, VariableMap,
+    ActionReturn, ContentReturn, Context, Error, MediaType, RequestContext,
+    Result, Return, Source, StringReturn, VariableMap,
 };
 use axum::body::Body;
 use axum::response::Response;
@@ -105,8 +105,7 @@ impl RealFileReturn {
     /// # Errors
     ///
     /// Returns the mapped [`io::Error`] if there are problems reading the file.
-    /// It should only ever map to [`super::Error::Io`] since the file is
-    /// already open.
+    /// It should only ever map to [`Error::Io`] since the file is already open.
     fn into_static_response<V: VariableMap>(
         self,
         context: &Context<V>,
@@ -228,7 +227,7 @@ impl Return for RealFileReturn {
 
         let mut body =
             String::with_capacity(file.metadata()?.len().try_into().map_err(
-                |_| super::Error::FileTooLarge(context.real_path(&url_path)),
+                |_| Error::FileTooLarge(context.real_path(&url_path)),
             )?);
 
         #[expect(
