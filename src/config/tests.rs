@@ -1,6 +1,5 @@
 //! Test configuration parsing.
 #![cfg(test)]
-#![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
 use super::model::{ConfigSettings, Configuration};
 use super::parser2;

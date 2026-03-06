@@ -1,5 +1,4 @@
 //! Test template manager.
-#![allow(clippy::incompatible_msrv, reason = "Expect current stable for tests")]
 
 use crate::actions::{ContentReturn, MediaType, Source};
 use crate::render::{base_templates, templates_from_directory};
