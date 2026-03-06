@@ -34,7 +34,7 @@ derive_more = { version = "2.1.1", features = ["from", "display"] }
 dom_query = "0.24.0"
 globset = "0.4.18"
 handlebars = { version = "6.3.2", features = ["dir_source", "rust-embed"] }
-htmlize = "1.0.6"
+htmlize = { version = "1.0.6", features = ["unescape"] }
 http = "1.4.0"
 jiff = { version = "0.2.15", features = ["serde"] }
 logos = "0.15.1"

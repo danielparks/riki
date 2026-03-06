@@ -214,9 +214,10 @@ pub type RequestContext<'a> = Context<RequestVariables<'a>>;
 /// contains a .. segment.
 pub fn clean_path(path: &str) -> Result<String> {
     if !path.starts_with('/') {
-        Err(Error::BadRequest(format!(
-            "Request path {path:?} did not start with '/'"
-        )))
+        // For some reason we get "" if the path doesn’t start with a slash.
+        Err(Error::BadRequest(
+            "Request path did not start with '/'".to_owned(),
+        ))
     } else if path.split('/').any(|v| v == "..") {
         Err(Error::BadRequest(format!(
             "Request path {path:?} contained \"..\" segment"
@@ -296,13 +297,11 @@ mod unit_tests {
         );
         check!(
             wrapped_clean_path("a")
-                == err(
-                    "Bad request: Request path \"a\" did not start with '/'"
-                )
+                == err("Bad request: Request path did not start with '/'")
         );
         check!(
             wrapped_clean_path("")
-                == err("Bad request: Request path \"\" did not start with '/'")
+                == err("Bad request: Request path did not start with '/'")
         );
     }
 }

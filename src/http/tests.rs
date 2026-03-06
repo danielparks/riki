@@ -3,10 +3,10 @@
 
 use crate::http::util::HeaderMapHelper;
 use crate::rules;
-use assert2::assert;
+use assert2::{assert, let_assert};
 use axum::body::Body;
 use axum::extract::Request;
-use http::header;
+use http::{StatusCode, header};
 use std::fs;
 use std::path::{Path, PathBuf};
 use temp_dir::TempDir;
@@ -41,7 +41,7 @@ fn init_app() -> (TempDir, PathBuf, axum::Router) {
 /// A summarized response that can be compared for easy assertions.
 #[derive(Debug, Eq, PartialEq)]
 struct Response {
-    status: http::StatusCode,
+    status: StatusCode,
     content_type: Option<mime::Mime>,
     last_modified: bool,
     etag: bool,
@@ -75,7 +75,7 @@ impl Response {
     /// An expected 301 Moved Permanently response.
     fn redirect(to: &str) -> Self {
         Self {
-            status: http::StatusCode::MOVED_PERMANENTLY,
+            status: StatusCode::MOVED_PERMANENTLY,
             content_type: Some(mime::TEXT_HTML_UTF_8),
             last_modified: false,
             etag: false,
@@ -84,22 +84,27 @@ impl Response {
         }
     }
 
-    /// An expected response for an HTML page.
-    fn page_html(body: &str) -> Self {
+    /// An expected HTML response with a certain status and body.
+    fn html(status: StatusCode, body: impl Into<String>) -> Self {
         Self {
-            status: http::StatusCode::OK,
+            status,
             content_type: Some(mime::TEXT_HTML_UTF_8),
             last_modified: false,
             etag: false,
             location: None,
-            body: body.to_owned(),
+            body: body.into(),
         }
+    }
+
+    /// An expected response for an HTML page.
+    fn page_html(body: impl Into<String>) -> Self {
+        Self::html(StatusCode::OK, body)
     }
 
     /// An expected response for a Markdown file (a page source).
     fn page_source(body: &str) -> Self {
         Self {
-            status: http::StatusCode::OK,
+            status: StatusCode::OK,
             content_type: Some("text/markdown; charset=utf-8".parse().unwrap()),
             last_modified: false,
             etag: false,
@@ -116,7 +121,7 @@ impl Response {
     /// An expected response for a static file of type `content_type`.
     fn static_other(body: &str, content_type: Option<mime::Mime>) -> Self {
         Self {
-            status: http::StatusCode::OK,
+            status: StatusCode::OK,
             content_type,
             last_modified: true,
             etag: true,
@@ -275,14 +280,58 @@ async fn test_not_found_get() {
     let (_dir, _root, app) = init_app();
 
     assert!(
+        Response::html(StatusCode::NOT_FOUND, "404")
+            == get(&app, "/not-found").await
+    );
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_bad_request_no_slash() {
+    let (_dir, _root, app) = init_app();
+
+    // Bad requests can’t determine the correct templates, so they always use
+    // the built in templates.
+    let_assert!(
         Response {
-            status: http::StatusCode::NOT_FOUND,
-            content_type: Some(mime::TEXT_HTML_UTF_8),
+            status: StatusCode::BAD_REQUEST,
+            content_type,
             last_modified: false,
             etag: false,
             location: None,
-            body: "404".to_owned(),
-        } == get(&app, "/not-found").await
+            body,
+        } = get(&app, "aaa").await
+    );
+    assert!(content_type == Some(mime::TEXT_HTML_UTF_8));
+    assert!(
+        htmlize::unescape(&body)
+            .contains("Request path did not start with '/'"),
+        "raw body: {body}",
+    );
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_bad_request_dot_dot() {
+    let (_dir, _root, app) = init_app();
+
+    // Bad requests can’t determine the correct templates, so they always use
+    // the built in templates.
+    let_assert!(
+        Response {
+            status: StatusCode::BAD_REQUEST,
+            content_type,
+            last_modified: false,
+            etag: false,
+            location: None,
+            body,
+        } = get(&app, "/../").await
+    );
+    assert!(content_type == Some(mime::TEXT_HTML_UTF_8));
+    assert!(
+        htmlize::unescape(&body)
+            .contains("Request path \"/../\" contained \"..\" segment"),
+        "raw body: {body}",
     );
 }
 
@@ -299,25 +348,12 @@ async fn test_forbidden_page_get() {
     fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).unwrap();
 
     assert!(
-        Response {
-            status: http::StatusCode::FORBIDDEN,
-            content_type: Some(mime::TEXT_HTML_UTF_8),
-            last_modified: false,
-            etag: false,
-            location: None,
-            body: "403".to_owned(),
-        } == get(&app, "/forbidden").await
+        Response::html(StatusCode::FORBIDDEN, "403")
+            == get(&app, "/forbidden").await
     );
-
     assert!(
-        Response {
-            status: http::StatusCode::FORBIDDEN,
-            content_type: Some(mime::TEXT_HTML_UTF_8),
-            last_modified: false,
-            etag: false,
-            location: None,
-            body: "403".to_owned(),
-        } == get(&app, "/forbidden.md").await
+        Response::html(StatusCode::FORBIDDEN, "403")
+            == get(&app, "/forbidden.md").await
     );
 }
 
@@ -334,13 +370,7 @@ async fn test_forbidden_static_get() {
     fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).unwrap();
 
     assert!(
-        Response {
-            status: http::StatusCode::FORBIDDEN,
-            content_type: Some(mime::TEXT_HTML_UTF_8),
-            last_modified: false,
-            etag: false,
-            location: None,
-            body: "403".to_owned(),
-        } == get(&app, "/forbidden.txt").await
+        Response::html(StatusCode::FORBIDDEN, "403")
+            == get(&app, "/forbidden.txt").await
     );
 }
