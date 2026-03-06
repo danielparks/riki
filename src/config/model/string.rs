@@ -5,7 +5,7 @@ use crate::config::errors::{ParseError, ParseResult, SpannedErrors};
 use crate::config::parser2::{StringToken, StringType};
 use crate::misc::bitfilter::BitFilter;
 use logos::Logos;
-use std::borrow::Cow;
+use std::borrow::{Borrow, Cow};
 use std::ops::Range;
 use std::slice;
 
@@ -42,6 +42,16 @@ impl<'src> ParsedString<'src> {
                 StringPart::Variable(var) => variables.get(var.variable),
             })
             .collect()
+    }
+
+    /// Return the content of this string if there are no interpolations.
+    #[must_use]
+    pub fn no_variable_content(&self) -> Option<&str> {
+        if self.variables.is_empty() {
+            Some(self.unescaped.borrow())
+        } else {
+            None
+        }
     }
 
     /// Append a character to the end of the string.
@@ -99,6 +109,13 @@ impl<'src> ParsedString<'src> {
         } else {
             path
         }
+    }
+
+    /// Return the content as a path if there are no interpolations.
+    #[must_use]
+    #[inline]
+    pub fn no_variable_path_content(&self) -> Option<&str> {
+        self.no_variable_content()
     }
 
     /// Join another path onto this one.

@@ -3,7 +3,7 @@
 
 use crate::http::util::HeaderMapHelper;
 use crate::rules;
-use assert2::{assert, let_assert};
+use assert2::assert;
 use axum::body::Body;
 use axum::extract::Request;
 use http::{StatusCode, header};
@@ -22,6 +22,7 @@ fn init_app() -> (TempDir, PathBuf, axum::Router) {
 
     fs::create_dir(templates).unwrap();
     fs::write(templates.join("default.hbs"), "{{{ body }}}").unwrap();
+    fs::write(templates.join("error400.hbs"), "{{{ error }}}").unwrap();
     fs::write(templates.join("error403.hbs"), "403").unwrap();
     fs::write(templates.join("error404.hbs"), "404").unwrap();
     fs::write(templates.join("error500.hbs"), "{{{ error_debug }}}").unwrap();
@@ -290,23 +291,11 @@ async fn test_not_found_get() {
 async fn test_bad_request_no_slash() {
     let (_dir, _root, app) = init_app();
 
-    // Bad requests can’t determine the correct templates, so they always use
-    // the built in templates.
-    let_assert!(
-        Response {
-            status: StatusCode::BAD_REQUEST,
-            content_type,
-            last_modified: false,
-            etag: false,
-            location: None,
-            body,
-        } = get(&app, "aaa").await
-    );
-    assert!(content_type == Some(mime::TEXT_HTML_UTF_8));
     assert!(
-        htmlize::unescape(&body)
-            .contains("Request path did not start with '/'"),
-        "raw body: {body}",
+        Response::html(
+            StatusCode::BAD_REQUEST,
+            "Request path did not start with '/'"
+        ) == get(&app, "aaa").await
     );
 }
 
@@ -315,23 +304,11 @@ async fn test_bad_request_no_slash() {
 async fn test_bad_request_dot_dot() {
     let (_dir, _root, app) = init_app();
 
-    // Bad requests can’t determine the correct templates, so they always use
-    // the built in templates.
-    let_assert!(
-        Response {
-            status: StatusCode::BAD_REQUEST,
-            content_type,
-            last_modified: false,
-            etag: false,
-            location: None,
-            body,
-        } = get(&app, "/../").await
-    );
-    assert!(content_type == Some(mime::TEXT_HTML_UTF_8));
     assert!(
-        htmlize::unescape(&body)
-            .contains("Request path \"/../\" contained \"..\" segment"),
-        "raw body: {body}",
+        Response::html(
+            StatusCode::BAD_REQUEST,
+            "Request path \"/../\" contained \"..\" segment"
+        ) == get(&app, "/../").await
     );
 }
 

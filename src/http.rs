@@ -12,7 +12,6 @@ use crate::config::parser2::Source;
 use crate::render::{TemplatesManager, base_templates};
 use axum::extract::State;
 use axum::response::Response;
-use std::borrow::Borrow;
 use std::fmt;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
@@ -104,10 +103,28 @@ impl<S: Source + Sync + 'static> Router<S> {
         request: &axum::extract::Request,
     ) -> actions::Result<Response> {
         tracing::trace!("route request: {:?}", request.uri());
+        let path = request.uri().path();
 
         // Returns an error if `clean_path()` fails, which should only happen if
         // the client makes a bad request.
-        let variables = RequestVariables::new(request)?;
+        let variables = match RequestVariables::new(request) {
+            Ok(variables) => variables,
+            Err(error) => {
+                // The path was invalid, so try to get templates for /. Errors
+                // in this handler get passed to the fallback renderer.
+                tracing::warn!("{error:?}");
+                if let Some(tpls_path) =
+                    self.config.last_matching("/").and_then(|rule| {
+                        rule.settings.templates.no_variable_path_content()
+                    })
+                {
+                    let tpls =
+                        self.manager.templates_for_directory(tpls_path)?;
+                    return Ok(error.render(path, &tpls));
+                }
+                return Err(error);
+            }
+        };
 
         match (|| {
             for rule in self.config.matches(&variables.clean_path()) {
@@ -121,18 +138,16 @@ impl<S: Source + Sync + 'static> Router<S> {
         })() {
             Ok(response) => Ok(response),
             Err(error) => {
+                // Errors in this handler get passed to the fallback renderer.
                 tracing::trace!("error returned from rules: {error:?}");
                 if let Some(rule) =
                     self.config.last_matching(&variables.clean_path())
                 {
-                    let templates_path =
-                        rule.settings.templates.path_content(&variables);
-                    // Error: loading templates (no dir, bad template?)
-                    let tpls =
-                        self.manager.templates_for_directory(templates_path)?;
-                    Ok(error.render(variables.request_path().borrow(), &tpls))
+                    let tpls = self.manager.templates_for_directory(
+                        rule.settings.templates.path_content(&variables),
+                    )?;
+                    Ok(error.render(path, &tpls))
                 } else {
-                    // Use default templates to render error.
                     Err(error)
                 }
             }
