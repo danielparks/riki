@@ -21,14 +21,14 @@
 //! | `static.html`     | `/static.html`   |
 //! | `dir/index.html`  | `/dir/`          |
 
-use crate::config::SourcedConfiguration;
-use crate::config::actions::Action;
-use crate::config::errors::{Diagnostics, ParseResult};
-use crate::config::model::{
+use riki_config::SourcedConfiguration;
+use riki_config::actions::Action;
+use riki_config::errors::{Diagnostics, ParseResult};
+use riki_config::model::{
     ConfigRule, ConfigSettings, Configuration, ConfigurationBuilder,
     ParsedString,
 };
-use crate::config::parser2::GeneratedSource;
+use riki_config::parser2::GeneratedSource;
 
 /// Source for default rules.
 pub const SOURCE: GeneratedSource = GeneratedSource("default rules");
@@ -83,7 +83,7 @@ fn inner_default_rules_for_settings(
     settings: ConfigSettings<'_>,
 ) -> ParseResult<'_, Configuration<'_>> {
     #[allow(clippy::wildcard_imports, reason = "convenience")]
-    use crate::config::actions::functions::*;
+    use riki_config::actions::functions::*;
 
     let mut config = ConfigurationBuilder::new();
     // root = ...
@@ -191,6 +191,6 @@ fn rule<'src, A: Into<Action<'src>>>(
 ///
 /// Panics if the string cannot be parsed.
 fn parsed(s: &str) -> ParseResult<'_, ParsedString<'_>> {
-    use crate::config::parser2::StringType;
+    use riki_config::parser2::StringType;
     ParsedString::from_string_content(s, StringType::QuotedDouble)
 }

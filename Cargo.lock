@@ -1772,7 +1772,6 @@ dependencies = [
  "htmlize",
  "http",
  "jiff",
- "lelwel",
  "logos",
  "maplit",
  "mime",
@@ -1783,6 +1782,10 @@ dependencies = [
  "pulldown-cmark",
  "read-doc",
  "regex",
+ "riki_actions",
+ "riki_config",
+ "riki_misc",
+ "riki_render",
  "rust-embed",
  "serde",
  "serde_json",
@@ -1799,6 +1802,82 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+]
+
+[[package]]
+name = "riki_actions"
+version = "0.1.0"
+dependencies = [
+ "ambassador",
+ "anyhow",
+ "assert2",
+ "axum",
+ "base64",
+ "derive_more",
+ "dom_query",
+ "handlebars",
+ "htmlize",
+ "http",
+ "jiff",
+ "maplit",
+ "mime",
+ "mime_guess",
+ "pulldown-cmark",
+ "regex",
+ "riki_misc",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "strum",
+ "temp-dir",
+ "tendril",
+ "test-log",
+ "thiserror",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "riki_config"
+version = "0.1.0"
+dependencies = [
+ "assert2",
+ "axum",
+ "bstr",
+ "codespan-reporting 0.12.0",
+ "derive_more",
+ "globset",
+ "lelwel",
+ "logos",
+ "ouroboros",
+ "pastey 0.2.1",
+ "riki_actions",
+ "riki_misc",
+ "riki_render",
+ "temp-dir",
+ "termcolor",
+ "test-log",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "riki_misc"
+version = "0.1.0"
+dependencies = [
+ "http",
+]
+
+[[package]]
+name = "riki_render"
+version = "0.1.0"
+dependencies = [
+ "handlebars",
+ "jiff",
+ "rust-embed",
+ "serde_json",
+ "test-log",
+ "thiserror",
 ]
 
 [[package]]

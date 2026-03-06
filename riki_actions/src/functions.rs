@@ -1,0 +1,115 @@
+//! # Functions
+//!
+//! These will eventually become actions, which will be callable from a
+//! configuration file:
+//!
+//!   * [`render()`]
+//!   * [`markdown_to_html()`]
+//!   * [`redact_source()`]
+
+use super::{
+    ContentReturn, Context, Error, MediaType, Result, Return, VariableMap,
+};
+use crate::elements::{
+    self, ElementError, handle_a_email, handle_last_modified,
+};
+use crate::pages::{self, render_source_to_string};
+use dom_query::Document;
+use std::mem;
+/// Render passed content in a template.
+///
+/// # Errors
+///
+/// Will return [`Error`] if there is a problem getting content
+/// from `ret` or rendering the template.
+pub fn render<V: VariableMap, R: Return>(
+    context: &Context<V>,
+    ret: R,
+) -> Result<ContentReturn> {
+    // FIXME: caching headers based on template and Page.
+    // FIXME: add cache-busting to href, src, etc. in HTML.
+    let mut ret = ret.into_content_return(context)?;
+
+    let template = ret
+        .metadata
+        .get("template")
+        .map(String::as_str)
+        .unwrap_or_else(|| "default");
+
+    ret.body.ensure_string()?;
+    let document =
+        Document::from(context.tpls.render(template, &ret).map_err(
+            |error| Error::TemplateRender {
+                source: error,
+                page_source: Box::new(ret.source.clone()),
+            },
+        )?);
+
+    let ctx = elements::Context {
+        document: &document,
+        page: &ret,
+        variables: &context.variables,
+        show_detailed_errors: true,
+    };
+    for node in document.select("a-email").nodes() {
+        if let Err(ElementError(msg)) = handle_a_email(&ctx, node) {
+            tracing::error!("Handling <a-email>: {msg}");
+            let b = document.tree.new_element("b");
+            b.set_text(msg);
+            node.replace_with(&b);
+        }
+    }
+    for node in document.select("last-modified").nodes() {
+        if let Err(ElementError(msg)) = handle_last_modified(&ctx, node) {
+            tracing::error!("Handling <last-modified>: {msg}");
+            let b = document.tree.new_element("b");
+            b.set_text(msg);
+            node.replace_with(&b);
+        }
+    }
+
+    ret.content_type = MediaType::TEXT_HTML_UTF8;
+    ret.body = document.html().into();
+
+    Ok(ret)
+}
+
+/// Load metadata and convert body to HTML.
+///
+/// # Errors
+///
+/// Will return [`Error`] if there is a problem getting content
+/// from `ret` or parsing page metadata from the content.
+pub fn markdown_to_html<V: VariableMap, R: Return>(
+    context: &Context<V>,
+    ret: R,
+) -> Result<ContentReturn> {
+    let mut ret = ret.into_content_return(context)?;
+    let raw_page = mem::take(&mut ret.body).into_string()?;
+    let (header, body) = pages::split_raw_page(&raw_page);
+
+    ret.metadata
+        .extend(pages::metadata_from_string(header).map_err(Error::from)?);
+    ret.body = pages::render_markdown(body).into();
+    ret.content_type = MediaType::TEXT_HTML_UTF8;
+    ret.ensure_metadata_title()?;
+
+    Ok(ret)
+}
+
+/// Redact sensitive values from passed Markdown.
+///
+/// # Errors
+///
+/// Returns [`Error`] for problems getting content from `ret`.
+pub fn redact_source<V: VariableMap, R: Return>(
+    context: &Context<V>,
+    ret: R,
+) -> Result<ContentReturn> {
+    // FIXME: caching headers based on template and Page.
+    // FIXME: add cache-busting to href, src, etc. in HTML.
+    let mut ret = ret.into_content_return(context)?;
+    ret.body = render_source_to_string(ret.body.into_string()?).into();
+    ret.content_type = MediaType::TEXT_MARKDOWN_UTF8;
+    Ok(ret)
+}

@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "riki_misc", "riki_config", "riki_render", "riki_actions"]
+resolver = "2"
+
 [package]
 name = "riki"
 version = "0.1.0"
@@ -61,9 +65,11 @@ tower-http = { version = "0.6.8", features = ["trace"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["chrono", "env-filter"] }
 url = "2.5.7"
+riki_misc = { path = "riki_misc" }
+riki_config = { path = "riki_config" }
+riki_render = { path = "riki_render" }
+riki_actions = { path = "riki_actions" }
 
-[build-dependencies]
-lelwel = "0.9.1"
 
 [dev-dependencies]
 assert2 = "0.3.16"

@@ -6,12 +6,12 @@
 mod tests;
 pub mod util;
 
-use crate::actions::{self, RequestVariables, VariableMap};
-use crate::config::SourcedConfiguration;
-use crate::config::parser2::Source;
-use crate::render::{TemplatesManager, base_templates};
 use axum::extract::State;
 use axum::response::Response;
+use riki_actions::{self as actions, RequestVariables, VariableMap};
+use riki_config::SourcedConfiguration;
+use riki_config::parser2::Source;
+use riki_render::{TemplatesManager, base_templates};
 use std::borrow::Borrow;
 use std::fmt;
 use std::sync::Arc;
@@ -128,8 +128,12 @@ impl<S: Source + Sync + 'static> Router<S> {
                     let templates_path =
                         rule.settings.templates.path_content(&variables);
                     // Error: loading templates (no dir, bad template?)
-                    let tpls =
-                        self.manager.templates_for_directory(templates_path)?;
+                    let tpls = self
+                        .manager
+                        .templates_for_directory(templates_path)
+                        .map_err(|e| {
+                            actions::Error::InternalString(e.to_string())
+                        })?;
                     Ok(error.render(variables.request_path().borrow(), &tpls))
                 } else {
                     // Use default templates to render error.

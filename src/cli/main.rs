@@ -5,11 +5,11 @@ mod params;
 
 use anyhow::{anyhow, bail};
 use params::{Command, Params, Parser, ServeKind};
-use riki::actions::is_not_found;
-use riki::actions::{RealFileReturn, StaticContext};
-use riki::config::errors::{Diagnostics, unwrap_diagnostics_result};
-use riki::config::parser2::FileSource;
 use riki::{actions, config, http, render, rules};
+use riki_actions::is_not_found;
+use riki_actions::{RealFileReturn, StaticContext};
+use riki_config::errors::{Diagnostics, unwrap_diagnostics_result};
+use riki_config::parser2::FileSource;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;

@@ -1,10 +1,3 @@
-//! Functions to render pages with custom elements in templates.
+//! Template management and page rendering.
 
-pub mod elements;
-
-mod pages;
-mod templates;
-mod tests;
-
-pub use pages::*;
-pub use templates::*;
+pub use riki_render::*;
