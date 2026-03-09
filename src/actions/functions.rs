@@ -14,7 +14,6 @@ use crate::render::elements::{
 use crate::render::{self, render_source_to_string};
 use dom_query::Document;
 use std::mem;
-use tracing;
 
 /// Render passed content in a template.
 ///
