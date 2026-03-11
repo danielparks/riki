@@ -336,7 +336,7 @@ functions! {
     /// ```
     Error(code) => {
         // FIXME use error code; show error page.
-        Err(actions::Error::InternalString(code.evaluate_as_string(context)?))
+        Err(actions::Error::Internal(anyhow::anyhow!("{}", code.evaluate_as_string(context)?)))
     },
 
     /// If the passed path is a file, succeed.

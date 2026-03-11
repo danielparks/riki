@@ -25,14 +25,8 @@ pub type Result<T = super::ActionReturn, E = Error> = result::Result<T, E>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// Internal server error.
-    #[error("internal server error: {0}")]
-    Internal(#[from] crate::Error),
-
-    /// Internal server error.
-    ///
-    /// This takes a string message for rare conditions.
-    #[error("{0}")]
-    InternalString(String),
+    #[error("Internal server error: {0}")]
+    Internal(#[source] anyhow::Error),
 
     /// Bad request error.
     #[error("Bad request: {0}")]
@@ -42,31 +36,38 @@ pub enum Error {
     ///
     /// This generally means that the request will fall through to the next
     /// layer, e.g. if it was looking for a static file it will look for a page.
-    #[error("page not found")]
+    #[error("Page not found")]
     NotFound,
 
     /// Permission denied error.
-    #[error("access forbidden")]
+    #[error("Access forbidden")]
     Forbidden,
 
     /// # Redirect.
     ///
     /// Generally this means that a non-canonical URL was requested.
-    #[error("redirect to {0}")]
+    #[error("Redirect to {0}")]
     RedirectCanonical(String),
+}
+
+impl From<crate::Error> for Error {
+    fn from(error: crate::Error) -> Self {
+        Self::Internal(error.into())
+    }
 }
 
 impl From<crate::NotUtf8> for Error {
     fn from(error: crate::NotUtf8) -> Self {
-        Self::Internal(crate::Error::NotUtf8(error))
+        Self::Internal(error.into())
     }
 }
 
 impl From<http::Error> for Error {
     fn from(error: http::Error) -> Self {
-        Self::InternalString(error.to_string())
+        Self::Internal(error.into())
     }
 }
+
 impl From<io::Error> for Error {
     /// Convert [`io::Error`] into [`Error`]. Handles fall-through logic.
     ///
@@ -77,7 +78,7 @@ impl From<io::Error> for Error {
         } else if error.kind() == ErrorKind::PermissionDenied {
             Self::Forbidden
         } else {
-            Self::Internal(crate::Error::Io(error))
+            Self::Internal(error.into())
         }
     }
 }
@@ -100,16 +101,8 @@ impl Error {
                 "error500",
                 hashmap! {
                     "error" => error.to_string(),
+                    "error_full" => format!("{error:?}"),
                     "error_debug" => format!("{error:#?}"),
-                    "req_path" => req_path.to_owned(),
-                },
-            ),
-            Self::InternalString(error) => (
-                builder.status(StatusCode::INTERNAL_SERVER_ERROR),
-                "error500",
-                hashmap! {
-                    "error" => error.clone(),
-                    "error_debug" => error.clone(),
                     "req_path" => req_path.to_owned(),
                 },
             ),

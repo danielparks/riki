@@ -33,13 +33,16 @@ fn empty_page() {
 
 #[test_log::test]
 fn non_utf8_page() {
-    check!(
-        let Err(Error::Internal(crate::Error::NotUtf8(_)))
-            = markdown_to_html(&StaticContext::default(), ContentReturn {
+    let_assert!(
+        Err(Error::Internal(error)) = markdown_to_html(
+            &StaticContext::default(),
+            ContentReturn {
                 body: b"title: foo\xff\n----".into(),
                 ..ContentReturn::default()
-            })
+            }
+        )
     );
+    check!(error.to_string() == "Found non-UTF-8 data");
 }
 
 #[test_log::test]
@@ -58,8 +61,8 @@ fn empty_page_with_just_separator_and_whitespace() {
 
 #[test_log::test]
 fn empty_page_with_bad_metadata() {
-    check!(let Err(Error::Internal(crate::Error::ParsePageMetadata(_)))
-        = parse_md("bad_yaml\n---"));
+    let_assert!(Err(Error::Internal(error)) = parse_md("bad_yaml\n---"));
+    check!(let Ok(crate::Error::ParsePageMetadata(_)) = error.downcast());
 }
 
 #[test_log::test]

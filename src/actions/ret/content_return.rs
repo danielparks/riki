@@ -4,6 +4,7 @@ use super::{
     ActionReturn, Context, Error, MediaType, RequestContext, Result, Return,
     StringReturn, VariableMap,
 };
+use anyhow::anyhow;
 use axum::body::Body;
 use axum::response::Response;
 use jiff::Timestamp;
@@ -102,9 +103,7 @@ impl Return for ContentReturn {
             Ok(url_path)
         } else {
             // FIXME make this error clearer; maybe track span?
-            Err(Error::InternalString(
-                "Could not get path from response".to_owned(),
-            ))
+            Err(Error::Internal(anyhow!("Could not get path from response")))
         }
     }
 
@@ -120,9 +119,7 @@ impl Return for ContentReturn {
             Ok(StringReturn::from(url_path))
         } else {
             // FIXME make this error clearer; maybe track span?
-            Err(Error::InternalString(
-                "Could not get path from response".to_owned(),
-            ))
+            Err(Error::Internal(anyhow!("Could not get path from response")))
         }
     }
 
