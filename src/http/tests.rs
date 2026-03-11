@@ -1,7 +1,7 @@
 //! Test HTTP server.
 #![cfg(test)]
 
-use crate::http::util::HeaderMapHelper;
+use crate::misc::HeaderMapHelper;
 use crate::rules;
 use assert2::assert;
 use axum::body::Body;

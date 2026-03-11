@@ -1,4 +1,4 @@
-//! Utility functions related to serving HTTP.
+//! Helper for accessing a [`HeaderMap`].
 
 use http::header::{AsHeaderName, HeaderMap};
 

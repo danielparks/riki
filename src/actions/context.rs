@@ -12,7 +12,7 @@
 //!     [`StaticVariables`]. It’s useful for testing.
 
 use super::{Error, Result};
-use crate::http::util::HeaderMapHelper;
+use crate::misc::HeaderMapHelper;
 use handlebars::Handlebars;
 use http::HeaderMap;
 use std::borrow::Cow;
