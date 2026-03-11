@@ -7,7 +7,7 @@
 //!
 //!   * [`RequestContext`] is a context that uses [`RequestVariables`] to
 //!     extract variables from an HTTP request. It is used by
-//!     [`Router`][crate::http::Router].
+//!     [`Router`][crate::httpd::Router].
 //!   * [`StaticContext`] is a context that has static variable values stored in
 //!     [`StaticVariables`]. It’s useful for testing.
 

@@ -9,7 +9,7 @@ use riki::actions::is_not_found;
 use riki::actions::{RealFileReturn, StaticContext};
 use riki::config::errors::{Diagnostics, unwrap_diagnostics_result};
 use riki::config::parser2::FileSource;
-use riki::{actions, config, http, render, rules};
+use riki::{actions, config, httpd, render, rules};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -63,7 +63,7 @@ async fn cli(params: &Params) -> anyhow::Result<ExitCode> {
         Command::Serve { kind, bind } => match kind {
             ServeKind { default: None, configuration: Some(path) } => {
                 let source = FileSource::read(path)?;
-                http::serve(
+                httpd::serve(
                     unwrap_diagnostics_result(
                         config::SourcedConfiguration::parse_from(source).await,
                         &params.err_stream(),
@@ -75,7 +75,7 @@ async fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             ServeKind { default: Some(base_dir), configuration: None } => {
                 check_dir(base_dir)?;
                 let template_dir = format!("{base_dir}/templates");
-                http::serve(
+                httpd::serve(
                     unwrap_diagnostics_result(
                         rules::default_rules(base_dir.clone(), template_dir),
                         &params.err_stream(),

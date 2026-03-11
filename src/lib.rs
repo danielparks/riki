@@ -8,7 +8,7 @@ mod errors;
 
 pub mod actions;
 pub mod config;
-pub mod http;
+pub mod httpd;
 pub mod misc;
 pub mod render;
 pub mod rules;
