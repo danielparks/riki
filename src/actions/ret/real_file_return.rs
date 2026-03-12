@@ -1,8 +1,8 @@
 //! A return of a real, on-disk file.
 
 use super::{
-    ActionReturn, ContentReturn, Context, MediaType, RequestContext, Result,
-    Return, Source, StringReturn, VariableMap,
+    ActionReturn, ContentReturn, Context, Error, MediaType, RequestContext,
+    Result, Return, Source, StringReturn, VariableMap,
 };
 use crate::misc::HeaderMapHelper;
 use axum::body::Body;
@@ -105,8 +105,8 @@ impl RealFileReturn {
     /// # Errors
     ///
     /// Returns the mapped [`io::Error`] if there are problems reading the file.
-    /// It should only ever map to [`Error::Internal`][super::Error::Internal]
-    /// since the file is already open.
+    /// It should only ever map to [`Error::Internal`] since the file is already
+    /// open.
     fn into_static_response<V: VariableMap>(
         self,
         context: &Context<V>,
@@ -123,9 +123,23 @@ impl RealFileReturn {
                 .expect("valid response"));
         }
 
+        // FIXME this should support streaming large files.
         let Self { mut file, .. } = self;
-        // FIXME stream? reserve based on file size?
-        let mut body = Vec::new();
+        let mut body = match file.metadata() {
+            Ok(metadata) => {
+                Vec::with_capacity(metadata.len().try_into().map_err(|_| {
+                    // FIXME? This recalculates the real path, but it might not
+                    // be the same as the path that opened the file.
+                    Error::Internal(
+                        crate::Error::FileTooLarge(
+                            context.real_path(&self.inner_path),
+                        )
+                        .into(),
+                    )
+                })?)
+            }
+            Err(_) => Vec::new(),
+        };
         #[expect(clippy::verbose_file_reads, reason = "file already open")]
         file.read_to_end(&mut body)?;
 
