@@ -10,8 +10,6 @@ mod tests;
 
 use bstr::BStr;
 use lexer::{Diagnostic, tokenize};
-use model::{ConfigSettings, Configuration};
-use parser::{Cst, Parser};
 use parser2::ContentSource;
 
 /// Wrapper for [`SourcedConfiguration`] definition.
@@ -50,7 +48,7 @@ mod internal {
             SourcedConfigurationAsyncSendTryBuilder {
                 source,
                 configuration_builder: |source| {
-                    Box::pin(async move { super::parse(source) })
+                    Box::pin(async move { Configuration::parse(source) })
                 },
             }
             .try_build_or_recover()
@@ -140,34 +138,6 @@ mod internal {
 
 pub use internal::SourcedConfiguration;
 
-/// Parse a configuration
-///
-/// # Errors
-///
-/// Returns <code>Vec<[Diagnostic]></code> for parse errors.
-pub fn parse<S: ContentSource>(
-    source: &S,
-) -> Result<Configuration<'_>, Vec<Diagnostic>> {
-    parser2::process_cst(&parse_cst(source)?).map_err(|errors| {
-        errors
-            .into_iter()
-            .map(|error| error.into_diagnostic(source))
-            .collect()
-    })
-}
-
-/// Dump canonical version of `configuration` to stdout.
-pub fn dump_canonical(configuration: &Configuration<'_>) {
-    let mut settings = &ConfigSettings::default();
-    for rule in configuration.rules() {
-        if &rule.settings != settings {
-            settings = &rule.settings;
-            println!("{}", settings.canonical("/**").join("\n"));
-        }
-        println!("{}", rule.canonical());
-    }
-}
-
 /// Dump the tokens from a configuration file to stdout.
 ///
 /// For debugging and development.
@@ -188,23 +158,6 @@ pub fn dump_config_tokens<S: ContentSource>(
 
     if diagnostics.is_empty() {
         Ok(())
-    } else {
-        Err(diagnostics)
-    }
-}
-
-/// Parse a configuration to a CST.
-///
-/// # Errors
-///
-/// Returns <code>Vec<[Diagnostic]></code> for parse errors.
-pub fn parse_cst<S: ContentSource>(
-    source: &S,
-) -> Result<Cst<'_>, Vec<Diagnostic>> {
-    let mut diagnostics = vec![];
-    let cst = Parser::parse(source.content(), &mut diagnostics);
-    if diagnostics.is_empty() {
-        Ok(cst)
     } else {
         Err(diagnostics)
     }

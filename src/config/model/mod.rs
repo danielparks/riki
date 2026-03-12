@@ -7,7 +7,9 @@ pub use string::*;
 
 use super::actions::Action;
 use super::errors::{ParseError, ParseResult, SpannedErrors};
-use super::parser2::{Identifier, MatcherStack};
+use super::lexer::Diagnostic;
+use super::parser::parse_to_cst;
+use super::parser2::{ContentSource, Identifier, MatcherStack, process_cst};
 use crate::actions::{self, RequestVariables, Return, VariableMap};
 use crate::render::TemplatesManager;
 use globset::{GlobSet, GlobSetBuilder};
@@ -23,10 +25,41 @@ pub struct Configuration<'src> {
 }
 
 impl<'src> Configuration<'src> {
+    /// Parse a configuration string.
+    ///
+    /// # Errors
+    ///
+    /// Returns <code>Vec<[Diagnostic]></code> for parse errors.
+    pub fn parse<S: ContentSource>(
+        source: &'src S,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        process_cst(&parse_to_cst(source)?).map_err(|errors| {
+            errors
+                .into_iter()
+                .map(|error| error.into_diagnostic(source))
+                .collect()
+        })
+    }
+
     /// Get all the rules.
     #[must_use]
     pub fn rules(&self) -> &[ConfigRule<'src>] {
         &self.rules
+    }
+
+    /// Get a canonical representation of the rules.
+    #[must_use]
+    pub fn canonical(&self) -> String {
+        let mut out = Vec::new();
+        let mut settings = &ConfigSettings::default();
+        for rule in self.rules() {
+            if &rule.settings != settings {
+                settings = &rule.settings;
+                out.push(settings.canonical("/**").join("\n"));
+            }
+            out.push(rule.canonical());
+        }
+        out.join("\n")
     }
 
     /// Get matching rules for a path.

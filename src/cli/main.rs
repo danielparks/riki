@@ -96,10 +96,11 @@ async fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             if kind.tokens {
                 config::dump_config_tokens(&source)
             } else if kind.cst {
-                config::parse_cst(&source).map(|cst| println!("{cst}"))
+                config::parser::parse_to_cst(&source)
+                    .map(|cst| println!("{cst}"))
             } else {
-                config::parse(&source)
-                    .map(|rules| config::dump_canonical(&rules))
+                config::model::Configuration::parse(&source)
+                    .map(|rules| println!("{}", rules.canonical()))
             }
             .map_err(|diagnostics| {
                 Diagnostics::from_diagnostics(diagnostics, source)
@@ -108,8 +109,9 @@ async fn cli(params: &Params) -> anyhow::Result<ExitCode> {
         }
         Command::DumpDefault { root, templates } => {
             unwrap_diagnostics_result(
-                rules::default_rules(root.clone(), templates.clone())
-                    .map(|conf| config::dump_canonical(conf.configuration())),
+                rules::default_rules(root.clone(), templates.clone()).map(
+                    |conf| println!("{}", conf.configuration().canonical()),
+                ),
                 &params.err_stream(),
             );
         }

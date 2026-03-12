@@ -10,7 +10,25 @@
 
 use super::lexer::TokenType as Token;
 use super::lexer::{Diagnostic, tokenize};
+use super::parser2::ContentSource;
 use codespan_reporting::diagnostic::Label;
+
+/// Parse a configuration to a CST.
+///
+/// # Errors
+///
+/// Returns <code>Vec<[Diagnostic]></code> for parse errors.
+pub fn parse_to_cst<S: ContentSource>(
+    source: &S,
+) -> Result<Cst<'_>, Vec<Diagnostic>> {
+    let mut diagnostics = vec![];
+    let cst = Parser::parse(source.content(), &mut diagnostics);
+    if diagnostics.is_empty() {
+        Ok(cst)
+    } else {
+        Err(diagnostics)
+    }
+}
 
 /// Context required for [`Parser`]. Not needed by our code.
 #[derive(Default)]
