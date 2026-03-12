@@ -206,11 +206,15 @@ impl<'src> MatcherStack<'src> {
 
     /// Does `path` match?
     ///
+    /// This compiles the glob matcher on every call; generally you should use
+    /// [`ConfigurationBuilder`][crate::config::model::ConfigurationBuilder] or
+    /// [`SourcedConfiguration`][crate::config::SourcedConfiguration], which
+    /// will combine all the globs and process them together.
+    ///
     /// # Errors
     ///
     /// Returns [`ParseError::BuildingGlob`] if [`GlobBuilder::build()`] fails.
     pub fn is_match(&self, path: &str) -> ParseResult<'src, bool> {
-        // FIXME cache compiled glob? Or use ConfigBuilder?
         Ok(self.as_glob()?.compile_matcher().is_match(path))
     }
 
