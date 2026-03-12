@@ -52,8 +52,6 @@ impl<'src> Configuration<'src> {
 #[derive(Clone, Debug)]
 pub struct ConfigurationBuilder<'src> {
     /// Builder for the final `GlobSet`.
-    ///
-    /// FIXME use this or get rid of it
     globset_builder: GlobSetBuilder,
 
     /// All the rules in the configuration.
