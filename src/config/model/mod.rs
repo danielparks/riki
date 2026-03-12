@@ -46,6 +46,66 @@ impl<'src> Configuration<'src> {
         // FIXME confirm these always return sorted?
         self.globset.matches(path).last().map(|&i| &self.rules[i])
     }
+
+    /// Evaluate a request through the configuration rules.
+    ///
+    /// # Errors
+    ///
+    /// This tries to return errors as rendered responses, but if it fails it
+    /// may return an error to be rendered by the fallback.
+    pub fn evaluate(
+        &self,
+        manager: &TemplatesManager,
+        request: &axum::extract::Request,
+    ) -> actions::Result<axum::response::Response> {
+        let path = request.uri().path();
+
+        // Returns an error if `clean_path()` fails, which should only happen if
+        // the client makes a bad request.
+        let variables = match RequestVariables::new(request) {
+            Ok(variables) => variables,
+            Err(error) => {
+                // The path was invalid, so try to get templates for /. Errors
+                // in this handler get passed to the fallback renderer.
+                tracing::warn!("{error:?}");
+                if let Some(tpls_path) =
+                    self.last_matching("/").and_then(|rule| {
+                        rule.settings.templates.no_variable_path_content()
+                    })
+                {
+                    let tpls = manager.templates_for_directory(tpls_path)?;
+                    return Ok(error.render(path, &tpls));
+                }
+                return Err(error);
+            }
+        };
+
+        match (|| {
+            for rule in self.matches(&variables.clean_path()) {
+                // FIXME &variables instead of clone()
+                match rule.evaluate(manager, variables.clone()) {
+                    Err(actions::Error::NotFound) => (), // skip
+                    other => return other,
+                }
+            }
+            Err(actions::Error::NotFound)
+        })() {
+            Ok(response) => Ok(response),
+            Err(error) => {
+                // Errors in this handler get passed to the fallback renderer.
+                tracing::trace!("error returned from rules: {error:?}");
+                if let Some(rule) = self.last_matching(&variables.clean_path())
+                {
+                    let tpls = manager.templates_for_directory(
+                        rule.settings.templates.path_content(&variables),
+                    )?;
+                    Ok(error.render(path, &tpls))
+                } else {
+                    Err(error)
+                }
+            }
+        }
+    }
 }
 
 /// Build a configuration from rules
@@ -136,14 +196,14 @@ impl<'src> ConfigRule<'src> {
 
     /// Evaluate a rule, ignoring `self.matcher`.
     ///
-    /// The `matcher` should be handled externally. FIXME remove?
+    /// The `matcher` must be handled separately.
     ///
     /// # Errors
     ///
     /// Most variants of [`actions::Error`] should be returned as an HTTP
     /// response, except [`actions::Error::NotFound`], which means that this
     /// rule should be skipped and the next rule evaluated.
-    pub fn evaluate(
+    fn evaluate(
         &self,
         manager: &TemplatesManager,
         variables: RequestVariables<'_>,
@@ -152,7 +212,6 @@ impl<'src> ConfigRule<'src> {
         let context = actions::Context {
             working_path: self.settings.root.path_content(&variables).into(),
             // FIXME? might not need to load templates
-            // Error: loading templates (no dir, bad template?)
             tpls: manager.templates_for_directory(templates_path)?,
             variables,
         };

@@ -24,6 +24,7 @@ mod internal {
     use super::errors::Diagnostics;
     use super::model::{ConfigRule, Configuration};
     use super::parser2::{ContentSource, GeneratedSource, Source};
+    use crate::render::TemplatesManager;
     use ouroboros::self_referencing;
     use std::fmt;
 
@@ -108,6 +109,20 @@ mod internal {
         #[must_use]
         pub fn last_matching(&self, path: &str) -> Option<&ConfigRule<'_>> {
             self.configuration().last_matching(path)
+        }
+
+        /// Evaluate a request through the configuration rules.
+        ///
+        /// # Errors
+        ///
+        /// This tries to return errors as rendered responses, but if it fails
+        /// it may return an error to be rendered by the fallback.
+        pub fn evaluate(
+            &self,
+            manager: &TemplatesManager,
+            request: &axum::extract::Request,
+        ) -> crate::actions::Result<axum::response::Response> {
+            self.configuration().evaluate(manager, request)
         }
     }
 
