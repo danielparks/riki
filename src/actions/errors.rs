@@ -24,13 +24,19 @@ pub type Result<T = super::ActionReturn, E = Error> = result::Result<T, E>;
 /// These might be passed back to the client as an error page.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Internal server error.
-    #[error("Internal server error: {0}")]
-    Internal(#[source] anyhow::Error),
+    /// # Redirect.
+    ///
+    /// Generally this means that a non-canonical URL was requested.
+    #[error("Redirect to {0}")]
+    RedirectCanonical(String),
 
     /// Bad request error.
     #[error("Bad request: {0}")]
     BadRequest(String),
+
+    /// Permission denied error.
+    #[error("Access forbidden")]
+    Forbidden,
 
     /// Page not found error.
     ///
@@ -39,15 +45,9 @@ pub enum Error {
     #[error("Page not found")]
     NotFound,
 
-    /// Permission denied error.
-    #[error("Access forbidden")]
-    Forbidden,
-
-    /// # Redirect.
-    ///
-    /// Generally this means that a non-canonical URL was requested.
-    #[error("Redirect to {0}")]
-    RedirectCanonical(String),
+    /// Internal server error.
+    #[error("Internal server error: {0}")]
+    Internal(#[source] anyhow::Error),
 }
 
 impl From<crate::Error> for Error {
@@ -96,15 +96,12 @@ impl Error {
             .header(header::CONTENT_TYPE, "text/html; charset=UTF-8");
 
         let (builder, template_name, data) = match self {
-            Self::Internal(error) => (
-                builder.status(StatusCode::INTERNAL_SERVER_ERROR),
-                "error500",
-                hashmap! {
-                    "error" => error.to_string(),
-                    "error_full" => format!("{error:?}"),
-                    "error_debug" => format!("{error:#?}"),
-                    "req_path" => req_path.to_owned(),
-                },
+            Self::RedirectCanonical(url) => (
+                builder
+                    .status(StatusCode::MOVED_PERMANENTLY)
+                    .header(header::LOCATION, url.as_str()),
+                "redirect301",
+                hashmap! { "canonical_url" => url.clone() },
             ),
             Self::BadRequest(error) => (
                 builder.status(StatusCode::BAD_REQUEST),
@@ -114,22 +111,25 @@ impl Error {
                     "req_path" => req_path.to_owned(),
                 },
             ),
-            Self::NotFound => (
-                builder.status(StatusCode::NOT_FOUND),
-                "error404",
-                hashmap! { "req_path" => req_path.to_owned() },
-            ),
             Self::Forbidden => (
                 builder.status(StatusCode::FORBIDDEN),
                 "error403",
                 hashmap! { "req_path" => req_path.to_owned() },
             ),
-            Self::RedirectCanonical(url) => (
-                builder
-                    .status(StatusCode::MOVED_PERMANENTLY)
-                    .header(header::LOCATION, url.as_str()),
-                "redirect301",
-                hashmap! { "canonical_url" => url.clone() },
+            Self::NotFound => (
+                builder.status(StatusCode::NOT_FOUND),
+                "error404",
+                hashmap! { "req_path" => req_path.to_owned() },
+            ),
+            Self::Internal(error) => (
+                builder.status(StatusCode::INTERNAL_SERVER_ERROR),
+                "error500",
+                hashmap! {
+                    "error" => error.to_string(),
+                    "error_full" => format!("{error:?}"),
+                    "error_debug" => format!("{error:#?}"),
+                    "req_path" => req_path.to_owned(),
+                },
             ),
         };
 
