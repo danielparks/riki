@@ -94,6 +94,20 @@ impl fmt::Debug for Action<'_> {
     }
 }
 
+impl<'src> From<&'src str> for Action<'src> {
+    /// Convenience for producing actions in code.
+    fn from(string: &'src str) -> Self {
+        Self::Literal(ParsedString::from_literal(string))
+    }
+}
+
+impl From<String> for Action<'_> {
+    /// Convenience for producing actions in code.
+    fn from(string: String) -> Self {
+        Self::Literal(ParsedString::from(string))
+    }
+}
+
 impl<'src> From<Function<'src>> for Action<'src> {
     /// Convenience for using [`Function`] in code.
     ///
@@ -261,7 +275,7 @@ macro_rules! functions {
     (@count $param:ident) => { 1 };
 }
 
-functions! {
+functions! (
     context;
 
     /// Add a `'/'` to the end of the input.
@@ -331,13 +345,16 @@ functions! {
 
     /// Return an error with the passed code.
     ///
+    /// `error("404")` will return a 404 Not Found error to the client rather
+    /// than falling through to the next rule. (It generates
+    /// [`actions::Error::NotFound`] rather than [`actions::Error::Skip`].)
+    ///
     /// ```text
     /// error(str) -> content
     /// ```
-    Error(code) => {
-        // FIXME use error code; show error page.
-        Err(actions::Error::Internal(anyhow::anyhow!("{}", code.evaluate_as_string(context)?)))
-    },
+    Error(code) => Err(
+        actions::Error::from_config_error(&code.evaluate_as_string(context)?)
+    ),
 
     /// If the passed path is a file, succeed.
     ///
@@ -397,4 +414,4 @@ functions! {
         actions::render(context, file.evaluate(context)?)?
             .into()
     },
-}
+);

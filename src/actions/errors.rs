@@ -3,9 +3,9 @@
 //! Actions have their own [`Error`] type because action results usually become
 //! HTTP responses (represented by variants on the type).
 //!
-//! The [`Error::NotFound`] variant is special in that it generally means that
-//! the action should be canceled and the request should fall through to the
-//! next configuration rule.
+//! The [`Error::Skip`] variant is special; it means that the action should be
+//! canceled and the request should fall through to the next configuration rule.
+//! Usually it is used when a path isn’t found instead of [`Error::NotFound`].
 
 use axum::body::Body;
 use axum::response::Response;
@@ -24,6 +24,10 @@ pub type Result<T = super::ActionReturn, E = Error> = result::Result<T, E>;
 /// These might be passed back to the client as an error page.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// Fall through to next rule.
+    #[error("Page not found; skip rule")]
+    Skip,
+
     /// # Redirect.
     ///
     /// Generally this means that a non-canonical URL was requested.
@@ -74,7 +78,7 @@ impl From<io::Error> for Error {
     /// See [`Error::NotFound`].
     fn from(error: io::Error) -> Self {
         if is_not_found(&error) {
-            Self::NotFound
+            Self::Skip
         } else if error.kind() == ErrorKind::PermissionDenied {
             Self::Forbidden
         } else {
@@ -84,6 +88,26 @@ impl From<io::Error> for Error {
 }
 
 impl Error {
+    /// Generate an error from an `error(param)` call in the configuration.
+    #[must_use]
+    pub fn from_config_error(param: &str) -> Self {
+        match param
+            .split_once(' ')
+            .map(|(code, rest)| (code, Some(rest)))
+            .unwrap_or((param, None))
+        {
+            ("400", None) => Self::BadRequest("unknown".to_owned()),
+            ("400", Some(rest)) => Self::BadRequest(rest.to_owned()),
+            ("403", None) => Self::Forbidden,
+            ("404", None) => Self::NotFound,
+            ("500", None) => Self::Internal(anyhow::anyhow!("unknown")),
+            ("500", Some(rest)) => Self::Internal(anyhow::anyhow!("{rest}")),
+            _ => Self::Internal(anyhow::anyhow!(
+                "could not evaluate error({param:?})"
+            )),
+        }
+    }
+
     /// Render the error into a [`Response`].
     ///
     /// # Panics
@@ -116,7 +140,7 @@ impl Error {
                 "error403",
                 hashmap! { "req_path" => req_path.to_owned() },
             ),
-            Self::NotFound => (
+            Self::Skip | Self::NotFound => (
                 builder.status(StatusCode::NOT_FOUND),
                 "error404",
                 hashmap! { "req_path" => req_path.to_owned() },

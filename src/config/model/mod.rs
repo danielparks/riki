@@ -117,7 +117,7 @@ impl<'src> Configuration<'src> {
             for rule in self.matches(&variables.clean_path()) {
                 // FIXME &variables instead of clone()
                 match rule.evaluate(manager, variables.clone()) {
-                    Err(actions::Error::NotFound) => (), // skip
+                    Err(actions::Error::Skip) => (),
                     other => return other,
                 }
             }
@@ -258,9 +258,9 @@ impl<'src> ConfigRule<'src> {
                 tracing::trace!("success {}: {response:?}", self.canonical());
                 Ok(response)
             }
-            Err(actions::Error::NotFound) => {
+            Err(actions::Error::Skip) => {
                 tracing::trace!("skip {}", self.canonical());
-                Err(actions::Error::NotFound)
+                Err(actions::Error::Skip)
             }
             Err(error) => {
                 tracing::trace!("error {}: {error:?}", self.canonical());

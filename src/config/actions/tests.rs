@@ -63,8 +63,8 @@ fn canonical_clean_path_if_file() {
     let action = Action::from(canonical(if_file(parsed("$clean_path"))));
     check!(eval_action(&action, root, "/a.txt") == "OK /a.txt");
     check!(eval_action(&action, root, "/a.txt/") == "-> /a.txt");
-    check!(eval_action(&action, root, "/a") == "error NotFound");
-    check!(eval_action(&action, root, "/") == "error NotFound");
+    check!(eval_action(&action, root, "/a") == "error Skip");
+    check!(eval_action(&action, root, "/") == "error Skip");
 }
 
 #[test_log::test]
@@ -80,9 +80,9 @@ fn canonical_clean_path_index_dir() {
     )));
     check!(eval_action(&action, root, "/d/") == "OK /d/");
     check!(eval_action(&action, root, "/d") == "-> /d/");
-    check!(eval_action(&action, root, "/d/index.html") == "error NotFound");
-    check!(eval_action(&action, root, "/a") == "error NotFound");
-    check!(eval_action(&action, root, "/") == "error NotFound");
+    check!(eval_action(&action, root, "/d/index.html") == "error Skip");
+    check!(eval_action(&action, root, "/a") == "error Skip");
+    check!(eval_action(&action, root, "/") == "error Skip");
 }
 
 #[test_log::test]
@@ -136,6 +136,96 @@ fn canonical_absolute_clean_path_if_file() {
     check!(
         eval_action(&action, &root, "/a.txt/") == format!("-> {prefix}/a.txt")
     );
-    check!(eval_action(&action, &root, "/a") == "error NotFound");
-    check!(eval_action(&action, &root, "/") == "error NotFound");
+    check!(eval_action(&action, &root, "/a") == "error Skip");
+    check!(eval_action(&action, &root, "/") == "error Skip");
+}
+
+#[test_log::test]
+fn error_400() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    check!(
+        eval_action(&Action::from(error("400")), root, "/")
+            == "error BadRequest(\"unknown\")"
+    );
+    check!(
+        eval_action(&Action::from(error("400 a b c")), root, "/")
+            == "error BadRequest(\"a b c\")"
+    );
+}
+
+#[test_log::test]
+fn error_403() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    check!(
+        eval_action(&Action::from(error("403")), root, "/")
+            == "error Forbidden"
+    );
+    check!(
+        eval_action(&Action::from(error("403 invalid")), root, "/")
+            == "error Internal(could not evaluate error(\"403 invalid\"))"
+    );
+}
+
+#[test_log::test]
+fn error_404() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    check!(
+        eval_action(&Action::from(error("404")), root, "/") == "error NotFound"
+    );
+    check!(
+        eval_action(&Action::from(error("404 invalid")), root, "/")
+            == "error Internal(could not evaluate error(\"404 invalid\"))"
+    );
+}
+
+#[test_log::test]
+fn error_500() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    check!(
+        eval_action(&Action::from(error("500")), root, "/")
+            == "error Internal(unknown)"
+    );
+    check!(
+        eval_action(&Action::from(error("500 a b c")), root, "/")
+            == "error Internal(a b c)"
+    );
+}
+
+#[test_log::test]
+fn error_other() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    // Error codes that are already tested.
+    let exclude = [400, 403, 404, 500];
+
+    for i in 0..1 {
+        if exclude.contains(&i) {
+            continue;
+        }
+
+        check!(
+            eval_action(&Action::from(error(format!("{i:03}"))), root, "/")
+                == format!(
+                    "error Internal(could not evaluate error(\"{i:03}\"))"
+                )
+        );
+        check!(
+            eval_action(
+                &Action::from(error(format!("{i:03} a b c"))),
+                root,
+                "/"
+            ) == format!(
+                "error Internal(could not evaluate error(\"{i:03} a b c\"))"
+            )
+        );
+    }
 }
