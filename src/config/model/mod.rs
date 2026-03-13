@@ -63,9 +63,11 @@ impl<'src> Configuration<'src> {
     }
 
     /// Get matching rules for a path.
+    ///
+    /// This always returns rules in the order they were defined.
     #[must_use]
     pub fn matches(&self, path: &str) -> Vec<&ConfigRule<'src>> {
-        // FIXME confirm these always return sorted?
+        // globset.matches() always returns a Vec of indices sorted by value.
         self.globset
             .matches(path)
             .into_iter()
@@ -76,7 +78,7 @@ impl<'src> Configuration<'src> {
     /// Get matching rules for a path.
     #[must_use]
     pub fn last_matching(&self, path: &str) -> Option<&ConfigRule<'src>> {
-        // FIXME confirm these always return sorted?
+        // globset.matches() always returns a Vec of indices sorted by value.
         self.globset.matches(path).last().map(|&i| &self.rules[i])
     }
 
