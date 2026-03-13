@@ -1,6 +1,7 @@
 //! Test configuration parsing.
 #![cfg(test)]
 
+use super::actions::Action;
 use super::model::{ConfigSettings, Configuration};
 use super::parser2;
 use assert2::{check, let_assert};
@@ -238,7 +239,8 @@ fn config_matches_simple() {
     let_assert!([rule] = &config.matches("/foo/bar")[..]);
     check!(rule.settings.root == "/srv".into());
     check!(rule.settings.templates == "/srv/templates".into());
-    // FIXME check action
+    check!(rule.matcher.canonical() == "/**");
+    check!(let Action::Literal(_) = rule.action);
 }
 
 #[test_log::test]
