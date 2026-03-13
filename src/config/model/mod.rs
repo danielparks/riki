@@ -117,8 +117,7 @@ impl<'src> Configuration<'src> {
 
         match (|| {
             for rule in self.matches(&variables.clean_path()) {
-                // FIXME &variables instead of clone()
-                match rule.evaluate(manager, variables.clone()) {
+                match rule.evaluate(manager, &variables) {
                     Err(actions::Error::Skip) => (),
                     other => return other,
                 }
@@ -241,11 +240,11 @@ impl<'src> ConfigRule<'src> {
     fn evaluate(
         &self,
         manager: &TemplatesManager,
-        variables: RequestVariables<'_>,
+        variables: &RequestVariables<'_>,
     ) -> actions::Result<axum::response::Response> {
-        let templates_path = self.settings.templates.path_content(&variables);
+        let templates_path = self.settings.templates.path_content(variables);
         let context = actions::Context {
-            working_path: self.settings.root.path_content(&variables).into(),
+            working_path: self.settings.root.path_content(variables).into(),
             // FIXME? might not need to load templates
             tpls: manager.templates_for_directory(templates_path)?,
             variables,

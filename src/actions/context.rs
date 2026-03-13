@@ -79,6 +79,13 @@ pub trait VariableMap {
     }
 }
 
+// This allows us to use the same `RequestVariables` for multiple contexts.
+impl<V: VariableMap> VariableMap for &V {
+    fn get(&self, variable: Variable) -> Cow<'_, str> {
+        (*self).get(variable)
+    }
+}
+
 /// Static variable values (for testing).
 #[derive(Clone, Debug)]
 pub struct StaticVariables<'vars> {
@@ -204,7 +211,7 @@ impl<V: VariableMap + Default> Default for Context<V> {
 pub type StaticContext = Context<StaticVariables<'static>>;
 
 /// Convenient alias for a context with variables from a request.
-pub type RequestContext<'a> = Context<RequestVariables<'a>>;
+pub type RequestContext<'a> = Context<&'a RequestVariables<'a>>;
 
 /// Get a clean path from the request path.
 ///
