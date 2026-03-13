@@ -94,7 +94,7 @@ impl<'src> Cst<'src> {
         'src: 'a,
     {
         let end_offset = match self.nodes[id.0] {
-            Node::Rule(_, i) => usize::from(i),
+            Node::Rule(_, last_child_offset) => usize::from(last_child_offset),
             _ => 0,
         };
 
@@ -103,7 +103,8 @@ impl<'src> Cst<'src> {
             nodes: &self.nodes[id.0 + 1..id.0 + 1 + end_offset],
             spans: &self.spans[..],
             source: self.source,
-            stack: Vec::new(), // FIXME capacity from end_offset
+            // 16 is bigger than required for default configuration:
+            stack: Vec::with_capacity(16),
         }
     }
 }
@@ -117,9 +118,9 @@ pub struct CNodeIter<'a, 'src> {
 
     /// `Vec` of tuples:
     ///
-    ///   1. Index of rule in question in `self.nodes`.
+    ///   1. Rule being traversed.
     ///   2. Index after last of its descendents.
-    stack: Vec<(usize, usize)>,
+    stack: Vec<(Rule, usize)>,
 }
 
 impl<'a, 'src> Iterator for CNodeIter<'a, 'src> {
@@ -127,29 +128,14 @@ impl<'a, 'src> Iterator for CNodeIter<'a, 'src> {
 
     fn next(&mut self) -> Option<Self::Item> {
         // Check if the next node is outside the top rule on the stack.
-        if let Some((rule_index, _)) = self.stack.pop_if(|(_, finished)| {
-            assert!(
-                self.next_index <= *finished,
-                "escaped containing rule without noticing"
-            );
-            self.next_index == *finished
-        }) {
-            match self.nodes[rule_index] {
-                Node::Rule(rule, _) => {
-                    return Some(CNode::Rule(rule, RuleSide::Pop));
-                }
-                Node::Token(..) => {
-                    panic!("CNodeIter stack pointed to token instead of rule");
-                }
-            }
+        if let Some(rule) = self.pop_stack_if_finished() {
+            return Some(CNode::Rule(rule, RuleSide::Pop));
         }
 
         match self.nodes.get(self.next_index)? {
             Node::Rule(rule, i) => {
-                self.stack.push((
-                    self.next_index,
-                    usize::from(*i) + self.next_index + 1,
-                ));
+                self.stack
+                    .push((*rule, usize::from(*i) + self.next_index + 1));
                 self.next_index += 1;
                 Some(CNode::Rule(*rule, RuleSide::Push))
             }
@@ -161,6 +147,21 @@ impl<'a, 'src> Iterator for CNodeIter<'a, 'src> {
                 ))
             }
         }
+    }
+}
+
+impl<'a, 'src> CNodeIter<'a, 'src> {
+    /// If we’re at the end of the current rule, pop and return the rule.
+    fn pop_stack_if_finished(&mut self) -> Option<Rule> {
+        self.stack
+            .pop_if(|(_, finished)| {
+                assert!(
+                    self.next_index <= *finished,
+                    "escaped containing rule without noticing"
+                );
+                self.next_index == *finished
+            })
+            .map(|(rule, _)| rule)
     }
 }
 
