@@ -38,7 +38,12 @@ fn eval_action(action: &Action<'_>, root: &Path, request_path: &str) -> String {
         Err(actions::Error::RedirectCanonical(target)) => {
             format!("-> {target}")
         }
-        Err(error) => format!("error {error:?}"),
+        // The Debug implementation changes based on $RUST_BACKTRACE, etc.
+        Err(error) => format!("error {error}")
+            .split('\n')
+            .next()
+            .unwrap_or_default()
+            .to_owned(),
     }
 }
 
@@ -147,11 +152,11 @@ fn error_400() {
 
     check!(
         eval_action(&Action::from(error("400")), root, "/")
-            == "error BadRequest(\"unknown\")"
+            == "error Bad request: unknown"
     );
     check!(
         eval_action(&Action::from(error("400 a b c")), root, "/")
-            == "error BadRequest(\"a b c\")"
+            == "error Bad request: a b c"
     );
 }
 
@@ -166,7 +171,7 @@ fn error_403() {
     );
     check!(
         eval_action(&Action::from(error("403 invalid")), root, "/")
-            == "error Internal(could not evaluate error(\"403 invalid\"))"
+            == "error Internal: could not evaluate error(\"403 invalid\")"
     );
 }
 
@@ -176,11 +181,12 @@ fn error_404() {
     let root = dir.path();
 
     check!(
-        eval_action(&Action::from(error("404")), root, "/") == "error NotFound"
+        eval_action(&Action::from(error("404")), root, "/")
+            == "error Not found"
     );
     check!(
         eval_action(&Action::from(error("404 invalid")), root, "/")
-            == "error Internal(could not evaluate error(\"404 invalid\"))"
+            == "error Internal: could not evaluate error(\"404 invalid\")"
     );
 }
 
@@ -191,11 +197,11 @@ fn error_500() {
 
     check!(
         eval_action(&Action::from(error("500")), root, "/")
-            == "error Internal(unknown)"
+            == "error Internal: unknown"
     );
     check!(
         eval_action(&Action::from(error("500 a b c")), root, "/")
-            == "error Internal(a b c)"
+            == "error Internal: a b c"
     );
 }
 
@@ -215,7 +221,7 @@ fn error_other() {
         check!(
             eval_action(&Action::from(error(format!("{i:03}"))), root, "/")
                 == format!(
-                    "error Internal(could not evaluate error(\"{i:03}\"))"
+                    "error Internal: could not evaluate error(\"{i:03}\")"
                 )
         );
         check!(
@@ -224,7 +230,7 @@ fn error_other() {
                 root,
                 "/"
             ) == format!(
-                "error Internal(could not evaluate error(\"{i:03} a b c\"))"
+                "error Internal: could not evaluate error(\"{i:03} a b c\")"
             )
         );
     }

@@ -22,16 +22,22 @@ pub type Result<T = super::ActionReturn, E = Error> = result::Result<T, E>;
 /// An error from an action.
 ///
 /// These might be passed back to the client as an error page.
+///
+/// The [`std::fmt::Display`] implementation is not shown to the user; it is
+/// used in tests for ease of comparison. (The [`std::fmt::Debug`]
+/// implementation for [`Self::Internal`] includes a backtrace depending on the
+/// environment variables `RUST_BACKTRACE` and `RUST_LIB_BACKTRACE` — see
+/// [`anyhow::Error::backtrace()`].)
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// Fall through to next rule.
-    #[error("Page not found; skip rule")]
+    #[error("Skip")]
     Skip,
 
     /// # Redirect.
     ///
     /// Generally this means that a non-canonical URL was requested.
-    #[error("Redirect to {0}")]
+    #[error("Canonical: {0}")]
     RedirectCanonical(String),
 
     /// Bad request error.
@@ -39,18 +45,18 @@ pub enum Error {
     BadRequest(String),
 
     /// Permission denied error.
-    #[error("Access forbidden")]
+    #[error("Forbidden")]
     Forbidden,
 
     /// Page not found error.
     ///
     /// This generally means that the request will fall through to the next
     /// layer, e.g. if it was looking for a static file it will look for a page.
-    #[error("Page not found")]
+    #[error("Not found")]
     NotFound,
 
     /// Internal server error.
-    #[error("Internal server error: {0}")]
+    #[error("Internal: {0}")]
     Internal(#[source] anyhow::Error),
 }
 

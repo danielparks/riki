@@ -24,7 +24,7 @@ path = "src/cli/main.rs"
 
 [dependencies]
 ambassador = "0.5.0"
-anyhow = "1.0.95"
+anyhow = "1.0.102"
 axum = "0.8.8"
 base64 = "0.22.1"
 bstr = "1.12.0"
