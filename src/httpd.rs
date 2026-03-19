@@ -12,7 +12,9 @@ use crate::render::{TemplatesManager, base_templates};
 use axum::extract::State;
 use axum::response::Response;
 use std::fmt;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
+use tokio::net;
 use tower_http::trace::TraceLayer;
 
 // TODO better error handling
@@ -29,21 +31,43 @@ use tower_http::trace::TraceLayer;
 /// May return an error if the server could not start correctly.
 pub async fn serve<S: Source + Sync, A: AsRef<str>>(
     configuration: SourcedConfiguration<S>,
-    address: A,
+    bind: A,
 ) -> crate::Result<()> {
-    let address = address.as_ref();
+    let bind = bind.as_ref();
+    for address in net::lookup_host(bind).await? {
+        tracing::info!(
+            "Listening on {address} (access: http://{})",
+            access_address(address)
+        );
+    }
 
     axum::serve(
-        tokio::net::TcpListener::bind(address)
-            .await
-            .map_err(|error| crate::Error::BindError {
-                source: error,
-                address: address.to_owned(),
-            })?,
+        tokio::net::TcpListener::bind(bind).await.map_err(|error| {
+            crate::Error::BindError { source: error, address: bind.to_owned() }
+        })?,
         init_app(configuration),
     )
     .await
     .map_err(crate::Error::Io)
+}
+
+/// Get the IP:PORT to access the web server on.
+///
+/// This returns its parameter unless it’s passed an unspecified IP (e.g.,
+/// 0.0.0.0), in which case it changes the IP to localhost.
+const fn access_address(address: SocketAddr) -> SocketAddr {
+    if address.ip().is_unspecified() {
+        SocketAddr::new(
+            if address.ip().is_ipv4() {
+                IpAddr::V4(Ipv4Addr::LOCALHOST)
+            } else {
+                IpAddr::V6(Ipv6Addr::LOCALHOST)
+            },
+            address.port(),
+        )
+    } else {
+        address
+    }
 }
 
 /// Initialize the Axum app to be served.
