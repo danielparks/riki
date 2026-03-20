@@ -15,7 +15,7 @@ const SIMPLE_CONF: &str = r#"root="/srv/website"
 "#;
 
 fn benchmarks(c: &mut Criterion) {
-    let mut group = c.benchmark_group("mime_parse");
+    let mut group = c.benchmark_group("config_parse");
     group
         .noise_threshold(0.10)
         .significance_level(0.01)
@@ -25,11 +25,11 @@ fn benchmarks(c: &mut Criterion) {
         .measurement_time(Duration::from_millis(100));
 
     group.throughput(Throughput::Bytes(COMPLEX_CONF.len().try_into().unwrap()));
-    group.bench_with_input("complex_conf", COMPLEX_CONF, |b, input| {
+    group.bench_with_input("complex", COMPLEX_CONF, |b, input| {
         b.iter(|| parse(input).unwrap());
     });
     group.throughput(Throughput::Bytes(SIMPLE_CONF.len().try_into().unwrap()));
-    group.bench_with_input("simple_conf", SIMPLE_CONF, |b, input| {
+    group.bench_with_input("simple", SIMPLE_CONF, |b, input| {
         b.iter(|| parse(input).unwrap());
     });
     group.throughput(Throughput::Bytes(0));
