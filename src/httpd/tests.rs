@@ -1,43 +1,14 @@
 //! Test HTTP server.
 #![cfg(test)]
 
+use super::init_test_app;
 use crate::misc::HeaderMapHelper;
-use crate::rules;
 use assert2::assert;
 use axum::body::Body;
 use axum::extract::Request;
 use http::{StatusCode, header};
 use std::fs;
-use std::path::{Path, PathBuf};
-use temp_dir::TempDir;
 use tower::ServiceExt;
-
-/// Initialize the test app.
-fn init_app() -> (TempDir, PathBuf, axum::Router) {
-    let temp_dir = TempDir::new().unwrap();
-    let root = temp_dir.path().to_owned();
-    let root_str = root.to_str().expect("TempDir path not UTF-8").to_owned();
-    let templates_str = format!("{root_str}/templates");
-    let templates: &Path = templates_str.as_ref();
-
-    fs::create_dir(templates).unwrap();
-    fs::write(templates.join("default.hbs"), "{{{ body }}}").unwrap();
-    fs::write(templates.join("error400.hbs"), "{{{ error }}}").unwrap();
-    fs::write(templates.join("error403.hbs"), "403").unwrap();
-    fs::write(templates.join("error404.hbs"), "404").unwrap();
-    fs::write(templates.join("error500.hbs"), "{{{ error_debug }}}").unwrap();
-    fs::write(
-        templates.join("redirect301.hbs"),
-        "redirect {{ canonical_url }}",
-    )
-    .unwrap();
-
-    (
-        temp_dir,
-        root,
-        super::init_app(rules::default_rules(root_str, templates_str).unwrap()),
-    )
-}
 
 /// A summarized response that can be compared for easy assertions.
 #[derive(Debug, Eq, PartialEq)]
@@ -152,7 +123,7 @@ async fn get(app: &axum::Router, uri: &str) -> Response {
 #[tokio::test]
 #[test_log::test]
 async fn test_directory_page_get() {
-    let (_dir, root, app) = init_app();
+    let (_dir, root, app) = init_test_app();
 
     fs::write(root.join("index.md"), "index").unwrap();
     fs::create_dir(root.join("dir")).unwrap();
@@ -183,7 +154,7 @@ async fn test_directory_page_get() {
 #[tokio::test]
 #[test_log::test]
 async fn test_file_page_get() {
-    let (_dir, root, app) = init_app();
+    let (_dir, root, app) = init_test_app();
 
     fs::write(root.join("page.md"), "PAGE").unwrap();
 
@@ -201,7 +172,7 @@ async fn test_file_page_get() {
 #[tokio::test]
 #[test_log::test]
 async fn test_static_file_get() {
-    let (_dir, root, app) = init_app();
+    let (_dir, root, app) = init_test_app();
 
     fs::write(root.join("a.txt"), "AAA").unwrap();
 
@@ -217,7 +188,7 @@ async fn test_static_file_get() {
 #[tokio::test]
 #[test_log::test]
 async fn test_static_file_get_no_extension() {
-    let (_dir, root, app) = init_app();
+    let (_dir, root, app) = init_test_app();
 
     fs::write(root.join("a"), "AAA").unwrap();
 
@@ -227,7 +198,7 @@ async fn test_static_file_get_no_extension() {
 #[tokio::test]
 #[test_log::test]
 async fn test_static_directory_get() {
-    let (_dir, root, app) = init_app();
+    let (_dir, root, app) = init_test_app();
 
     fs::create_dir(root.join("b")).unwrap();
     fs::write(root.join("b/index.html"), "BBB").unwrap();
@@ -241,7 +212,7 @@ async fn test_static_directory_get() {
 #[tokio::test]
 #[test_log::test]
 async fn test_static_index_with_page() {
-    let (_dir, root, app) = init_app();
+    let (_dir, root, app) = init_test_app();
 
     fs::create_dir(root.join("static")).unwrap();
     fs::write(root.join("static/index.html"), "STATIC").unwrap();
@@ -265,7 +236,7 @@ async fn test_static_index_with_page() {
 #[tokio::test]
 #[test_log::test]
 async fn test_static_hides_page() {
-    let (_dir, root, app) = init_app();
+    let (_dir, root, app) = init_test_app();
 
     fs::write(root.join("index.html"), "STATIC").unwrap();
     fs::write(root.join("index.md"), "PAGE").unwrap();
@@ -278,7 +249,7 @@ async fn test_static_hides_page() {
 #[tokio::test]
 #[test_log::test]
 async fn test_not_found_get() {
-    let (_dir, _root, app) = init_app();
+    let (_dir, _root, app) = init_test_app();
 
     assert!(
         Response::html(StatusCode::NOT_FOUND, "404")
@@ -289,7 +260,7 @@ async fn test_not_found_get() {
 #[tokio::test]
 #[test_log::test]
 async fn test_bad_request_no_slash() {
-    let (_dir, _root, app) = init_app();
+    let (_dir, _root, app) = init_test_app();
 
     assert!(
         Response::html(
@@ -302,7 +273,7 @@ async fn test_bad_request_no_slash() {
 #[tokio::test]
 #[test_log::test]
 async fn test_bad_request_dot_dot() {
-    let (_dir, _root, app) = init_app();
+    let (_dir, _root, app) = init_test_app();
 
     assert!(
         Response::html(
@@ -318,7 +289,7 @@ async fn test_bad_request_dot_dot() {
 async fn test_forbidden_page_get() {
     use std::os::unix::fs::PermissionsExt;
 
-    let (_dir, root, app) = init_app();
+    let (_dir, root, app) = init_test_app();
 
     let path = root.join("forbidden.md");
     fs::write(&path, "forbidden").unwrap();
@@ -340,7 +311,7 @@ async fn test_forbidden_page_get() {
 async fn test_forbidden_static_get() {
     use std::os::unix::fs::PermissionsExt;
 
-    let (_dir, root, app) = init_app();
+    let (_dir, root, app) = init_test_app();
 
     let path = root.join("forbidden.txt");
     fs::write(&path, "forbidden").unwrap();

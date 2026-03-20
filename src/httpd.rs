@@ -12,8 +12,11 @@ use crate::render::{TemplatesManager, base_templates};
 use axum::extract::State;
 use axum::response::Response;
 use std::fmt;
+use std::fs;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use temp_dir::TempDir;
 use tokio::net;
 use tower_http::trace::TraceLayer;
 
@@ -137,4 +140,38 @@ impl<S: Source + Sync + fmt::Debug> fmt::Debug for Router<S> {
             .field("manager", &self.manager)
             .finish()
     }
+}
+
+/// Initialize a test app.
+///
+/// This uses the default rules and had trivial templates suitable for testing.
+///
+/// # Panics
+///
+/// Panics if [`TempDir::new()`] creates a non UTF-8 path, or if we can’t create
+/// the templates.
+pub fn init_test_app() -> (TempDir, PathBuf, axum::Router) {
+    let temp_dir = TempDir::new().unwrap();
+    let root = temp_dir.path().to_owned();
+    let root_str = root.to_str().expect("TempDir path not UTF-8").to_owned();
+    let templates_str = format!("{root_str}/templates");
+    let templates: &Path = templates_str.as_ref();
+
+    fs::create_dir(templates).unwrap();
+    fs::write(templates.join("default.hbs"), "{{{ body }}}").unwrap();
+    fs::write(templates.join("error400.hbs"), "{{{ error }}}").unwrap();
+    fs::write(templates.join("error403.hbs"), "403").unwrap();
+    fs::write(templates.join("error404.hbs"), "404").unwrap();
+    fs::write(templates.join("error500.hbs"), "{{{ error_debug }}}").unwrap();
+    fs::write(
+        templates.join("redirect301.hbs"),
+        "redirect {{ canonical_url }}",
+    )
+    .unwrap();
+
+    (
+        temp_dir,
+        root,
+        init_app(crate::rules::default_rules(root_str, templates_str).unwrap()),
+    )
 }
