@@ -11,15 +11,15 @@ pub use clap::Parser;
 #[derive(Debug, clap::Parser)]
 #[command(version, about)]
 pub struct Params {
-    /// Whether or not to output in color
+    /// Whether or not to output in color.
     #[arg(long, default_value = "auto", value_name = "WHEN")]
     pub color: ColorChoice,
 
-    /// Verbosity (may be repeated up to three times)
+    /// Verbosity (may be repeated up to three times).
     #[arg(short, long, action = clap::ArgAction::Count)]
     pub verbose: u8,
 
-    /// The command to run
+    /// The command to run.
     #[clap(subcommand)]
     pub command: Command,
 }
@@ -27,7 +27,7 @@ pub struct Params {
 /// The command to run.
 #[derive(Debug, clap::Subcommand)]
 pub enum Command {
-    /// Render a page file
+    /// Render a page file.
     Render {
         /// Path to template directory.
         ///
@@ -36,71 +36,71 @@ pub enum Command {
         #[arg(short, long="templates", default_value = None)]
         templates_dir: Option<PathBuf>,
 
-        /// Path to page file to render
+        /// Path to page file to render.
         page_path: PathBuf,
     },
-    /// Get metadata from a page file
+    /// Get metadata from a page file.
     Info {
-        /// Path to page file
+        /// Path to page file.
         page_path: PathBuf,
     },
-    /// Start web server
+    /// Start web server.
     Serve {
-        /// What to serve
+        /// What to serve.
         #[command(flatten)]
         kind: ServeKind,
 
-        /// Address to bind to
+        /// Address to bind to.
         #[arg(long, default_value = "localhost:8000")]
         bind: String,
     },
-    /// Dump configuration file in various formats
+    /// Dump configuration file in various formats.
     Dump {
-        /// Configuration file to dump
+        /// Configuration file to dump.
         path: PathBuf,
 
-        /// What to dump
+        /// What to dump.
         #[command(flatten)]
         kind: DumpKind,
     },
     /// Dump default rules.
     DumpDefault {
-        /// Web root directory
+        /// Web root directory.
         #[arg(name = "root_path", default_value = ".")]
         root: String,
 
-        /// Templates directory
+        /// Templates directory.
         #[arg(name = "templates_path", default_value = "templates")]
         templates: String,
     },
 }
 
-/// What to serve
+/// What to serve.
 #[derive(clap::Args, Debug)]
 #[group(required = false, multiple = false)]
 pub struct ServeKind {
-    /// Default rules in directory
+    /// Default rules in directory.
     #[arg(short, long, name = "root_path")]
     pub default: Option<String>,
 
-    /// Use rules from a configuration file
+    /// Use rules from a configuration file.
     #[arg(name = "conf_path")]
     pub configuration: Option<PathBuf>,
 }
 
-/// What to dump
+/// What to dump.
 #[derive(clap::Args, Debug)]
 #[group(required = false, multiple = false)]
 pub struct DumpKind {
-    /// Output tokens
+    /// Output tokens.
     #[arg(short, long)]
     pub tokens: bool,
 
-    /// Output CST
+    /// Output CST.
     #[arg(short, long)]
     pub cst: bool,
 
-    /// Output canonical rules
+    /// Output canonical rules.
     #[arg(short, long)]
     pub rules: bool,
 }
@@ -142,17 +142,17 @@ impl Params {
     }
 }
 
-/// Whether or not to output in color
+/// Whether or not to output in color.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, clap::ValueEnum)]
 pub enum ColorChoice {
-    /// Output in color when running in a terminal that supports it
+    /// Output in color when running in a terminal that supports it.
     #[default]
     Auto,
 
-    /// Always output in color
+    /// Always output in color.
     Always,
 
-    /// Never output in color
+    /// Never output in color.
     Never,
 }
 

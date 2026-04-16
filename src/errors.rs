@@ -11,25 +11,25 @@ use thiserror::Error; // doesn’t conflict with the enum.
 /// Error type for the crate.
 #[derive(Debug, Error)]
 pub enum Error {
-    /// Failed to bind to socket
+    /// Failed to bind to socket.
     #[error("Error binding to socket on {address:?}: {source}")]
     BindError {
-        /// The original error
+        /// The original error.
         source: io::Error,
 
-        /// The address the socket could not bind on
+        /// The address the socket could not bind on.
         address: String,
     },
 
-    /// IO error
+    /// IO error.
     #[error("Error in IO: {0}")]
     Io(#[from] io::Error),
 
-    /// An important directory is missing
+    /// An important directory is missing.
     #[error("Missing directory {0:?}")]
     MissingDirectory(PathBuf),
 
-    /// Failed to render page body in a template with [`handlebars`]
+    /// Failed to render page body in a template with [`handlebars`].
     #[error("{source}")]
     TemplateRender {
         /// The original error.
@@ -41,29 +41,29 @@ pub enum Error {
         page_source: Box<Source>,
     },
 
-    /// Failed to parse page metadata
+    /// Failed to parse page metadata.
     #[error("Error parsing page metadata: {0}")]
     ParsePageMetadata(#[from] serde_yaml::Error),
 
-    /// Failed to read page file
+    /// Failed to read page file.
     #[error("Error reading page file {path:?}: {source}")]
     ReadPageFile {
-        /// The original error
+        /// The original error.
         source: io::Error,
 
-        /// The page file
+        /// The page file.
         path: PathBuf,
     },
 
-    /// Failed to compile template with [`handlebars`]
+    /// Failed to compile template with [`handlebars`].
     #[error(transparent)]
     TemplateCompile(#[from] handlebars::TemplateError),
 
-    /// File was too large to load into memory
+    /// File was too large to load into memory.
     #[error("File ({0:?}) was too large to load into memory")]
     FileTooLarge(PathBuf),
 
-    /// Could not convert binary data to UTF-8
+    /// Could not convert binary data to UTF-8.
     #[error("Found non-UTF-8 data")]
     NotUtf8(#[from] NotUtf8),
 }

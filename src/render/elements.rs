@@ -77,7 +77,7 @@ pub struct Context<'a, 'vars, V: VariableMap> {
 /// Result of a custom element handler.
 pub type Result<T, E = ElementError> = result::Result<T, E>;
 
-/// Handle an `a-email` element
+/// Handle an `a-email` element.
 ///
 /// # Errors
 ///
@@ -148,7 +148,7 @@ pub fn handle_a_email_source(node: &NodeRef) {
     }
 }
 
-/// Handle a `last-modified` element
+/// Handle a `last-modified` element.
 ///
 /// # Errors
 ///

@@ -22,7 +22,7 @@ fn parse(source: &str) -> Result<Configuration<'_>, String> {
     })
 }
 
-/// Convenience function to easily compare parse results
+/// Convenience function to easily compare parse results.
 fn canonicalize(source: &str) -> Result<String, String> {
     parse(source).map(|config| {
         let mut settings = &ConfigSettings::default();

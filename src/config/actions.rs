@@ -1,4 +1,4 @@
-//! Perform actions defined in configuration file
+//! Perform actions defined in configuration file.
 
 mod tests;
 
@@ -11,7 +11,7 @@ use crate::actions::{
 use pastey::paste;
 use std::fmt;
 
-/// An action to take in response to an HTTP request
+/// An action to take in response to an HTTP request.
 ///
 /// The two `evaluate...()` methods have different return types and differ in
 /// how they deal with literals.
@@ -23,15 +23,15 @@ use std::fmt;
 ///     string that starts with a slash.
 #[derive(Clone, derive_more::From)]
 pub enum Action<'src> {
-    /// Function call
+    /// Function call.
     Function(Box<Spanned<'src, Function<'src>>>),
 
-    /// Literal (a string value)
+    /// Literal (a string value).
     Literal(ParsedString<'src>),
 }
 
 impl Action<'_> {
-    /// Return the canonical representation of this action
+    /// Return the canonical representation of this action.
     #[must_use]
     pub fn canonical(&self) -> String {
         match self {
@@ -65,7 +65,7 @@ impl Action<'_> {
     /// Evaluate the action for a request as a string.
     ///
     /// This will evaluate literals are as strings. A literal that starts with a
-    // variable might evaluate to a string that starts with a slash.
+    /// variable might evaluate to a string that starts with a slash.
     ///
     /// # Errors
     ///

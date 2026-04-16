@@ -1,4 +1,4 @@
-//! Manage templates
+//! Manage templates.
 
 use crate::embeds;
 use crate::errors::{Error, Result};

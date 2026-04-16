@@ -76,13 +76,13 @@ impl<'src> ContextStack<'src> {
 pub struct MatcherStack<'src>(pub Vec<Matcher<'src>>);
 
 impl<'src> MatcherStack<'src> {
-    /// Get a new, empty matcher stack
+    /// Get a new, empty matcher stack.
     #[must_use]
     pub const fn empty() -> Self {
         Self(Vec::new())
     }
 
-    /// Create a matcher stack from a slice of bare glob strings
+    /// Create a matcher stack from a slice of bare glob strings.
     #[must_use]
     pub fn from_glob_strs<I: IntoIterator<Item = &'src str>>(globs: I) -> Self {
         Self(
@@ -94,13 +94,13 @@ impl<'src> MatcherStack<'src> {
         )
     }
 
-    /// Get the spans for each matcher
+    /// Get the spans for each matcher.
     #[must_use]
     pub fn spans(&self) -> Vec<&'src str> {
         self.0.iter().map(Matcher::span).collect()
     }
 
-    /// Get the matcher stack as a glob
+    /// Get the matcher stack as a glob.
     ///
     /// This does not necessarily include every condition in the matcher.
     /// FIXME: allow other conditions; evaluate them.
@@ -121,7 +121,7 @@ impl<'src> MatcherStack<'src> {
             })
     }
 
-    /// Get the matcher stack as a glob string
+    /// Get the matcher stack as a glob string.
     ///
     /// This does not necessarily include every condition in the matcher.
     ///
@@ -198,7 +198,7 @@ impl<'src> MatcherStack<'src> {
         full_glob
     }
 
-    /// Return the canonical representation of this matcher
+    /// Return the canonical representation of this matcher.
     #[must_use]
     pub fn canonical(&self) -> String {
         self.as_glob_str()
@@ -218,7 +218,7 @@ impl<'src> MatcherStack<'src> {
         Ok(self.as_glob()?.compile_matcher().is_match(path))
     }
 
-    /// Return an iterator over the matchers
+    /// Return an iterator over the matchers.
     pub fn iter(&self) -> slice::Iter<'_, Matcher<'src>> {
         self.0.iter()
     }
@@ -241,13 +241,13 @@ where
 pub struct Matcher<'src>(ParsedGlob<'src>);
 
 impl<'src> Matcher<'src> {
-    /// Return the canonical representation of this matcher
+    /// Return the canonical representation of this matcher.
     #[must_use]
     pub fn canonical(&self) -> String {
         self.0.canonical()
     }
 
-    /// Get the matcher as a glob string
+    /// Get the matcher as a glob string.
     ///
     /// This does not necessarily include every condition in the matcher.
     /// FIXME: allow other conditions; evaluate them.
@@ -283,12 +283,12 @@ impl<'src> TryFrom<StringToken<'src>> for actions::Action<'src> {
 /// Parameters to a function call.
 pub type Parameters<'src> = Vec<actions::Action<'src>>;
 
-/// A reference to an identifier in the config file
+/// A reference to an identifier in the config file.
 #[derive(Clone, Debug)]
 pub struct Identifier<'src>(pub &'src str);
 
 impl Identifier<'_> {
-    /// Return the canonical representation of this identifier
+    /// Return the canonical representation of this identifier.
     #[must_use]
     pub fn canonical(&self) -> String {
         self.0.to_owned()
@@ -307,18 +307,18 @@ impl<'src> TryFrom<StringToken<'src>> for Identifier<'src> {
     }
 }
 
-/// The type of a string
+/// The type of a string.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StringType {
-    /// Identifier
+    /// Identifier.
     Identifier,
-    /// Bare path
+    /// Bare path.
     Path,
-    /// Bare glob
+    /// Bare glob.
     BareGlob,
-    /// Single quoted string
+    /// Single quoted string.
     QuotedSingle,
-    /// Double quoted string
+    /// Double quoted string.
     QuotedDouble,
 }
 
@@ -360,13 +360,13 @@ impl From<StringType> for TokenType {
     }
 }
 
-/// A reference to a string (string, identifier, path, or glob) in the source
+/// A reference to a string (string, identifier, path, or glob) in the source.
 #[derive(Clone, Debug)]
 pub struct StringToken<'src> {
-    /// The type of string
+    /// The type of string.
     pub string_type: StringType,
 
-    /// The slice of the source representing this string
+    /// The slice of the source representing this string.
     pub src: &'src str,
 }
 
@@ -520,7 +520,7 @@ impl<'src, T> Spanned<'src, T> {
     }
 }
 
-/// A span of the source
+/// A span of the source.
 #[derive(Clone, Debug)]
 pub enum Span<'src> {
     /// A single slice of the source string.

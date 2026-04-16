@@ -37,7 +37,7 @@ use axum::response::Response;
 use std::borrow::Cow;
 use std::fmt;
 
-/// Return from any action
+/// Return from any action.
 #[derive(Delegate, derive_more::From)]
 #[delegate(Return)]
 pub enum ActionReturn {

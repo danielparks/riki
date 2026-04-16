@@ -89,13 +89,13 @@ impl<V: VariableMap> VariableMap for &V {
 /// Static variable values (for testing).
 #[derive(Clone, Debug)]
 pub struct StaticVariables<'vars> {
-    /// Raw request path
+    /// Raw request path.
     pub request_path: &'vars str,
 
-    /// Request verb
+    /// Request verb.
     pub verb: &'vars str,
 
-    /// Request host
+    /// Request host.
     pub host: &'vars str,
 }
 

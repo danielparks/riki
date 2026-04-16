@@ -1,4 +1,4 @@
-//! Build script
+//! Build script.
 //!
 //! Generate code for parser.
 

@@ -16,17 +16,17 @@ use tendril::StrTendril;
 /// Response body content (possibly associated with a path).
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct ContentReturn {
-    /// The body of the response
+    /// The body of the response.
     pub body: Content,
 
-    /// The content type of the response body
+    /// The content type of the response body.
     pub content_type: MediaType,
 
-    /// The status of the response
+    /// The status of the response.
     #[serde(with = "StatusSerde")]
     pub status: Status,
 
-    /// The original source of the response
+    /// The original source of the response.
     pub source: Source,
 
     /// Other metadata that may be useful to renderers.
@@ -160,10 +160,10 @@ impl From<ContentReturn> for Result {
 #[derive(Clone, Debug, Serialize, derive_more::From)]
 #[serde(untagged)]
 pub enum Content {
-    /// UTF-8 content
+    /// UTF-8 content.
     String(String),
 
-    /// Binary content
+    /// Binary content.
     Bytes(Vec<u8>),
 }
 

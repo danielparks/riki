@@ -1,4 +1,4 @@
-//! Handle configuration files
+//! Handle configuration files.
 
 pub mod actions;
 pub mod errors;

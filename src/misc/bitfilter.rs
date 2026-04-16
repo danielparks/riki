@@ -18,7 +18,7 @@
 use std::error;
 use std::fmt;
 
-/// The bit filter
+/// The bit filter.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct BitFilter(pub u128);
 
@@ -258,7 +258,7 @@ impl BitFilter {
         Ok(self)
     }
 
-    /// match if a byte matches the filter
+    /// Match if a byte matches the filter.
     ///
     /// ```
     /// use riki::misc::bitfilter::BitFilter;
@@ -275,7 +275,7 @@ impl BitFilter {
         b <= 127 && self.0 & (1 << b) != 0
     }
 
-    /// match if a char matches the filter
+    /// Match if a char matches the filter.
     ///
     /// ```
     /// use riki::misc::bitfilter::BitFilter;
@@ -292,7 +292,7 @@ impl BitFilter {
         c <= 127 as char && self.match_byte(c as u8)
     }
 
-    /// match if a char matches the filter, or isn’t ASCII
+    /// Match if a char matches the filter, or isn’t ASCII.
     ///
     /// ```
     /// use riki::misc::bitfilter::BitFilter;
@@ -318,7 +318,7 @@ pub enum Error {
         /// The index of the invalid byte.
         index: usize,
     },
-    /// Invalid range: start is greater than end
+    /// Invalid range: start is greater than end.
     InvalidRange {
         /// The index of the start of the invalid range.
         index: usize,

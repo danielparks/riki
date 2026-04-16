@@ -6,7 +6,7 @@ use logos::{Lexer, Logos};
 /// A diagnostic indicating an error or warning in the configuration file.
 pub type Diagnostic = codespan_reporting::diagnostic::Diagnostic<()>;
 
-/// A range of indices in the source
+/// A range of indices in the source.
 pub type Span = core::ops::Range<usize>;
 
 /// An error encountered by the lexer.
@@ -33,30 +33,30 @@ impl LexerError {
 /// A token returned by the tokenizer.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum TokenType {
-    /// End of file
+    /// End of file.
     EOF,
 
-    /// Left brace
+    /// Left brace.
     LBrace,
 
-    /// Right brace
+    /// Right brace.
     RBrace,
 
-    /// Left parenthesis
+    /// Left parenthesis.
     LParen,
 
-    /// Right parenthesis
+    /// Right parenthesis.
     ///
     /// Only returned by the [`ParameterTokenType`] lexer.
     RParen,
 
-    /// Comma
+    /// Comma.
     ///
     /// Used as a separator in function parameter lists. Only returned by
     /// the [`ParameterTokenType`] lexer.
     Comma,
 
-    /// Equals sign
+    /// Equals sign.
     ///
     /// Appears between a variable and the value being set.
     Equal,
@@ -70,16 +70,16 @@ pub enum TokenType {
     /// A glob or path literal.
     BareGlob,
 
-    /// A double quoted string
+    /// A double quoted string.
     QuotedDouble,
 
-    /// A single quoted string
+    /// A single quoted string.
     QuotedSingle,
 
-    /// At least one newline
+    /// At least one newline.
     Newline,
 
-    /// An error encountered by the lexer
+    /// An error encountered by the lexer.
     Error,
 }
 
@@ -103,40 +103,40 @@ pub const PATH_CHAR_RANGE: &str = "[-%+./0-9:@A-Z_a-z|~]";
 #[logos(skip(r"[ \t]+"))]
 #[logos(skip(r"\\\r?\n"))] // continuation: '\' + '\n'
 pub enum OuterTokenType {
-    /// End of file
+    /// End of file.
     EOF,
 
-    /// Left brace
+    /// Left brace.
     ///
     /// Starts a context block.
     #[token("{")]
     LBrace,
 
-    /// Right brace
+    /// Right brace.
     ///
     /// Ends a context block.
     #[token("}")]
     RBrace,
 
-    /// Left parenthesis
+    /// Left parenthesis.
     ///
     /// Starts a function parameter list. Switches to the inner
     /// [`ParameterTokenType`] lexer.
     #[token("(", lex_parameters)]
     Parameters(Vec<(ParameterTokenType, Span)>),
 
-    /// Right parenthesis
+    /// Right parenthesis.
     ///
     /// Only returned by the [`ParameterTokenType`] lexer.
     RParen,
 
-    /// Comma
+    /// Comma.
     ///
     /// Used as a separator in function parameter lists. Only returned by
     /// the [`ParameterTokenType`] lexer.
     Comma,
 
-    /// Equals sign
+    /// Equals sign.
     ///
     /// Appears between a variable and the value being set.
     #[token("=")]
@@ -184,19 +184,19 @@ pub enum OuterTokenType {
     #[regex(r#"[{}](?&glob_ending_char)+"#)]
     BareGlob,
 
-    /// A double quoted string
+    /// A double quoted string.
     #[regex(r#""([\t\n\r[:^cntrl:]--"]|\\[\n\t[:^cntrl:]]|\\\r\n)*""#)]
     QuotedDouble,
 
-    /// A single quoted string
+    /// A single quoted string.
     #[regex(r"'([\t\n\r[:^cntrl:]--']|\\[\n\t[:^cntrl:]]|\\\r\n)*'")]
     QuotedSingle,
 
-    /// At least one newline
+    /// At least one newline.
     #[regex(r"[\n\r]+")]
     Newline,
 
-    /// An error encountered by the lexer
+    /// An error encountered by the lexer.
     Error,
 }
 
@@ -215,22 +215,22 @@ pub enum OuterTokenType {
 #[logos(skip(r"[ \t\n]+"))] // Skip newlines too
 #[logos(skip(r"\\\r?\n"))] // continuation: '\' + '\n'
 pub enum ParameterTokenType {
-    /// End of file
+    /// End of file.
     EOF,
 
-    /// Right parenthesis
+    /// Right parenthesis.
     ///
     /// Starts a function parameter list.
     #[token("(")]
     LParen,
 
-    /// Left parenthesis
+    /// Left parenthesis.
     ///
     /// Ends a function parameter list.
     #[token(")")]
     RParen,
 
-    /// Comma
+    /// Comma.
     ///
     /// Separator in function parameter lists.
     #[token(",")]
@@ -244,15 +244,15 @@ pub enum ParameterTokenType {
     #[regex(r"((?&path_char)|(?&variable)|(?&escape))+", priority = 10)]
     Path,
 
-    /// A double quoted string
+    /// A double quoted string.
     #[regex(r#""([\t\n\r[:^cntrl:]--"]|\\[\n\t[:^cntrl:]]|\\\r\n)*""#)]
     QuotedDouble,
 
-    /// A single quoted string
+    /// A single quoted string.
     #[regex(r"'([\t\n\r[:^cntrl:]--']|\\[\n\t[:^cntrl:]]|\\\r\n)*'")]
     QuotedSingle,
 
-    /// An error encountered by the lexer
+    /// An error encountered by the lexer.
     Error,
 }
 
@@ -289,7 +289,7 @@ fn lex_parameters(
     Ok(tokens)
 }
 
-/// Tokenize
+/// Tokenize.
 #[expect(clippy::allow_attributes, reason = "rust-clippy issue #13358")]
 #[allow(clippy::enum_glob_use, reason = "readability")]
 pub fn tokenize(
@@ -343,7 +343,7 @@ pub fn tokenize(
     out
 }
 
-/// Validate a glob matching a URL path
+/// Validate a glob matching a URL path.
 ///
 /// URL characters ([RFC 3986 §2.2] and [§2.3]):
 ///
@@ -364,9 +364,9 @@ pub fn tokenize(
 /// There is also the special escape character, "%" ([§2.1]).
 ///
 /// Glob characters (from [globset][globset#syntax]) already covered above:
-/// `?*[],!`
+/// `?*[],!`.
 ///
-/// Glob characters not covered above: `{}\`
+/// Glob characters not covered above: `{}\`.
 ///
 /// [RFC 3986 §2.2]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.2
 /// [§2.3]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.3

@@ -83,7 +83,7 @@ pub fn init_app<S: Source + Sync>(
         .layer(TraceLayer::new_for_http())
 }
 
-/// Handle all GET requests
+/// Handle all GET requests.
 async fn get_handler<S: Source + Sync>(
     State(router): State<Arc<Router<S>>>,
     request: axum::extract::Request,
@@ -99,12 +99,12 @@ async fn get_handler<S: Source + Sync>(
         })
 }
 
-/// Route requests to the right actions
+/// Route requests to the right actions.
 pub struct Router<S: Source + Sync + 'static> {
-    /// Configured rules
+    /// Configured rules.
     config: SourcedConfiguration<S>,
 
-    /// Manage template registries
+    /// Manage template registries.
     manager: TemplatesManager,
 }
 

@@ -1,4 +1,4 @@
-//! Handle strings of various types in the configuration
+//! Handle strings of various types in the configuration.
 
 use crate::actions::{Variable, VariableMap};
 use crate::config::errors::{ParseError, ParseResult, SpannedErrors};
@@ -9,7 +9,7 @@ use std::borrow::{Borrow, Cow};
 use std::ops::Range;
 use std::slice;
 
-/// A string that’s been parsed to expand escapes and for easy interpolation
+/// A string that’s been parsed to expand escapes and for easy interpolation.
 ///
 /// This can be used as a regular string, or a path. There are a few special
 /// methods for paths ([`path_content()`][Self::path_content()],
@@ -191,7 +191,7 @@ impl<'src> ParsedString<'src> {
         &self.variables
     }
 
-    /// Split on interpolated variables
+    /// Split on interpolated variables.
     ///
     /// The iterator yields `(&'src str, Option<&'_ Interpolation<'src>>)`.
     #[must_use]
@@ -204,7 +204,7 @@ impl<'src> ParsedString<'src> {
         }
     }
 
-    /// Return the canonical representation of this value
+    /// Return the canonical representation of this value.
     ///
     /// # Panics
     ///
@@ -444,9 +444,9 @@ impl<'cow, 'src> Iterator for VariableSplitIter<'cow, 'src> {
 /// Part of a string returned by [`ParsedString::split_on_variables()`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StringPart<'cow, 'src> {
-    /// A fixed string
+    /// A fixed string.
     Fixed(&'cow str),
-    /// An interpolated variable
+    /// An interpolated variable.
     Variable(&'cow Interpolation<'src>),
 }
 
@@ -538,15 +538,15 @@ impl<'src> TryFrom<(&'src str, Range<usize>)> for Interpolation<'src> {
 #[derive(Logos, Debug, PartialEq, Eq, Clone)]
 #[logos(subpattern identifier_char = r"[a-zA-Z0-9_]")]
 pub enum StringLexToken {
-    /// Variable interpolation in brackets
+    /// Variable interpolation in brackets.
     #[regex(r"\$\{(?&identifier_char)+\}")]
     BracketsVariable,
 
-    /// Variable interpolation without brackets
+    /// Variable interpolation without brackets.
     #[regex(r"\$(?&identifier_char)+")]
     Variable,
 
-    /// Dollar not part of variable
+    /// Dollar not part of variable.
     #[token("$")]
     BadDollar,
 
@@ -554,25 +554,25 @@ pub enum StringLexToken {
     #[regex(r"\\[^nrt]")]
     LiteralEscape,
 
-    /// Newline escape
+    /// Newline escape.
     #[token(r"\n")]
     NewlineEscape,
 
-    /// Carriage return escape
+    /// Carriage return escape.
     #[token(r"\r")]
     CarriageReturnEscape,
 
-    /// Tab escape
+    /// Tab escape.
     #[token(r"\t")]
     TabEscape,
 
-    /// Newline escape
+    /// Newline escape.
     ///
     /// Should only match at the very end of the string.
     #[token(r"\", priority = 10)]
     TrailingEscape,
 
-    /// Other string content
+    /// Other string content.
     #[regex(r"[^$\\]")]
     Content,
 }
@@ -602,7 +602,7 @@ mod tests {
         ParsedString::from_string_content(s, StringType::QuotedDouble)
     }
 
-    /// Test variables
+    /// Test variables.
     const VARS: StaticVariables = StaticVariables {
         request_path: "/abc/",
         verb: "GET",

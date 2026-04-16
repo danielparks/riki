@@ -1,4 +1,4 @@
-//! Errors related to the second pass parsing
+//! Errors related to the second pass parsing.
 
 use super::lexer::{Diagnostic, TokenType};
 use super::parser2::{Source, Span, StringType};
@@ -30,11 +30,11 @@ pub enum ParseError<'src> {
     #[error("expected a string literal, got a function call")]
     ExpectedLiteralNotFunction,
 
-    /// Error creating a glob
+    /// Error creating a glob.
     #[error("invalid matcher: {0}")]
     BuildingGlob(globset::Error),
 
-    /// Error creating a globset
+    /// Error creating a globset.
     #[error("invalid matchers: {0}")]
     BuildingGlobSet(globset::Error),
 
@@ -73,24 +73,24 @@ pub enum ParseError<'src> {
         "found {actual} parameters in call to {name}(); expected {expected}"
     )]
     WrongFunctionParameterCount {
-        /// Name of the function
+        /// Name of the function.
         name: &'src str,
-        /// Expected number of parameters
+        /// Expected number of parameters.
         expected: usize,
-        /// Actual number of parameters
+        /// Actual number of parameters.
         actual: usize,
     },
 }
 
 impl<'src> ParseError<'src> {
-    /// Add a `span` to get a [`SpannedError`]
+    /// Add a `span` to get a [`SpannedError`].
     #[must_use]
     #[inline]
     pub fn spanned<S: Into<Span<'src>>>(self, span: S) -> SpannedError<'src> {
         SpannedError { spans: vec![span.into()], error: self }
     }
 
-    /// Add `spans` to get a [`SpannedError`]
+    /// Add `spans` to get a [`SpannedError`].
     #[must_use]
     #[inline]
     pub fn with_spans<S: Into<Span<'src>>>(
@@ -110,7 +110,7 @@ impl<'src> ParseError<'src> {
         SpannedError { spans: Vec::new(), error: self }
     }
 
-    /// Add a `span` and convert to [`SpannedErrors`]
+    /// Add a `span` and convert to [`SpannedErrors`].
     #[must_use]
     #[inline]
     pub fn spanned_s<S: Into<Span<'src>>>(
@@ -130,10 +130,10 @@ pub type SpannedErrors<'src> = Vec<SpannedError<'src>>;
 /// A sequence of [`Diagnostic`]s with their [`Source`].
 #[derive(Clone, Debug)]
 pub struct Diagnostics<S: Source> {
-    /// The diagnostics
+    /// The diagnostics.
     pub diagnostics: Vec<Diagnostic>,
 
-    /// The source
+    /// The source.
     pub source: S,
 }
 
@@ -235,7 +235,7 @@ impl<'src> SpannedError<'src> {
         diagnostic
     }
 
-    /// Convert this into [`SpannedErrors`]
+    /// Convert this into [`SpannedErrors`].
     #[must_use]
     #[inline]
     pub fn plural(self) -> SpannedErrors<'src> {

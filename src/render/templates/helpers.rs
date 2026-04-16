@@ -1,4 +1,4 @@
-//! Template helpers
+//! Template helpers.
 
 use handlebars::{
     Context, Handlebars, Helper, HelperDef, HelperResult, Output,

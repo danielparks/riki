@@ -176,7 +176,7 @@ fn inner_default_rules_for_settings(
     config.build()
 }
 
-/// Create a [`ConfigRule`]
+/// Create a [`ConfigRule`].
 fn rule<'src, A: Into<Action<'src>>>(
     glob: &'src str,
     settings: &ConfigSettings<'src>,
