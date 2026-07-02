@@ -99,7 +99,7 @@ pub const PATH_CHAR_RANGE: &str = "[-%+./0-9:@A-Z_a-z|~]";
 #[logos(subpattern identifier_char = "[a-zA-Z0-9_]")]
 #[logos(subpattern path_char = "[-%+./0-9:@A-Z_a-z|~]")]
 #[logos(subpattern variable = r"\$(\{(?&identifier_char)+\}|(?&identifier_char)+)")]
-#[logos(skip(r"#[^\r\n]*"))] // For comment right before EOF
+#[logos(skip(r"#[^\r\n]*", allow_greedy = true))] // For comment right before EOF
 #[logos(skip(r"[ \t]+"))]
 #[logos(skip(r"\\\r?\n"))] // continuation: '\' + '\n'
 pub enum OuterTokenType {
@@ -211,7 +211,7 @@ pub enum OuterTokenType {
 #[logos(subpattern identifier_char = "[a-zA-Z0-9_]")]
 #[logos(subpattern path_char = "[-%+./0-9:@A-Z_a-z|~]")]
 #[logos(subpattern variable = r"\$(\{(?&identifier_char)+\}|(?&identifier_char)+)")]
-#[logos(skip(r"#[^\r\n]*"))] // For comment right before EOF
+#[logos(skip(r"#[^\r\n]*", allow_greedy = true))] // For comment right before EOF
 #[logos(skip(r"[ \t\n]+"))] // Skip newlines too
 #[logos(skip(r"\\\r?\n"))] // continuation: '\' + '\n'
 pub enum ParameterTokenType {
