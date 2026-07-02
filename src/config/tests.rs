@@ -4,7 +4,7 @@
 use super::actions::Action;
 use super::model::{ConfigSettings, Configuration};
 use super::parser2;
-use assert2::{check, let_assert};
+use assert2::{assert, check};
 
 /// Parse configuration file and return errors in easy to compare format.
 fn parse(source: &str) -> Result<Configuration<'_>, String> {
@@ -236,7 +236,7 @@ fn config_matches_simple() {
         / $clean_path",
     )
     .unwrap();
-    let_assert!([rule] = &config.matches("/foo/bar")[..]);
+    assert!(let [rule] = &config.matches("/foo/bar")[..]);
     check!(rule.settings.root == "/srv".into());
     check!(rule.settings.templates == "/srv/templates".into());
     check!(rule.matcher.canonical() == "/**");
@@ -252,7 +252,7 @@ fn relative_settings() {
         / $clean_path",
     )
     .unwrap();
-    let_assert!([rule] = &config.matches("/")[..]);
+    assert!(let [rule] = &config.matches("/")[..]);
     check!(rule.settings.root == "/srv/web".into());
     check!(rule.settings.templates == "/srv/tmpl".into());
 }
@@ -266,7 +266,7 @@ fn absolute_settings() {
         / $clean_path",
     )
     .unwrap();
-    let_assert!([rule] = &config.matches("/")[..]);
+    assert!(let [rule] = &config.matches("/")[..]);
     check!(rule.settings.root == "/www".into());
     check!(rule.settings.templates == "/tpl".into());
 }

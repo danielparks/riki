@@ -594,7 +594,7 @@ mod tests {
     use crate::actions::StaticVariables;
     use crate::config::errors::SpannedError;
     use crate::config::model::ParseError;
-    use assert2::{check, let_assert};
+    use assert2::{assert, check};
     use std::path::PathBuf;
 
     /// Create a [`ParsedString`] easily.
@@ -611,25 +611,25 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_literal_escape() {
-        let_assert!(Ok(s) = parse_str(r"\z"));
+        assert!(let Ok(s) = parse_str(r"\z"));
         check!(s.content(&VARS) == "z");
 
-        let_assert!(Ok(s) = parse_str(r"a\zb"));
+        assert!(let Ok(s) = parse_str(r"a\zb"));
         check!(s.content(&VARS) == "azb");
     }
 
     #[test_log::test]
     fn parse_string_newline_escape() {
-        let_assert!(Ok(s) = parse_str(r"\n"));
+        assert!(let Ok(s) = parse_str(r"\n"));
         check!(s.content(&VARS) == "\n");
 
-        let_assert!(Ok(s) = parse_str(r"a\nb"));
+        assert!(let Ok(s) = parse_str(r"a\nb"));
         check!(s.content(&VARS) == "a\nb");
     }
 
     #[test_log::test]
     fn parse_string_just_var_no_braces() {
-        let_assert!(Ok(s) = parse_str("$clean_path"));
+        assert!(let Ok(s) = parse_str("$clean_path"));
         check!(s.starts_with_variable());
         check!(s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -640,7 +640,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_just_var_braces() {
-        let_assert!(Ok(s) = parse_str("${clean_path}"));
+        assert!(let Ok(s) = parse_str("${clean_path}"));
         check!(s.starts_with_variable());
         check!(s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -651,7 +651,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_no_braces() {
-        let_assert!(Ok(s) = parse_str("$clean_path/foo"));
+        assert!(let Ok(s) = parse_str("$clean_path/foo"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -663,7 +663,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_braces() {
-        let_assert!(Ok(s) = parse_str("${clean_path}bar"));
+        assert!(let Ok(s) = parse_str("${clean_path}bar"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -675,7 +675,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_no_braces_c() {
-        let_assert!(Ok(s) = parse_str("$clean_path/"));
+        assert!(let Ok(s) = parse_str("$clean_path/"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -687,7 +687,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_braces_c() {
-        let_assert!(Ok(s) = parse_str("${clean_path}/"));
+        assert!(let Ok(s) = parse_str("${clean_path}/"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -699,7 +699,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_no_braces_escape() {
-        let_assert!(Ok(s) = parse_str(r"$clean_path\z"));
+        assert!(let Ok(s) = parse_str(r"$clean_path\z"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -711,7 +711,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_no_braces_escape2() {
-        let_assert!(Ok(s) = parse_str(r"$clean_path\z\z"));
+        assert!(let Ok(s) = parse_str(r"$clean_path\z\z"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -723,7 +723,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_braces_escape() {
-        let_assert!(Ok(s) = parse_str(r"${clean_path}\z"));
+        assert!(let Ok(s) = parse_str(r"${clean_path}\z"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -735,7 +735,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_start_var_braces_escape2() {
-        let_assert!(Ok(s) = parse_str(r"${clean_path}\z\z"));
+        assert!(let Ok(s) = parse_str(r"${clean_path}\z\z"));
         check!(s.starts_with_variable());
         check!(!s.ends_with_variable());
         check!(s.starts_with('/') == None);
@@ -747,7 +747,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_end_var_no_braces() {
-        let_assert!(Ok(s) = parse_str("/foo/$clean_path"));
+        assert!(let Ok(s) = parse_str("/foo/$clean_path"));
         check!(!s.starts_with_variable());
         check!(s.ends_with_variable());
         check!(s.starts_with('/') == Some(true));
@@ -759,7 +759,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_end_var_braces() {
-        let_assert!(Ok(s) = parse_str("/foo/${clean_path}"));
+        assert!(let Ok(s) = parse_str("/foo/${clean_path}"));
         check!(!s.starts_with_variable());
         check!(s.ends_with_variable());
         check!(s.starts_with('/') == Some(true));
@@ -771,7 +771,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_invalid_variable() {
-        let_assert!(Err(errors) = parse_str("$foo"));
+        assert!(let Err(errors) = parse_str("$foo"));
         check!(
             let [
                 SpannedError { error: ParseError::UnknownVariable("foo"), ..}
@@ -781,7 +781,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_bad_dollar() {
-        let_assert!(Err(errors) = parse_str("$"));
+        assert!(let Err(errors) = parse_str("$"));
         check!(
             let [
                 SpannedError { error: ParseError::StringBadDollar(_), ..}
@@ -791,7 +791,7 @@ mod tests {
 
     #[test_log::test]
     fn parse_string_trailing_backslash() {
-        let_assert!(Err(errors) = parse_str("a\\"));
+        assert!(let Err(errors) = parse_str("a\\"));
         check!(
             let [
                 SpannedError {

@@ -2,7 +2,7 @@
 
 use crate::actions::{ContentReturn, MediaType, Source};
 use crate::render::{base_templates, templates_from_directory};
-use assert2::{check, let_assert};
+use assert2::{assert, check};
 use jiff::Timestamp;
 use std::fs;
 use std::path::Path;
@@ -186,6 +186,6 @@ fn strftime_helper() {
     )
     .unwrap();
     let result = tpls.render("broken", &ret);
-    let_assert!(Err(error) = result.as_ref().map(AS_STR));
+    assert!(let Err(error) = result.as_ref().map(AS_STR));
     check!(error.to_string().contains(" strftime helper: "));
 }

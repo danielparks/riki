@@ -67,7 +67,7 @@ url = "2.5.7"
 lelwel = "0.9.1"
 
 [dev-dependencies]
-assert2 = "0.3.16"
+assert2 = "0.4.0"
 criterion = { version = "0.8.1", features = ["async_tokio"] }
 test-log = { version = "0.2.19", default-features = false, features = ["color", "trace"] }
 
