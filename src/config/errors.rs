@@ -183,7 +183,7 @@ impl<S: Source> Diagnostics<S> {
         );
 
         for diag in &self.diagnostics {
-            term::emit(out, &config, &file, diag).unwrap();
+            term::emit_to_write_style(out, &config, &file, diag).unwrap();
         }
     }
 }
