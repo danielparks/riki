@@ -93,7 +93,7 @@ async fn cli(params: &Params) -> anyhow::Result<ExitCode> {
         },
         Command::Dump { path, kind } => {
             let source = FileSource::read(path)?;
-            if kind.tokens {
+            let result = if kind.tokens {
                 config::dump_config_tokens(&source)
             } else if kind.cst {
                 config::parser::parse_to_cst(&source)
@@ -101,11 +101,11 @@ async fn cli(params: &Params) -> anyhow::Result<ExitCode> {
             } else {
                 config::model::Configuration::parse(&source)
                     .map(|rules| println!("{}", rules.canonical()))
-            }
-            .map_err(|diagnostics| {
+            };
+            if let Err(diagnostics) = result {
                 Diagnostics::from_diagnostics(diagnostics, source)
                     .check(&params.err_stream())
-            });
+            }
         }
         Command::DumpDefault { root, templates } => {
             unwrap_diagnostics_result(
