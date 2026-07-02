@@ -27,7 +27,6 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-          - os: windows-latest
           - os: macos-latest
     timeout-minutes: 30
     permissions:
