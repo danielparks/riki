@@ -5,7 +5,7 @@ use crate::actions::Metadata;
 use dom_query::Document;
 use pulldown_cmark::{Options, Parser};
 use regex::Regex;
-use serde_yaml::Error as YamlError;
+use serde_saphyr::Error as YamlError;
 use std::collections::HashMap;
 use std::result;
 use std::sync::LazyLock;
@@ -67,7 +67,7 @@ pub fn metadata_from_string(raw: &str) -> result::Result<Metadata, YamlError> {
     if raw.trim().is_empty() {
         Ok(HashMap::new())
     } else {
-        serde_yaml::from_str(raw)
+        serde_saphyr::from_str(raw)
     }
 }
 

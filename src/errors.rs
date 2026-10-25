@@ -43,7 +43,7 @@ pub enum Error {
 
     /// Failed to parse page metadata.
     #[error("Error parsing page metadata: {0}")]
-    ParsePageMetadata(#[from] serde_yaml::Error),
+    ParsePageMetadata(#[from] serde_saphyr::Error),
 
     /// Failed to read page file.
     #[error("Error reading page file {path:?}: {source}")]

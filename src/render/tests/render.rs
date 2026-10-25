@@ -74,16 +74,14 @@ fn empty_page_with_empty_string_title() {
 
 #[test_log::test]
 fn empty_page_with_blank_title() {
-    assert!(let Ok(ret) = parse_md("title:\n---"));
-    check!(get_metadata(&ret, "title") == Some(""));
-    check!(ret.body.as_str() == "");
+    assert!(let Err(Error::Internal(error)) = parse_md("title:\n---"));
+    check!(let Ok(crate::Error::ParsePageMetadata(_)) = error.downcast());
 }
 
 #[test_log::test]
 fn empty_page_with_tilde_title() {
-    assert!(let Ok(ret) = parse_md("title: ~\n---"));
-    check!(get_metadata(&ret, "title") == Some("~"));
-    check!(ret.body.as_str() == "");
+    assert!(let Err(Error::Internal(error)) = parse_md("title: ~\n---"));
+    check!(let Ok(crate::Error::ParsePageMetadata(_)) = error.downcast());
 }
 
 #[test_log::test]
