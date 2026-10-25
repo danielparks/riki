@@ -51,7 +51,7 @@ async fn cli(params: &Params) -> anyhow::Result<ExitCode> {
         Command::Info { page_path } => {
             print!(
                 "{}",
-                serde_yaml::to_string(
+                serde_saphyr::to_string(
                     &actions::markdown_to_html(
                         &StaticContext::default(),
                         RealFileReturn::from_file_system(page_path)?,
